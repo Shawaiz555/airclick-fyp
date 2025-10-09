@@ -6,12 +6,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Hand, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext'; // Make sure this path is correct
+import Image from 'next/image';
 
 export default function UserSidebar({ isOpen, onToggle }) {
    const [isMobile, setIsMobile] = useState(false);
    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
    const pathname = usePathname();
-   
+
    // Add fallback for logout
    const { logout } = useAuth() || {};
 
@@ -58,8 +59,8 @@ export default function UserSidebar({ isOpen, onToggle }) {
 
    const handleLogout = () => {
       if (!logout) {
-        alert('Logout functionality is not available.');
-        return;
+         alert('Logout functionality is not available.');
+         return;
       }
       if (confirm('Are you sure you want to log out?')) {
          logout();
@@ -68,7 +69,7 @@ export default function UserSidebar({ isOpen, onToggle }) {
 
    if (isMobile) {
       return (
-         <div className="fixed top-4 right-4 z-50 w-full flex justify-end">
+         <div className="fixed top-2 right-4 z-50 w-full flex justify-end">
             <button
                onClick={onToggle}
                className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105"
@@ -87,15 +88,8 @@ export default function UserSidebar({ isOpen, onToggle }) {
                <nav className="relative p-0 h-full overflow-auto">
                   <div className="p-6 border-b border-cyan-500/20 ">
                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                           <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                              </svg>
-                           </div>
-                           <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                              AirClick
-                           </h1>
+                        <div className="flex items-center justify-center space-x-3">
+                           <Image src="/assets/logos/airClickLogo.png" width={900} height={900} alt='Logo' className='w-36 h-36 rounded-full' />
                         </div>
 
                         <button
@@ -151,16 +145,9 @@ export default function UserSidebar({ isOpen, onToggle }) {
 
    return (
       <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/90 backdrop-blur-lg border-r overflow-y-auto thin-scrollbar border-cyan-500/20 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
-         <div className="p-6 py-10 border-b border-cyan-500/20">
-            <div className="flex items-center space-x-3">
-               <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-               </div>
-               <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                  AirClick
-               </h1>
+         <div className="p-4 py-7 border-b border-cyan-500/20">
+            <div className="flex items-center justify-center space-x-3">
+               <Image src="/assets/logos/airClickLogo.png" width={900} height={900} alt='Logo' className='w-36 h-36 rounded-full' />
             </div>
          </div>
 

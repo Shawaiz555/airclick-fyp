@@ -122,6 +122,7 @@ export default function AdminOverview() {
     }
   ];
 
+
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
@@ -205,13 +206,28 @@ export default function AdminOverview() {
                         contentStyle={{
                           backgroundColor: 'rgba(30, 41, 59, 0.8)',
                           borderColor: 'rgba(16, 185, 129, 0.3)',
-                          borderRadius: '0.5rem'
+                          borderRadius: '0.5rem',
+                          boxShadow: 'none',
                         }}
                         labelStyle={{ color: '#10b981' }}
+                        itemStyle={{ color: '#d1fae5' }}
+                        wrapperStyle={{
+                          backgroundColor: 'transparent',
+                          boxShadow: 'none',
+                          border: 'none',
+                        }}
+                        cursor={{ fill: 'rgba(255,255,255,0)' }} // 🔥 makes hover background fully invisible without replacing bars
                       />
-                      <Bar dataKey="accuracy" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Bar
+                        dataKey="accuracy"
+                        fill="#10b981"
+                        radius={[4, 4, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
+
+
+
                 </div>
               </div>
             </div>
@@ -229,8 +245,8 @@ export default function AdminOverview() {
                   <div
                     key={log.id}
                     className={`p-4 rounded-lg border-l-4 ${log.type === 'warning'
-                        ? 'bg-amber-500/10 border-amber-500/50'
-                        : 'bg-cyan-500/10 border-cyan-500/50'
+                      ? 'bg-amber-500/10 border-amber-500/50'
+                      : 'bg-cyan-500/10 border-cyan-500/50'
                       }`}
                   >
                     <div className="flex justify-between">
