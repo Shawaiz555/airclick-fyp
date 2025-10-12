@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import ProtectedRoute from '@/app/components/ProtectedRoute';
+import ProtectedRoute from '../../components/ProtectedRoute';
 
 export default function CustomGestureManagement() {
   const [isRecordingModalOpen, setIsRecordingModalOpen] = useState(false);
