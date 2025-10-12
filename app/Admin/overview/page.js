@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 // import AdminSidebar from '../../components/AdminSidebar';
 import dynamic from 'next/dynamic';
-import ProtectedRoute from '@/app/components/ProtectedRoute';
+import ProtectedRoute from '../../components/ProtectedRoute';
 
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
 const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });

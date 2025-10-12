@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import AdminSidebar from '../../components/AdminSidebar';
-import ProtectedRoute from '@/app/components/ProtectedRoute';
+import ProtectedRoute from '../../components/ProtectedRoute';
 
 export default function UserManagement() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
