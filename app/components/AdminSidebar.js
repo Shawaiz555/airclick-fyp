@@ -83,10 +83,10 @@ export default function AdminSidebar({ isOpen, onToggle }) {
           className={`fixed bg-gray-900/95 inset-0 z-40 transition-opacity duration-300 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         >
           <nav className="relative p-0 h-full overflow-auto">
-            <div className="p-6 border-b border-cyan-500/20">
+            <div className="p-4 border-b border-cyan-500/20">
               <div className="flex items-center justify-between">
-                <div className="flex items-center justify-center space-x-3">
-                  <Image src="/assets/logos/airClickLogo.png" width={900} height={900} alt='Logo' className='w-36 h-36 rounded-full' />
+                <div className="flex items-center justify-center space-x-2">
+                  <Image src="/assets/logos/airClickLogo.png" width={900} height={900} alt='Logo' className='w-40 h-42 rounded-full' />
                 </div>
 
                 <button
@@ -142,9 +142,9 @@ export default function AdminSidebar({ isOpen, onToggle }) {
 
   return (
     <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/90 backdrop-blur-lg border-r overflow-y-auto thin-scrollbar border-cyan-500/20 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
-      <div className="p-6 py-10 border-b border-cyan-500/20">
+      <div className="p-4 py-10 border-b border-cyan-500/20">
         <div className="flex items-center justify-center space-x-3">
-          <Image src="/assets/logos/airClickLogo.png" width={900} height={900} alt='Logo' className='w-36 h-36 rounded-full' />
+          <Image src="/assets/logos/airClickLogo.png" width={900} height={900} alt='Logo' className='w-40 h-42 rounded-full' />
         </div>
       </div>
 
