@@ -261,7 +261,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
         clearTimeout(reconnectTimerRef.current);
       }
     };
-  }, []);
+  },);
 
   /**
    * Recording timer - updates every second when recording
