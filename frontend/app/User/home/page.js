@@ -22,7 +22,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import ProtectedRoute from '@/frontend/app/components/ProtectedRoute';
+import ProtectedRoute from '../../components/ProtectedRoute';
 
 export default function Home() {
   // ==================== STATE MANAGEMENT ====================
@@ -218,15 +218,15 @@ export default function Home() {
 
     // Example: Detect fist (all fingertips close to palm)
     const isFist = landmarks[8].y > landmarks[6].y &&
-                   landmarks[12].y > landmarks[10].y &&
-                   landmarks[16].y > landmarks[14].y &&
-                   landmarks[20].y > landmarks[18].y;
+      landmarks[12].y > landmarks[10].y &&
+      landmarks[16].y > landmarks[14].y &&
+      landmarks[20].y > landmarks[18].y;
 
     // Example: Detect open hand (all fingers extended)
     const isOpenHand = landmarks[8].y < landmarks[6].y &&
-                       landmarks[12].y < landmarks[10].y &&
-                       landmarks[16].y < landmarks[14].y &&
-                       landmarks[20].y < landmarks[18].y;
+      landmarks[12].y < landmarks[10].y &&
+      landmarks[16].y < landmarks[14].y &&
+      landmarks[20].y < landmarks[18].y;
 
     // Determine detected gesture
     let gesture = null;
@@ -368,9 +368,8 @@ export default function Home() {
 
               {/* Camera status indicator */}
               <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-xs flex items-center">
-                <div className={`w-2 h-2 rounded-full mr-2 ${
-                  isCameraActive && isConnected ? 'bg-red-500 animate-pulse' : 'bg-green-500'
-                }`}></div>
+                <div className={`w-2 h-2 rounded-full mr-2 ${isCameraActive && isConnected ? 'bg-red-500 animate-pulse' : 'bg-green-500'
+                  }`}></div>
                 <span>
                   {isCameraActive
                     ? (isConnected ? 'Camera: Active' : 'Camera: Connecting...')
@@ -383,11 +382,10 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
               <button
                 onClick={toggleCamera}
-                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 ${
-                  isCameraActive
+                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 ${isCameraActive
                     ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600'
                     : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
-                } focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50`}
+                  } focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50`}
               >
                 {isCameraActive ? (
                   <>
@@ -409,11 +407,10 @@ export default function Home() {
 
               <button
                 onClick={() => setHybridMode(!hybridMode)}
-                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 ${
-                  hybridMode
+                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 ${hybridMode
                     ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700'
                     : 'bg-gray-700 hover:bg-gray-600'
-                }`}
+                  }`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
