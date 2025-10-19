@@ -7,7 +7,7 @@
  * landmarks and saves them to the FastAPI backend database.
  *
  * Flow:
- * 1. Connect to Python WebSocket (ws://localhost:8765)
+ * 1. Connect to FastAPI WebSocket (ws://localhost:8000/ws/hand-tracking)
  * 2. Receive hand landmarks in real-time
  * 3. Draw hand skeleton on canvas
  * 4. Record frames when user clicks "Start Recording"
@@ -155,7 +155,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
     }
 
     try {
-      const ws = new WebSocket('ws://localhost:8765');
+      const ws = new WebSocket('ws://localhost:8000/ws/hand-tracking');
 
       /**
        * WebSocket Event: Connection Opened
@@ -165,7 +165,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
           ws.close();
           return;
         }
-        console.log('✓ Connected to Python MediaPipe backend');
+        console.log('✓ Connected to FastAPI backend (MediaPipe service)');
         setIsConnected(true);
         setValidationMessage('');
         wsRef.current = ws;

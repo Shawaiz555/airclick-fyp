@@ -179,15 +179,15 @@ export default function HandTrackingClient({
    */
   const connectWebSocket = () => {
     try {
-      // Create WebSocket connection to Python backend
-      const ws = new WebSocket('ws://localhost:8765');
+      // Create WebSocket connection to FastAPI backend
+      const ws = new WebSocket('ws://localhost:8000/ws/hand-tracking');
 
       /**
        * WebSocket Event: Connection Opened
        * Triggered when connection is successfully established
        */
       ws.onopen = () => {
-        console.log('✓ Connected to MediaPipe backend');
+        console.log('✓ Connected to FastAPI backend (MediaPipe service)');
         setIsConnected(true);
         setError('');
         wsRef.current = ws;
@@ -264,7 +264,7 @@ export default function HandTrackingClient({
        */
       ws.onerror = (err) => {
         console.error('WebSocket error:', err);
-        setError('Connection error. Is Python backend running?');
+        setError('Connection error. Is the backend server running?');
       };
 
       /**
@@ -273,7 +273,7 @@ export default function HandTrackingClient({
        * Automatically attempts to reconnect after 3 seconds
        */
       ws.onclose = () => {
-        console.log('✗ Disconnected from MediaPipe backend');
+        console.log('✗ Disconnected from FastAPI backend');
         setIsConnected(false);
         setHandDetected(false);
         wsRef.current = null;
@@ -287,7 +287,7 @@ export default function HandTrackingClient({
 
     } catch (err) {
       console.error('Failed to connect:', err);
-      setError('Failed to connect. Is Python backend running?');
+      setError('Failed to connect. Is the backend server running?');
     }
   };
 
@@ -361,9 +361,9 @@ export default function HandTrackingClient({
         <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
           {error}
           <div className="mt-2 text-xs text-red-400">
-            Make sure Python backend is running:
+            Make sure the backend server is running:
             <code className="block mt-1 bg-black/30 p-2 rounded">
-              python backend_mediapipe/hand_tracking_service.py
+              cd backend && uvicorn app.main:app --reload
             </code>
           </div>
         </div>
@@ -382,7 +382,7 @@ export default function HandTrackingClient({
         <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-2 rounded-lg text-xs">
           <div>Resolution: 640x480</div>
           <div>FPS: ~30</div>
-          <div>Backend: Python + MediaPipe</div>
+          <div>Backend: FastAPI + MediaPipe</div>
         </div>
       </div>
 
@@ -390,13 +390,13 @@ export default function HandTrackingClient({
       {!isConnected && (
         <div className="mt-4 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
           <h3 className="text-cyan-400 font-semibold mb-2">
-            🚀 Start Python Backend
+            🚀 Start Backend Server
           </h3>
           <ol className="text-sm text-cyan-300 space-y-1 list-decimal list-inside">
             <li>Open terminal in project folder</li>
-            <li>Run: <code className="bg-black/30 px-2 py-1 rounded">cd backend_mediapipe</code></li>
+            <li>Run: <code className="bg-black/30 px-2 py-1 rounded">cd backend</code></li>
             <li>Run: <code className="bg-black/30 px-2 py-1 rounded">pip install -r requirements.txt</code></li>
-            <li>Run: <code className="bg-black/30 px-2 py-1 rounded">python hand_tracking_service.py</code></li>
+            <li>Run: <code className="bg-black/30 px-2 py-1 rounded">uvicorn app.main:app --reload</code></li>
           </ol>
         </div>
       )}

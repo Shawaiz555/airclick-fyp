@@ -7,7 +7,7 @@
  * hand skeleton overlay and detects gestures in real-time.
  *
  * Flow:
- * 1. Connect to Python MediaPipe WebSocket (ws://localhost:8765)
+ * 1. Connect to FastAPI MediaPipe WebSocket (ws://localhost:8000/ws/hand-tracking)
  * 2. Display camera feed with hand skeleton
  * 3. Detect and display recognized gestures
  * 4. Show test result (success/failure)
@@ -68,8 +68,8 @@ export default function GestureTester({ onClose, onTestComplete }) {
       wsRef.current.close();
     }
 
-    // Create new WebSocket connection to Python backend
-    const ws = new WebSocket('ws://localhost:8765');
+    // Create new WebSocket connection to FastAPI backend
+    const ws = new WebSocket('ws://localhost:8000/ws/hand-tracking');
 
     // Connection opened successfully
     ws.onopen = () => {

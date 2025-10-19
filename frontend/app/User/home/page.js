@@ -9,7 +9,7 @@
  * 4. Control hybrid mode and application context
  *
  * Flow:
- * - Connect to Python MediaPipe backend (ws://localhost:8765)
+ * - Connect to FastAPI MediaPipe backend (ws://localhost:8000/ws/hand-tracking)
  * - Receive hand tracking data in real-time
  * - Display hand skeleton on canvas
  * - Show gesture detection feedback
@@ -80,12 +80,12 @@ export default function Home() {
       wsRef.current.close();
     }
 
-    // Create new WebSocket connection to Python backend
-    const ws = new WebSocket('ws://localhost:8765');
+    // Create new WebSocket connection to FastAPI backend
+    const ws = new WebSocket('ws://localhost:8000/ws/hand-tracking');
 
     // Connection opened successfully
     ws.onopen = () => {
-      console.log('WebSocket connected to Python MediaPipe backend');
+      console.log('WebSocket connected to FastAPI backend (MediaPipe service)');
       setIsConnected(true);
       setIsProcessing(false);
       wsRef.current = ws;
