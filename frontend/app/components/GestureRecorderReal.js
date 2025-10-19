@@ -19,7 +19,34 @@
 
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+/**
+ * MediaPipe Hand Connections - defines hand skeleton structure
+ * Each array defines connections between landmark points
+ */
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],           // Thumb
+  [0, 5], [5, 6], [6, 7], [7, 8],           // Index finger
+  [0, 9], [9, 10], [10, 11], [11, 12],      // Middle finger
+  [0, 13], [13, 14], [14, 15], [15, 16],    // Ring finger
+  [0, 17], [17, 18], [18, 19], [19, 20],    // Pinky finger
+  [5, 9], [9, 13], [13, 17]                 // Palm connections
+];
+
+/**
+ * List of actions that can be assigned to gestures
+ */
+const ACTIONS = [
+  { id: 'play-pause', name: 'Play/Pause Media' },
+  { id: 'volume-up', name: 'Volume Up' },
+  { id: 'volume-down', name: 'Volume Down' },
+  { id: 'next-track', name: 'Next Track' },
+  { id: 'prev-track', name: 'Previous Track' },
+  { id: 'open-app', name: 'Open App' },
+  { id: 'mute', name: 'Mute Microphone' },
+  { id: 'screenshot', name: 'Take Screenshot' },
+];
 
 export default function GestureRecorderReal({ onSave, onClose }) {
   // ==================== STATE MANAGEMENT ====================
@@ -47,35 +74,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
   const canvasRef = useRef(null);                // Canvas for drawing
   const intervalRef = useRef(null);              // Recording timer
   const reconnectTimerRef = useRef(null);        // Auto-reconnect timer
-
-  // ==================== ACTIONS ====================
-
-  /**
-   * List of actions that can be assigned to gestures
-   */
-  const actions = [
-    { id: 'play-pause', name: 'Play/Pause Media' },
-    { id: 'volume-up', name: 'Volume Up' },
-    { id: 'volume-down', name: 'Volume Down' },
-    { id: 'next-track', name: 'Next Track' },
-    { id: 'prev-track', name: 'Previous Track' },
-    { id: 'open-app', name: 'Open App' },
-    { id: 'mute', name: 'Mute Microphone' },
-    { id: 'screenshot', name: 'Take Screenshot' },
-  ];
-
-  /**
-   * MediaPipe Hand Connections - defines hand skeleton structure
-   * Each array defines connections between landmark points
-   */
-  const HAND_CONNECTIONS = [
-    [0, 1], [1, 2], [2, 3], [3, 4],           // Thumb
-    [0, 5], [5, 6], [6, 7], [7, 8],           // Index finger
-    [0, 9], [9, 10], [10, 11], [11, 12],      // Middle finger
-    [0, 13], [13, 14], [14, 15], [15, 16],    // Ring finger
-    [0, 17], [17, 18], [18, 19], [19, 20],    // Pinky finger
-    [5, 9], [9, 13], [13, 17]                 // Palm connections
-  ];
+  const isMountedRef = useRef(true);             // Track if component is mounted
 
   // ==================== DRAWING FUNCTIONS ====================
 
@@ -83,7 +82,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
    * Draw hand skeleton on canvas
    * @param {Object} handData - Hand data from Python backend containing landmarks
    */
-  const drawHand = (handData) => {
+  const drawHand = useCallback((handData) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -136,7 +135,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
         ctx.stroke();
       });
     });
-  };
+  }, []); // No dependencies needed
 
   // ==================== WEBSOCKET FUNCTIONS ====================
 
@@ -144,7 +143,17 @@ export default function GestureRecorderReal({ onSave, onClose }) {
    * Connect to Python MediaPipe backend via WebSocket
    * Establishes connection and sets up event handlers
    */
-  const connectWebSocket = () => {
+  const connectWebSocket = useCallback(() => {
+    // Don't connect if component is unmounted
+    if (!isMountedRef.current) {
+      return;
+    }
+
+    // Close existing connection if any
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      return; // Already connected
+    }
+
     try {
       const ws = new WebSocket('ws://localhost:8765');
 
@@ -152,6 +161,10 @@ export default function GestureRecorderReal({ onSave, onClose }) {
        * WebSocket Event: Connection Opened
        */
       ws.onopen = () => {
+        if (!isMountedRef.current) {
+          ws.close();
+          return;
+        }
         console.log('✓ Connected to Python MediaPipe backend');
         setIsConnected(true);
         setValidationMessage('');
@@ -163,6 +176,8 @@ export default function GestureRecorderReal({ onSave, onClose }) {
        * Receives hand landmark data from Python backend
        */
       ws.onmessage = (event) => {
+        if (!isMountedRef.current) return;
+
         try {
           // Parse JSON data from Python
           const data = JSON.parse(event.data);
@@ -218,31 +233,45 @@ export default function GestureRecorderReal({ onSave, onClose }) {
        */
       ws.onerror = (err) => {
         console.error('WebSocket error:', err);
-        setValidationMessage('Connection error. Is Python backend running?');
+        if (isMountedRef.current) {
+          setValidationMessage('Connection error. Is Python backend running?');
+        }
       };
 
       /**
        * WebSocket Event: Connection Closed
-       * Automatically attempts to reconnect after 3 seconds
+       * Automatically attempts to reconnect after 3 seconds ONLY if component is still mounted
        */
       ws.onclose = () => {
         console.log('✗ Disconnected from Python MediaPipe backend');
+
+        if (!isMountedRef.current) {
+          // Component unmounted, don't reconnect
+          return;
+        }
+
         setIsConnected(false);
         setHandDetected(false);
         wsRef.current = null;
 
-        // Auto-reconnect after 3 seconds
-        reconnectTimerRef.current = setTimeout(() => {
-          console.log('Attempting to reconnect...');
-          connectWebSocket();
-        }, 3000);
+        // Auto-reconnect after 3 seconds ONLY if still mounted
+        if (isMountedRef.current) {
+          reconnectTimerRef.current = setTimeout(() => {
+            if (isMountedRef.current) {
+              console.log('Attempting to reconnect...');
+              connectWebSocket();
+            }
+          }, 3000);
+        }
       };
 
     } catch (err) {
       console.error('Failed to connect:', err);
-      setValidationMessage('Failed to connect. Start Python backend first.');
+      if (isMountedRef.current) {
+        setValidationMessage('Failed to connect. Start Python backend first.');
+      }
     }
-  };
+  }, [isRecording, drawHand]); // Dependencies: isRecording and drawHand
 
   // ==================== LIFECYCLE HOOKS ====================
 
@@ -250,18 +279,30 @@ export default function GestureRecorderReal({ onSave, onClose }) {
    * Initialize WebSocket connection when component mounts
    */
   useEffect(() => {
+    // Mark component as mounted
+    isMountedRef.current = true;
+
+    // Connect to WebSocket
     connectWebSocket();
 
     // Cleanup on unmount
     return () => {
+      // Mark component as unmounted to prevent reconnections
+      isMountedRef.current = false;
+
+      // Close WebSocket connection
       if (wsRef.current) {
         wsRef.current.close();
+        wsRef.current = null;
       }
+
+      // Clear reconnect timer
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
     };
-  },);
+  }, [connectWebSocket]); // Depend on connectWebSocket
 
   /**
    * Recording timer - updates every second when recording
@@ -476,7 +517,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
                   className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
                   disabled={isProcessing || isRecording}
                 >
-                  {actions.map(action => (
+                  {ACTIONS.map(action => (
                     <option key={action.id} value={action.id} className="bg-gray-800 text-white">
                       {action.name}
                     </option>
