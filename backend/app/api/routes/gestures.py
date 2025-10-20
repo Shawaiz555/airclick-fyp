@@ -252,10 +252,16 @@ def execute_gesture_action(
         logger.info(f"✅ ACTION EXECUTED SUCCESSFULLY")
         logger.info(f"Action Name: {result.get('action_name')}")
         logger.info(f"Keyboard Shortcut: {result.get('keyboard_shortcut')}")
+        logger.info(f"Window Switched: {result.get('window_switched', False)}")
+        if result.get('window_switched'):
+            logger.info(f"Target Window: {result.get('window_title')}")
         logger.info(f"Simulation Mode: {result.get('simulation_mode')}")
     else:
         logger.error(f"❌ ACTION EXECUTION FAILED")
         logger.error(f"Error: {result.get('error')}")
+        if result.get('app_not_found'):
+            logger.error(f"⚠️ {gesture.app_context} application is not running!")
+            logger.error(f"💡 Solution: Open {gesture.app_context} application and try again")
 
     logger.info(f"{'='*60}\n")
 

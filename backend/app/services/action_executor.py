@@ -3,13 +3,14 @@ AirClick - Action Executor Service
 ==================================
 
 This service executes keyboard shortcuts and actions using pyautogui.
-It handles PowerPoint, MS Word, and global system actions.
+It handles PowerPoint, MS Word, and global system actions with automatic window switching.
 
 Author: Muhammad Shawaiz
 Project: AirClick FYP
 """
 
 import logging
+import time
 from typing import List, Optional, Dict
 from app.core.actions import get_action_details, AppContext
 
@@ -24,11 +25,27 @@ except ImportError:
     PYAUTOGUI_AVAILABLE = False
     logger.warning("⚠ pyautogui not installed. Action execution will be simulated.")
 
+# Check if pygetwindow is available (for window management)
+try:
+    import pygetwindow as gw
+    PYGETWINDOW_AVAILABLE = True
+    logger.info("✓ pygetwindow is available for window management")
+except ImportError:
+    PYGETWINDOW_AVAILABLE = False
+    logger.warning("⚠ pygetwindow not installed. Window switching will be unavailable. Install with: pip install pygetwindow")
+
 
 class ActionExecutor:
     """
-    Service for executing actions via keyboard shortcuts.
+    Service for executing actions via keyboard shortcuts with automatic window switching.
     """
+
+    # Application window title patterns for detection
+    APP_WINDOW_PATTERNS = {
+        "POWERPOINT": ["PowerPoint", "Microsoft PowerPoint", ".pptx", ".ppt"],
+        "WORD": ["Word", "Microsoft Word", ".docx", ".doc"],
+        "GLOBAL": []  # Global actions don't need specific windows
+    }
 
     def __init__(self, simulation_mode: bool = False):
         """
@@ -39,6 +56,7 @@ class ActionExecutor:
         """
         # Only enable simulation mode if explicitly requested OR pyautogui is unavailable
         self.simulation_mode = simulation_mode or not PYAUTOGUI_AVAILABLE
+        self.window_switching_enabled = PYGETWINDOW_AVAILABLE
 
         if self.simulation_mode:
             logger.warning("⚠️ Action executor in SIMULATION MODE - Actions will be logged but NOT executed")
@@ -49,6 +67,123 @@ class ActionExecutor:
             # Configure pyautogui safety features
             pyautogui.FAILSAFE = True  # Move mouse to corner to abort
             pyautogui.PAUSE = 0.1  # Small pause between actions
+
+        if not self.window_switching_enabled:
+            logger.warning("⚠️ Window switching disabled - pygetwindow not available")
+
+    def find_application_window(self, context: str) -> Optional[object]:
+        """
+        Find a window matching the application context.
+
+        Args:
+            context: Application context (POWERPOINT, WORD, GLOBAL)
+
+        Returns:
+            Window object if found, None otherwise
+        """
+        if not self.window_switching_enabled or context == "GLOBAL":
+            return None
+
+        try:
+            patterns = self.APP_WINDOW_PATTERNS.get(context, [])
+            if not patterns:
+                return None
+
+            # Get all windows
+            all_windows = gw.getAllWindows()
+
+            # Search for matching window
+            for window in all_windows:
+                if window.title:  # Skip windows without titles
+                    for pattern in patterns:
+                        if pattern.lower() in window.title.lower():
+                            logger.info(f"✓ Found {context} window: '{window.title}'")
+                            return window
+
+            logger.warning(f"⚠ No {context} window found. Searched for patterns: {patterns}")
+            return None
+
+        except Exception as e:
+            logger.error(f"❌ Error finding {context} window: {e}")
+            return None
+
+    def switch_to_window(self, window: object) -> bool:
+        """
+        Switch focus to a specific window.
+
+        Args:
+            window: Window object to focus
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not window or not self.window_switching_enabled:
+            return False
+
+        try:
+            # Restore window if minimized
+            if window.isMinimized:
+                window.restore()
+                time.sleep(0.2)  # Wait for restore animation
+
+            # Activate (bring to front and focus)
+            window.activate()
+            time.sleep(0.3)  # Wait for window to gain focus
+
+            logger.info(f"✅ Switched to window: '{window.title}'")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error switching to window: {e}")
+            return False
+
+    def ensure_app_focused(self, context: str) -> Dict:
+        """
+        Ensure the correct application is focused before executing action.
+
+        Args:
+            context: Application context
+
+        Returns:
+            Dictionary with status and window info
+        """
+        if context == "GLOBAL":
+            return {
+                "switched": False,
+                "reason": "Global context - no specific app required"
+            }
+
+        if not self.window_switching_enabled:
+            return {
+                "switched": False,
+                "reason": "Window switching unavailable (pygetwindow not installed)"
+            }
+
+        # Find the application window
+        window = self.find_application_window(context)
+
+        if not window:
+            return {
+                "switched": False,
+                "reason": f"{context} application not found or not running",
+                "error": True
+            }
+
+        # Switch to the window
+        success = self.switch_to_window(window)
+
+        if success:
+            return {
+                "switched": True,
+                "window_title": window.title,
+                "context": context
+            }
+        else:
+            return {
+                "switched": False,
+                "reason": "Failed to switch to window",
+                "error": True
+            }
 
     def execute_keyboard_shortcut(self, keys: List[str]) -> bool:
         """
@@ -84,6 +219,7 @@ class ActionExecutor:
     def execute_action(self, action_id: str, context: str) -> Dict:
         """
         Execute an action by its ID and context.
+        Automatically switches to the correct application window before executing.
 
         Args:
             action_id: The action identifier
@@ -112,17 +248,44 @@ class ActionExecutor:
                     "error": f"No keyboard shortcut defined for action '{action_id}'"
                 }
 
+            # CRITICAL: Ensure correct app is focused before executing
+            focus_result = self.ensure_app_focused(context)
+
+            if focus_result.get("error"):
+                logger.error(f"❌ Cannot execute action - {focus_result.get('reason')}")
+                return {
+                    "success": False,
+                    "error": focus_result.get("reason"),
+                    "action_id": action_id,
+                    "action_name": action_details.get("name"),
+                    "context": context,
+                    "app_not_found": True
+                }
+
+            # Log window switching status
+            if focus_result.get("switched"):
+                logger.info(f"✅ Switched to {context}: '{focus_result.get('window_title')}'")
+            else:
+                logger.info(f"ℹ️ {focus_result.get('reason')}")
+
             # Execute the shortcut
             success = self.execute_keyboard_shortcut(keyboard_shortcut)
 
-            return {
+            result = {
                 "success": success,
                 "action_id": action_id,
                 "action_name": action_details.get("name"),
                 "context": context,
                 "keyboard_shortcut": keyboard_shortcut,
-                "simulation_mode": self.simulation_mode
+                "simulation_mode": self.simulation_mode,
+                "window_switched": focus_result.get("switched", False)
             }
+
+            # Include window info if switched
+            if focus_result.get("switched"):
+                result["window_title"] = focus_result.get("window_title")
+
+            return result
 
         except ValueError:
             return {

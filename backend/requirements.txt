@@ -30,6 +30,7 @@ mediapipe>=0.10.14
 
 # Action Execution
 pyautogui==0.9.54
+pygetwindow==0.0.9
 
 # Testing
 requests==2.32.3

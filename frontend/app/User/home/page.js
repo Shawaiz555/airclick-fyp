@@ -396,9 +396,12 @@ export default function Home() {
       const result = await response.json();
 
       if (result.success) {
-        setStatusMessage(`✅ Executed: ${result.action_name}`);
+        const windowInfo = result.window_switched ? ` in ${result.window_title}` : '';
+        setStatusMessage(`✅ Executed: ${result.action_name}${windowInfo}`);
+      } else if (result.app_not_found) {
+        setStatusMessage(`❌ ${result.context} app not running! Please open ${result.context} first.`);
       } else {
-        setStatusMessage(`❌ Failed to execute: ${result.error || 'Unknown error'}`);
+        setStatusMessage(`❌ Failed: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Execution error:', error);
