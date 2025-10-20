@@ -748,13 +748,13 @@ export default function Home() {
                 <ol className="text-xs text-cyan-300/80 space-y-1 list-decimal list-inside">
                   <li>Make sure camera is active and hand is detected (✓)</li>
                   <li>Select correct application context (POWERPOINT, WORD, or GLOBAL)</li>
-                  <li>Click "Start Recognition" button</li>
+                  <li>Click Start Recognition button</li>
                   <li>Perform your gesture - keep hand visible during entire gesture!</li>
-                  <li>Wait for 60 frames or click "Stop & Match Now" (min 10 frames)</li>
+                  <li>Wait for 60 frames or click Stop & Match Now (min 10 frames)</li>
                   <li>System will match and execute automatically if context matches</li>
                 </ol>
                 <p className="text-xs text-amber-300 mt-2">
-                  <strong>💡 Tip:</strong> If you get "Not enough frames", keep your hand in view longer!
+                  <strong>💡 Tip:</strong> If you get Not enough frames, keep your hand in view longer!
                 </p>
               </div>
             </div>
