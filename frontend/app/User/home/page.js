@@ -41,21 +41,20 @@ export default function Home() {
   const [isConnected, setIsConnected] = useState(false);
   const [handDetected, setHandDetected] = useState(false);
 
-  // NEW: Gesture recognition state
-  const [isRecognizing, setIsRecognizing] = useState(false);
+  // Automatic gesture recognition state
   const [recognitionFrames, setRecognitionFrames] = useState([]);
   const [userGestures, setUserGestures] = useState([]);
   const [matchedGesture, setMatchedGesture] = useState(null);
   const [similarity, setSimilarity] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
-  const [autoExecute, setAutoExecute] = useState(true);
+  const [isMatching, setIsMatching] = useState(false);
 
   // ==================== REFS ====================
 
   const wsRef = useRef(null);                    // WebSocket connection
   const canvasRef = useRef(null);                // Canvas for drawing hand skeleton
   const gestureTimeoutRef = useRef(null);        // Timeout for clearing gestures
-  const isRecognizingRef = useRef(false);        // Track recognition state for WebSocket closure
+  const matchCooldownRef = useRef(false);        // Prevent matching during cooldown
 
   // ==================== CONSTANTS ====================
 
@@ -139,49 +138,38 @@ export default function Home() {
         if (handsDetected && canvasRef.current) {
           drawHand(data);
 
-          // NEW: Collect frames for gesture recognition
-          if (isRecognizingRef.current) {
-            const frame = {
-              timestamp: Date.now(),
-              landmarks: data.hands[0].landmarks,
-              handedness: data.hands[0].handedness,
-              confidence: data.hands[0].confidence
-            };
+          // AUTOMATIC: Continuously collect frames for gesture recognition
+          const frame = {
+            timestamp: Date.now(),
+            landmarks: data.hands[0].landmarks,
+            handedness: data.hands[0].handedness,
+            confidence: data.hands[0].confidence
+          };
 
-            setRecognitionFrames(prev => {
-              const newFrames = [...prev, frame];
+          setRecognitionFrames(prev => {
+            const newFrames = [...prev, frame];
 
-              console.log(`Frame collected: ${newFrames.length}/60`); // Debug log
+            // Keep only last 60 frames (2 seconds at 30fps) - sliding window
+            const framesToKeep = newFrames.slice(-60);
 
-              // Update status message with frame count
-              if (newFrames.length % 10 === 0 || newFrames.length === 1) {
-                setStatusMessage(`🎯 Collecting frames... ${newFrames.length}/60`);
-              }
+            // Auto-match when we have 60 frames and not in cooldown
+            if (framesToKeep.length === 60 && !matchCooldownRef.current) {
+              // Trigger matching
+              matchGesture(framesToKeep);
+              // Clear frames after matching
+              return [];
+            }
 
-              // Auto-match after collecting 60 frames (2 seconds at 30fps)
-              if (newFrames.length >= 60) {
-                matchGesture(newFrames);
-                setIsRecognizing(false);
-                isRecognizingRef.current = false;
-                return [];
-              }
-
-              return newFrames;
-            });
-          }
-
-          // OLD: Simple landmark-based detection (keeping for fallback)
-          detectGestureFromLandmarks(data);
+            return framesToKeep;
+          });
         } else if (canvasRef.current) {
           // Clear canvas if no hand detected
           const canvas = canvasRef.current;
           const ctx = canvas.getContext('2d');
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // If recognizing and hand lost, give warning but continue
-          if (isRecognizingRef.current) {
-            setStatusMessage('⚠ Hand lost! Show your hand to continue...');
-          }
+          // Clear frames when hand is lost
+          setRecognitionFrames([]);
         }
       } catch (error) {
         console.error('Error processing WebSocket message:', error);
@@ -326,58 +314,25 @@ export default function Home() {
     }
   };
 
-  // ==================== NEW: REAL GESTURE RECOGNITION ====================
+  // ==================== AUTOMATIC GESTURE RECOGNITION ====================
 
   /**
-   * Start gesture recognition
-   * Begins collecting frames for matching
-   */
-  const startGestureRecognition = () => {
-    if (!handDetected) {
-      setStatusMessage('⚠ No hand detected! Show your hand to camera first.');
-      return;
-    }
-
-    if (userGestures.length === 0) {
-      setStatusMessage('⚠ No gestures recorded! Record some gestures first.');
-      return;
-    }
-
-    setIsRecognizing(true);
-    isRecognizingRef.current = true; // Set ref for WebSocket closure
-    setRecognitionFrames([]);
-    setMatchedGesture(null);
-    setSimilarity(0);
-    setStatusMessage('🎯 Performing gesture... Keep your hand visible!');
-    console.log('Recognition started - isRecognizingRef.current:', isRecognizingRef.current);
-  };
-
-  /**
-   * Stop recognition and match collected frames
-   */
-  const stopAndMatchGesture = () => {
-    if (recognitionFrames.length < 10) {
-      setStatusMessage(`❌ Not enough frames (${recognitionFrames.length}/10 minimum). Keep hand visible longer.`);
-      setIsRecognizing(false);
-      isRecognizingRef.current = false;
-      return;
-    }
-
-    setIsRecognizing(false);
-    isRecognizingRef.current = false;
-    matchGesture(recognitionFrames);
-    setRecognitionFrames([]);
-  };
-
-  /**
-   * Match collected frames against stored gestures
+   * Match collected frames against stored gestures and auto-execute
    */
   const matchGesture = async (frames) => {
-    if (frames.length < 10) {
-      setStatusMessage(`❌ Not enough frames captured (${frames.length}/10 minimum)`);
+    // Skip if no gestures stored
+    if (userGestures.length === 0) {
       return;
     }
 
+    // Skip if not enough frames
+    if (frames.length < 30) {
+      return;
+    }
+
+    // Set cooldown to prevent multiple matches
+    matchCooldownRef.current = true;
+    setIsMatching(true);
     setStatusMessage('🔍 Matching gesture...');
 
     try {
@@ -396,21 +351,34 @@ export default function Home() {
       if (result.matched) {
         setMatchedGesture(result.gesture);
         setSimilarity(result.similarity);
-        setStatusMessage(`✅ Matched: ${result.gesture.name} (${(result.similarity * 100).toFixed(0)}%)`);
 
-        // Auto-execute if enabled and context matches
-        if (autoExecute && result.gesture.app_context === activeApp) {
-          setTimeout(() => executeGestureAction(result.gesture.id), 500);
-        } else if (result.gesture.app_context !== activeApp) {
-          setStatusMessage(`✅ Matched: ${result.gesture.name} - But requires ${result.gesture.app_context} context`);
+        // Check if context matches
+        if (result.gesture.app_context === activeApp) {
+          setStatusMessage(`✅ Matched: ${result.gesture.name} (${(result.similarity * 100).toFixed(0)}%) - Executing...`);
+          // Auto-execute immediately
+          await executeGestureAction(result.gesture.id);
+        } else {
+          setStatusMessage(`✅ Matched: ${result.gesture.name} - Switch to ${result.gesture.app_context} context to execute`);
         }
+
+        // Clear matched gesture after 2 seconds
+        setTimeout(() => {
+          setMatchedGesture(null);
+          setStatusMessage('👋 Ready - Perform a gesture');
+        }, 2000);
       } else {
-        setMatchedGesture(null);
-        setStatusMessage(`❌ No match found. ${result.message || ''}`);
+        // Don't show "no match" messages to avoid spam
+        setStatusMessage('👋 Ready - Perform a gesture');
       }
     } catch (error) {
       console.error('Match error:', error);
       setStatusMessage('❌ Error matching gesture');
+    } finally {
+      setIsMatching(false);
+      // Release cooldown after 1 second to allow next gesture
+      setTimeout(() => {
+        matchCooldownRef.current = false;
+      }, 1000);
     }
   };
 
@@ -418,8 +386,6 @@ export default function Home() {
    * Execute a gesture's action
    */
   const executeGestureAction = async (gestureId) => {
-    setStatusMessage('⚡ Executing action...');
-
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`http://localhost:8000/api/gestures/execute?gesture_id=${gestureId}`, {
@@ -431,14 +397,8 @@ export default function Home() {
 
       if (result.success) {
         setStatusMessage(`✅ Executed: ${result.action_name}`);
-
-        // Clear matched gesture after 3 seconds
-        setTimeout(() => {
-          setMatchedGesture(null);
-          setStatusMessage('Ready for next gesture');
-        }, 3000);
       } else {
-        setStatusMessage(`❌ Failed: ${result.error || 'Unknown error'}`);
+        setStatusMessage(`❌ Failed to execute: ${result.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Execution error:', error);
@@ -632,129 +592,110 @@ export default function Home() {
               </div>
             </div>
 
-            {/* NEW: Gesture Recognition Panel */}
+            {/* Automatic Gesture Recognition Status */}
             <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 mb-8">
-              <h3 className="text-lg font-semibold text-cyan-200 mb-4">🎯 Gesture Recognition</h3>
+              <h3 className="text-lg font-semibold text-cyan-200 mb-4">🤖 Automatic Gesture Recognition</h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 {/* Status Info */}
                 <div className="bg-gray-700/30 rounded-lg p-4">
                   <div className="text-sm text-gray-400 space-y-2">
                     <div className="flex justify-between">
-                      <span>Connection:</span>
+                      <span>Camera:</span>
                       <span className={isConnected ? 'text-green-400' : 'text-red-400'}>
-                        {isConnected ? '✓ Connected' : '✗ Disconnected'}
+                        {isConnected ? '✓ Active' : '✗ Inactive'}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Hand Detected:</span>
+                      <span>Hand Detection:</span>
                       <span className={handDetected ? 'text-green-400' : 'text-gray-400'}>
-                        {handDetected ? '✓ Yes' : '✗ No'}
+                        {handDetected ? '✓ Detected' : '✗ No hand'}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Gestures Loaded:</span>
-                      <span className="text-cyan-400">{userGestures.length}</span>
+                      <span>Recognition:</span>
+                      <span className={isCameraActive && handDetected ? 'text-green-400 animate-pulse' : 'text-gray-400'}>
+                        {isCameraActive && handDetected ? '● ACTIVE' : '○ Standby'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Active Context:</span>
-                      <span className="text-cyan-400">{activeApp}</span>
+                      <span>Gestures:</span>
+                      <span className="text-cyan-400">{userGestures.length} loaded</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Context:</span>
+                      <span className="text-cyan-400 font-semibold">{activeApp}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Controls */}
-                <div className="space-y-3">
-                  {!isRecognizing ? (
-                    <button
-                      onClick={startGestureRecognition}
-                      disabled={!isCameraActive || !handDetected}
-                      className="w-full py-3 px-4 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Start Recognition
-                    </button>
-                  ) : (
+                {/* Real-time Status */}
+                <div className="bg-gray-700/30 rounded-lg p-4 flex flex-col justify-center">
+                  {isCameraActive && handDetected ? (
                     <div className="space-y-2">
-                      <div className="w-full py-3 px-4 rounded-lg font-medium bg-gradient-to-r from-green-500 to-emerald-500 animate-pulse flex items-center justify-center gap-2">
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Collecting... ({recognitionFrames.length}/60)
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                        <span className="text-green-400 font-medium">Listening for gestures...</span>
                       </div>
-                      <button
-                        onClick={stopAndMatchGesture}
-                        disabled={recognitionFrames.length < 10}
-                        className="w-full py-2 px-4 rounded-lg text-sm font-medium transition-all duration-300 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={recognitionFrames.length < 10 ? `Need ${10 - recognitionFrames.length} more frames` : 'Stop and match now'}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                        </svg>
-                        Stop & Match Now ({recognitionFrames.length} frames)
-                      </button>
+                      {recognitionFrames.length > 0 && (
+                        <div className="w-full bg-gray-600 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full transition-all duration-200"
+                            style={{ width: `${(recognitionFrames.length / 60) * 100}%` }}
+                          ></div>
+                        </div>
+                      )}
+                      {isMatching && (
+                        <div className="flex items-center gap-2 text-amber-400 text-sm">
+                          <div className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                          <span>Analyzing...</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 text-sm">
+                      {!isCameraActive ? (
+                        <>👆 Start camera to begin</>
+                      ) : (
+                        <>✋ Show your hand to activate</>
+                      )}
                     </div>
                   )}
-
-                  <div className="flex items-center justify-between bg-gray-700/30 rounded-lg p-3">
-                    <span className="text-sm text-gray-300">Auto-execute actions</span>
-                    <button
-                      onClick={() => setAutoExecute(!autoExecute)}
-                      className={`relative w-12 h-6 rounded-full transition-colors ${
-                        autoExecute ? 'bg-cyan-500' : 'bg-gray-600'
-                      }`}
-                    >
-                      <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
-                        autoExecute ? 'translate-x-6' : 'translate-x-0'
-                      }`}></div>
-                    </button>
-                  </div>
                 </div>
               </div>
 
               {/* Status Message */}
               {statusMessage && (
-                <div className="bg-gray-700/50 rounded-lg p-3 border border-cyan-500/30">
+                <div className="bg-gray-700/50 rounded-lg p-3 border border-cyan-500/30 mb-4">
                   <p className="text-sm text-center text-cyan-200">{statusMessage}</p>
                 </div>
               )}
 
               {/* Matched Gesture Display */}
               {matchedGesture && (
-                <div className="mt-4 bg-gradient-to-r from-green-500/20 to-cyan-500/20 rounded-lg p-4 border border-green-500/30">
+                <div className="bg-gradient-to-r from-green-500/20 to-cyan-500/20 rounded-lg p-4 border border-green-500/30 mb-4">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-lg font-bold text-green-400">✅ Matched!</span>
-                    <span className="text-sm text-green-300">{(similarity * 100).toFixed(0)}% confidence</span>
+                    <span className="text-lg font-bold text-green-400">✅ {matchedGesture.name}</span>
+                    <span className="text-sm text-green-300">{(similarity * 100).toFixed(0)}% match</span>
                   </div>
-                  <div className="text-white font-medium">{matchedGesture.name}</div>
-                  <div className="text-sm text-gray-300 mt-1">
-                    Action: {matchedGesture.action} | Context: {matchedGesture.app_context}
+                  <div className="text-sm text-gray-300">
+                    Action: <span className="text-white font-medium">{matchedGesture.action}</span> | Context: <span className="text-white font-medium">{matchedGesture.app_context}</span>
                   </div>
-                  {!autoExecute && (
-                    <button
-                      onClick={() => executeGestureAction(matchedGesture.id)}
-                      className="mt-3 w-full bg-cyan-500 hover:bg-cyan-600 py-2 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      ⚡ Execute Action Now
-                    </button>
-                  )}
                 </div>
               )}
 
               {/* Instructions */}
-              <div className="mt-4 bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
-                <p className="text-xs text-cyan-300 mb-2"><strong>How to use:</strong></p>
-                <ol className="text-xs text-cyan-300/80 space-y-1 list-decimal list-inside">
-                  <li>Make sure camera is active and hand is detected (✓)</li>
-                  <li>Select correct application context (POWERPOINT, WORD, or GLOBAL)</li>
-                  <li>Click Start Recognition button</li>
-                  <li>Perform your gesture - keep hand visible during entire gesture!</li>
-                  <li>Wait for 60 frames or click Stop & Match Now (min 10 frames)</li>
-                  <li>System will match and execute automatically if context matches</li>
-                </ol>
+              <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
+                <p className="text-xs text-cyan-300 mb-2"><strong>ℹ️ How it works:</strong></p>
+                <ul className="text-xs text-cyan-300/80 space-y-1 list-disc list-inside">
+                  <li>Recognition is <strong>fully automatic</strong> when camera is on</li>
+                  <li>Just show your hand and perform any gesture you&apos;ve recorded</li>
+                  <li>System collects 2 seconds of movement and matches in real-time</li>
+                  <li>Actions execute <strong>immediately</strong> if context matches</li>
+                  <li>Make sure you&apos;re in the correct app context: <strong>{activeApp}</strong></li>
+                </ul>
                 <p className="text-xs text-amber-300 mt-2">
-                  <strong>💡 Tip:</strong> If you get Not enough frames, keep your hand in view longer!
+                  <strong>💡 Tips:</strong> Keep gestures smooth • Hold hand steady after gesture • Switch context above if needed
                 </p>
               </div>
             </div>

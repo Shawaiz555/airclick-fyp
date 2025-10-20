@@ -27,12 +27,13 @@ class GestureMatcher:
     Gesture matching service using Dynamic Time Warping (DTW) algorithm.
     """
 
-    def __init__(self, similarity_threshold: float = 0.7):
+    def __init__(self, similarity_threshold: float = 0.65):
         """
         Initialize the gesture matcher.
 
         Args:
             similarity_threshold: Minimum similarity score (0-1) to consider a match
+                                 Default: 0.65 (65%) - Balanced between accuracy and forgiveness
         """
         self.similarity_threshold = similarity_threshold
         self.max_distance = 1000.0  # Maximum DTW distance for normalization
@@ -236,7 +237,7 @@ class GestureMatcher:
         logger.info(f"  Total gestures compared: {len(all_results)}")
         logger.info(f"  Best match: {best_match.get('name') if best_match else 'None'}")
         logger.info(f"  Best similarity: {best_similarity:.2%}")
-        logger.info(f"  Threshold: {self.similarity_threshold:.2%} (70%)")
+        logger.info(f"  Threshold: {self.similarity_threshold:.2%}")
 
         # Check if best match meets threshold
         if best_match and best_similarity >= self.similarity_threshold:
@@ -307,8 +308,8 @@ class GestureMatcher:
         return matches[:top_k]
 
 
-# Global gesture matcher instance
-gesture_matcher = GestureMatcher(similarity_threshold=0.7)
+# Global gesture matcher instance (65% threshold - balanced accuracy)
+gesture_matcher = GestureMatcher(similarity_threshold=0.65)
 
 
 def get_gesture_matcher() -> GestureMatcher:

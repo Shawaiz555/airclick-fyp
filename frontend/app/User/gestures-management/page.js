@@ -8,45 +8,69 @@ import GestureRecorderReal from '../../components/GestureRecorderReal';
 export default function CustomGestureManagement() {
   const [isRecordingModalOpen, setIsRecordingModalOpen] = useState(false);
   const [gestures, setGestures] = useState([]);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('');
 
-  // Load gestures from localStorage
+  // Load gestures from database
   useEffect(() => {
-    const saved = localStorage.getItem('userGestures');
-    if (saved) {
-      setGestures(JSON.parse(saved));
-    }
+    loadGesturesFromDatabase();
   }, []);
 
+  const loadGesturesFromDatabase = async () => {
+    setIsLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:8000/api/gestures/', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setGestures(data);
+        setStatusMessage(`✓ Loaded ${data.length} gestures from database`);
+        setTimeout(() => setStatusMessage(''), 3000);
+      } else {
+        setStatusMessage('⚠ Failed to load gestures');
+      }
+    } catch (error) {
+      console.error('Error loading gestures:', error);
+      setStatusMessage('❌ Error loading gestures');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSaveGesture = async (gestureData) => {
-    const newGestures = [...gestures, gestureData];
-    setGestures(newGestures);
-    localStorage.setItem('userGestures', JSON.stringify(newGestures));
-    await syncToCloud(newGestures);
+    // Gesture is already saved by GestureRecorderReal component
+    // Just reload the list
+    await loadGesturesFromDatabase();
+    setStatusMessage('✅ Gesture saved successfully!');
+    setTimeout(() => setStatusMessage(''), 3000);
   };
 
   const handleDeleteGesture = async (id) => {
-    if (confirm('Are you sure you want to delete this gesture?')) {
-      const newGestures = gestures.filter(g => g.id !== id);
-      setGestures(newGestures);
-      localStorage.setItem('userGestures', JSON.stringify(newGestures));
-      await syncToCloud(newGestures);
+    if (!confirm('Are you sure you want to delete this gesture?')) {
+      return;
     }
-  };
 
-  const syncToCloud = async (gestureList) => {
-    setIsSyncing(true);
-    setSyncStatus('Syncing to cloud...');
-    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setSyncStatus('Synced successfully!');
-      setTimeout(() => setSyncStatus(''), 2000);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8000/api/gestures/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        // Remove from local state
+        setGestures(gestures.filter(g => g.id !== id));
+        setStatusMessage('✅ Gesture deleted successfully!');
+        setTimeout(() => setStatusMessage(''), 3000);
+      } else {
+        setStatusMessage('❌ Failed to delete gesture');
+      }
     } catch (error) {
-      setSyncStatus('Sync failed. Retrying...');
-    } finally {
-      setIsSyncing(false);
+      console.error('Error deleting gesture:', error);
+      setStatusMessage('❌ Error deleting gesture');
     }
   };
 
@@ -64,17 +88,24 @@ export default function CustomGestureManagement() {
             </p>
           </div>
 
-          {/* Sync Status */}
-          {syncStatus && (
+          {/* Status Message */}
+          {statusMessage && (
             <div className={`mb-6 p-4 rounded-xl text-center transition-all duration-500 ${
-              syncStatus.includes('success') 
-                ? 'bg-green-500/20 border border-green-500/30' 
+              statusMessage.includes('✅') || statusMessage.includes('✓')
+                ? 'bg-green-500/20 border border-green-500/30'
+                : statusMessage.includes('❌')
+                ? 'bg-red-500/20 border border-red-500/30'
                 : 'bg-amber-500/20 border border-amber-500/30'
             }`}>
-              <span className="font-medium">{syncStatus}</span>
-              {isSyncing && (
-                <span className="ml-2 inline-block w-4 h-4 border-2 border-t-transparent border-white rounded-full animate-spin"></span>
-              )}
+              <span className="font-medium">{statusMessage}</span>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex justify-center items-center py-12">
+              <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="ml-3 text-cyan-300">Loading gestures...</span>
             </div>
           )}
 
@@ -90,63 +121,75 @@ export default function CustomGestureManagement() {
           </div>
 
           {/* Gesture List */}
-          {gestures.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="inline-block p-6 bg-gray-800/30 rounded-2xl border border-dashed border-cyan-500/30">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-cyan-500/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-                <h3 className="text-xl font-medium mt-4 mb-2">No gestures recorded yet</h3>
-                <p className="text-cyan-300 max-w-md mx-auto">
-                  Click Record New Gesture to create your first custom gesture
-                </p>
+          {!isLoading && (
+            gestures.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="inline-block p-6 bg-gray-800/30 rounded-2xl border border-dashed border-cyan-500/30">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-cyan-500/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  <h3 className="text-xl font-medium mt-4 mb-2">No gestures recorded yet</h3>
+                  <p className="text-cyan-300 max-w-md mx-auto">
+                    Click Record New Gesture to create your first custom gesture
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gestures.map((gesture) => (
-                <div 
-                  key={gesture.id}
-                  className="bg-gray-800/30 backdrop-blur-sm rounded-2xl overflow-hidden border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10"
-                >
-                  <div className="p-5">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                          {gesture.name}
-                        </h3>
-                        <p className="text-cyan-300 text-sm mt-1">
-                          {gesture.action}
-                        </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {gestures.map((gesture) => (
+                  <div
+                    key={gesture.id}
+                    className="bg-gray-800/30 backdrop-blur-sm rounded-2xl overflow-hidden border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10"
+                  >
+                    <div className="p-5">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                            {gesture.name}
+                          </h3>
+                          <p className="text-cyan-300 text-sm mt-1">
+                            Action: {gesture.action}
+                          </p>
+                          <p className="text-purple-300 text-xs mt-1">
+                            Context: {gesture.app_context}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleDeleteGesture(gesture.id)}
+                            className="p-2 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            title="Delete gesture"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleDeleteGesture(gesture.id)}
-                          className="p-2 rounded-lg hover:bg-rose-500/10 transition-colors"
-                          title="Delete"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
+
+                      <div className="mt-4 flex items-center text-sm text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                        </svg>
+                        {gesture.landmark_data?.metadata?.total_frames || 0} frames
                       </div>
-                    </div>
-                    
-                    <div className="mt-4 flex items-center text-sm text-gray-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {new Date(gesture.timestamp).toLocaleDateString()}
-                    </div>
-                    
-                    <div className="mt-4 flex items-center text-sm text-gray-400">
-                      <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                      <span>Stored locally & synced to cloud</span>
+
+                      <div className="mt-2 flex items-center text-sm text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {new Date(gesture.created_at).toLocaleDateString()}
+                      </div>
+
+                      <div className="mt-4 flex items-center text-sm text-gray-400">
+                        <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                        <span>Stored in database</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
           )}
         </div>
 

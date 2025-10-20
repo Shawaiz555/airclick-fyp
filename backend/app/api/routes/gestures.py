@@ -221,6 +221,12 @@ def execute_gesture_action(
     """
     Execute the action associated with a gesture.
     """
+    logger.info(f"\n{'='*60}")
+    logger.info(f"ACTION EXECUTION REQUEST")
+    logger.info(f"{'='*60}")
+    logger.info(f"User: {current_user.email} (ID: {current_user.id})")
+    logger.info(f"Gesture ID: {gesture_id}")
+
     # Get gesture
     gesture = db.query(Gesture).filter(
         Gesture.id == gesture_id,
@@ -228,14 +234,30 @@ def execute_gesture_action(
     ).first()
 
     if not gesture:
+        logger.warning(f"⚠ Gesture {gesture_id} not found for user {current_user.id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Gesture not found"
         )
 
+    logger.info(f"Gesture: {gesture.name}")
+    logger.info(f"Action: {gesture.action}")
+    logger.info(f"Context: {gesture.app_context}")
+
     # Execute action
     executor = get_action_executor()
     result = executor.execute_action(gesture.action, gesture.app_context)
+
+    if result.get("success"):
+        logger.info(f"✅ ACTION EXECUTED SUCCESSFULLY")
+        logger.info(f"Action Name: {result.get('action_name')}")
+        logger.info(f"Keyboard Shortcut: {result.get('keyboard_shortcut')}")
+        logger.info(f"Simulation Mode: {result.get('simulation_mode')}")
+    else:
+        logger.error(f"❌ ACTION EXECUTION FAILED")
+        logger.error(f"Error: {result.get('error')}")
+
+    logger.info(f"{'='*60}\n")
 
     # Log the execution
     activity_log = ActivityLog(

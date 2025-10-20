@@ -37,12 +37,15 @@ class ActionExecutor:
         Args:
             simulation_mode: If True, actions are logged but not executed
         """
+        # Only enable simulation mode if explicitly requested OR pyautogui is unavailable
         self.simulation_mode = simulation_mode or not PYAUTOGUI_AVAILABLE
 
         if self.simulation_mode:
-            logger.info("Action executor in SIMULATION MODE")
+            logger.warning("⚠️ Action executor in SIMULATION MODE - Actions will be logged but NOT executed")
+            if not PYAUTOGUI_AVAILABLE:
+                logger.error("❌ pyautogui is not installed. Install it with: pip install pyautogui")
         else:
-            logger.info("Action executor in ACTIVE MODE")
+            logger.info("✅ Action executor in ACTIVE MODE - Actions will be EXECUTED")
             # Configure pyautogui safety features
             pyautogui.FAILSAFE = True  # Move mouse to corner to abort
             pyautogui.PAUSE = 0.1  # Small pause between actions
@@ -59,23 +62,23 @@ class ActionExecutor:
         """
         try:
             if self.simulation_mode:
-                logger.info(f"[SIMULATION] Executing shortcut: {' + '.join(keys)}")
+                logger.info(f"[SIMULATION] Would execute shortcut: {' + '.join(keys)}")
                 return True
 
-            # Execute the keyboard shortcut
+            # REAL EXECUTION - Actually press the keys
             if len(keys) == 1:
                 # Single key press
                 pyautogui.press(keys[0])
-                logger.info(f"Pressed key: {keys[0]}")
+                logger.info(f"✅ EXECUTED: Pressed key '{keys[0]}'")
             else:
                 # Multiple keys (hotkey combination)
                 pyautogui.hotkey(*keys)
-                logger.info(f"Executed hotkey: {' + '.join(keys)}")
+                logger.info(f"✅ EXECUTED: Hotkey {' + '.join(keys)}")
 
             return True
 
         except Exception as e:
-            logger.error(f"Error executing keyboard shortcut {keys}: {e}")
+            logger.error(f"❌ ERROR executing keyboard shortcut {keys}: {e}")
             return False
 
     def execute_action(self, action_id: str, context: str) -> Dict:
