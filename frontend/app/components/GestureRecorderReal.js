@@ -35,18 +35,62 @@ const HAND_CONNECTIONS = [
 ];
 
 /**
- * List of actions that can be assigned to gestures
+ * Application contexts for gestures
  */
-const ACTIONS = [
-  { id: 'play-pause', name: 'Play/Pause Media' },
-  { id: 'volume-up', name: 'Volume Up' },
-  { id: 'volume-down', name: 'Volume Down' },
-  { id: 'next-track', name: 'Next Track' },
-  { id: 'prev-track', name: 'Previous Track' },
-  { id: 'open-app', name: 'Open App' },
-  { id: 'mute', name: 'Mute Microphone' },
-  { id: 'screenshot', name: 'Take Screenshot' },
+const APP_CONTEXTS = [
+  { id: 'GLOBAL', name: 'Global (All Apps)' },
+  { id: 'POWERPOINT', name: 'PowerPoint' },
+  { id: 'WORD', name: 'MS Word' },
 ];
+
+/**
+ * Available actions organized by context
+ */
+const ACTIONS_BY_CONTEXT = {
+  GLOBAL: [
+    { id: 'play_pause', name: '⏯ Play/Pause Media' },
+    { id: 'volume_up', name: '🔊 Volume Up' },
+    { id: 'volume_down', name: '🔉 Volume Down' },
+    { id: 'mute', name: '🔇 Mute/Unmute' },
+    { id: 'next_track', name: '⏭ Next Track' },
+    { id: 'prev_track', name: '⏮ Previous Track' },
+    { id: 'screenshot', name: '📸 Screenshot' },
+    { id: 'minimize_window', name: '🗕 Minimize Window' },
+    { id: 'maximize_window', name: '🗖 Maximize Window' },
+    { id: 'close_window', name: '✖ Close Window' },
+  ],
+  POWERPOINT: [
+    { id: 'ppt_next_slide', name: '→ Next Slide' },
+    { id: 'ppt_prev_slide', name: '← Previous Slide' },
+    { id: 'ppt_first_slide', name: '⇤ First Slide' },
+    { id: 'ppt_last_slide', name: '⇥ Last Slide' },
+    { id: 'ppt_start_presentation', name: '▶ Start Presentation' },
+    { id: 'ppt_end_presentation', name: '◼ End Presentation' },
+    { id: 'ppt_toggle_laser', name: '🔦 Laser Pointer' },
+    { id: 'ppt_toggle_pen', name: '✏️ Toggle Pen' },
+    { id: 'ppt_erase_annotations', name: '🧹 Erase Annotations' },
+    { id: 'ppt_blank_screen', name: '⬛ Blank Screen' },
+    { id: 'ppt_new_slide', name: '➕ New Slide' },
+    { id: 'ppt_duplicate_slide', name: '📋 Duplicate Slide' },
+  ],
+  WORD: [
+    { id: 'word_page_down', name: '↓ Page Down' },
+    { id: 'word_page_up', name: '↑ Page Up' },
+    { id: 'word_doc_start', name: '⇤ Document Start' },
+    { id: 'word_doc_end', name: '⇥ Document End' },
+    { id: 'word_bold', name: 'B Bold' },
+    { id: 'word_italic', name: 'I Italic' },
+    { id: 'word_underline', name: 'U Underline' },
+    { id: 'word_increase_font', name: 'A+ Increase Font' },
+    { id: 'word_decrease_font', name: 'A- Decrease Font' },
+    { id: 'word_align_left', name: '⬅ Align Left' },
+    { id: 'word_align_center', name: '⬌ Center' },
+    { id: 'word_align_right', name: '➡ Align Right' },
+    { id: 'word_undo', name: '↶ Undo' },
+    { id: 'word_redo', name: '↷ Redo' },
+    { id: 'word_save', name: '💾 Save' },
+  ],
+};
 
 export default function GestureRecorderReal({ onSave, onClose }) {
   // ==================== STATE MANAGEMENT ====================
@@ -58,7 +102,9 @@ export default function GestureRecorderReal({ onSave, onClose }) {
 
   // Form state
   const [gestureName, setGestureName] = useState('');
-  const [selectedAction, setSelectedAction] = useState('play-pause');
+  const [selectedContext, setSelectedContext] = useState('GLOBAL');
+  const [selectedAction, setSelectedAction] = useState('play_pause');
+  const [availableActions, setAvailableActions] = useState(ACTIONS_BY_CONTEXT.GLOBAL);
 
   // UI state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -378,7 +424,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
         body: JSON.stringify({
           name: gestureName,
           action: selectedAction,
-          app_context: 'GLOBAL',
+          app_context: selectedContext,
           frames: recordedFrames
         })
       });
@@ -491,7 +537,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
             {/* Gesture Name */}
             <div>
               <label htmlFor="gestureName" className="block text-sm font-medium mb-2 text-cyan-200">
-                Gesture Name
+                Gesture Name <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
@@ -499,9 +545,48 @@ export default function GestureRecorderReal({ onSave, onClose }) {
                 value={gestureName}
                 onChange={(e) => setGestureName(e.target.value)}
                 placeholder="e.g., Pinch to Zoom"
-                className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-400"
+                className={`w-full bg-gray-800/50 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-400 ${
+                  recordedFrames.length > 0 && !gestureName.trim()
+                    ? 'border-red-500/50 ring-1 ring-red-500/30'
+                    : 'border-cyan-500/30'
+                }`}
                 disabled={isProcessing || isRecording}
               />
+              {recordedFrames.length > 0 && !gestureName.trim() && (
+                <p className="mt-1 text-sm text-red-400">Please enter a name to save your gesture</p>
+              )}
+            </div>
+
+            {/* App Context Selector */}
+            <div>
+              <label htmlFor="context" className="block text-sm font-medium mb-2 text-cyan-200">
+                Application Context
+              </label>
+              <div className="relative">
+                <select
+                  id="context"
+                  value={selectedContext}
+                  onChange={(e) => {
+                    const newContext = e.target.value;
+                    setSelectedContext(newContext);
+                    setAvailableActions(ACTIONS_BY_CONTEXT[newContext]);
+                    setSelectedAction(ACTIONS_BY_CONTEXT[newContext][0]?.id || '');
+                  }}
+                  className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
+                  disabled={isProcessing || isRecording}
+                >
+                  {APP_CONTEXTS.map(context => (
+                    <option key={context.id} value={context.id} className="bg-gray-800 text-white">
+                      {context.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-cyan-400">
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
             </div>
 
             {/* Assign Action */}
@@ -517,7 +602,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
                   className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
                   disabled={isProcessing || isRecording}
                 >
-                  {ACTIONS.map(action => (
+                  {availableActions.map(action => (
                     <option key={action.id} value={action.id} className="bg-gray-800 text-white">
                       {action.name}
                     </option>
@@ -577,7 +662,8 @@ export default function GestureRecorderReal({ onSave, onClose }) {
             <button
               onClick={handleSave}
               disabled={isProcessing || isRecording || recordedFrames.length === 0 || !gestureName.trim()}
-              className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-medium hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-medium hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              title={!gestureName.trim() && recordedFrames.length > 0 ? "Please enter a gesture name" : ""}
             >
               {isProcessing ? (
                 <>

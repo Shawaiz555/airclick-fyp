@@ -28,5 +28,8 @@ opencv-python==4.10.0.84
 # MediaPipe Hand Tracking
 mediapipe>=0.10.14
 
+# Action Execution
+pyautogui==0.9.54
+
 # Testing
 requests==2.32.3
