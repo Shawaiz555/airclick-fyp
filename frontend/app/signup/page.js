@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../context/AuthContext';
 import Link from 'next/link';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -14,7 +14,6 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e) => {
@@ -51,13 +50,14 @@ export default function SignupPage() {
         throw new Error(errorData.detail || 'Failed to create account');
       }
 
-      const data = await response.json();
+      // Don't need to use the response data since we're not auto-logging in
+      await response.json();
 
-      setSuccess('Account created successfully!');
+      setSuccess('Account created successfully! Redirecting to login...');
 
-      // Auto-login after signup
+      // Redirect to login page (don't auto-login for email/password signup)
       setTimeout(() => {
-        login(data.user, data.access_token);
+        router.push('/login');
       }, 1500);
 
     } catch (err) {
@@ -82,7 +82,7 @@ export default function SignupPage() {
               {error}
             </div>
           )}
-          
+
           {success && (
             <div className="mb-6 p-3 bg-green-500/20 border border-green-500/30 rounded-lg text-green-300 text-center">
               {success}
@@ -170,7 +170,7 @@ export default function SignupPage() {
                     <p className="text-sm text-gray-400">Control your devices with gestures</p>
                   </div>
                 </label>
-                
+
                 <label className="flex items-center p-4 bg-gray-700/30 rounded-xl border border-purple-500/20 hover:border-purple-500/40 cursor-pointer transition-all">
                   <input
                     type="radio"
@@ -218,6 +218,17 @@ export default function SignupPage() {
               )}
             </button>
           </form>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-600"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-gray-800/30 text-gray-400">Or sign up with</span>
+            </div>
+          </div>
+
+          <GoogleSignInButton text="signup_with" />
 
           <div className="mt-6 text-center">
             <p className="text-gray-400">

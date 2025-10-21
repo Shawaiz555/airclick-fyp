@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import Link from 'next/link';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -102,22 +103,20 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setRole('USER')}
-                  className={`py-2 px-4 rounded-xl font-medium transition-all duration-300 ${
-                    role === 'USER'
+                  className={`py-2 px-4 rounded-xl font-medium transition-all duration-300 ${role === 'USER'
                       ? 'bg-gradient-to-r from-cyan-500 to-blue-600 border border-cyan-500/30'
                       : 'bg-gray-700/50 hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   User
                 </button>
                 <button
                   type="button"
                   onClick={() => setRole('ADMIN')}
-                  className={`py-2 px-4 rounded-xl font-medium transition-all duration-300 ${
-                    role === 'ADMIN'
+                  className={`py-2 px-4 rounded-xl font-medium transition-all duration-300 ${role === 'ADMIN'
                       ? 'bg-gradient-to-r from-purple-500 to-pink-600 border border-purple-500/30'
                       : 'bg-gray-700/50 hover:bg-gray-700'
-                  }`}
+                    }`}
                 >
                   Admin
                 </button>
@@ -147,6 +146,26 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-600"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-gray-800/30 text-gray-400">Or continue with</span>
+            </div>
+          </div>
+
+          {/* Google Sign-In Button */}
+          <GoogleSignInButton text="signin_with" />
+
+          {/* Forgot Password Link */}
+          <div className="mt-4 text-center">
+            <Link href="/forgot-password" className="text-cyan-400 hover:text-cyan-300 text-sm transition-colors">
+              Forgot your password?
+            </Link>
+          </div>
 
           <div className="mt-6 text-center">
             <p className="text-gray-400">

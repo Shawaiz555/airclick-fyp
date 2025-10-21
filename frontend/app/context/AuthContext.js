@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 
 const AuthContext = createContext();
 
+const isOAuthUser = (user) => {
+    return user && user.oauth_provider && !user.password_hash;
+};
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,5 +52,12 @@ export function AuthProvider({ children }) {
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return {
+    ...context,
+    isOAuthUser: isOAuthUser(context.user),
+  };
 }
