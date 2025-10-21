@@ -12,7 +12,7 @@ All endpoints return JWT tokens for authenticated sessions.
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import hashlib
 import os
@@ -423,7 +423,7 @@ async def forgot_password(
         new_token = PasswordResetToken(
             user_id=user.id,
             token_hash=token_hash,
-            expires_at=datetime.utcnow() + timedelta(minutes=15),
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
             used=False
         )
 
@@ -502,7 +502,7 @@ def reset_password(
         )
 
     # Check if token has expired
-    if reset_token.expires_at < datetime.utcnow():
+    if reset_token.expires_at < datetime.now(timezone.utc):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Reset token has expired. Please request a new one."
@@ -584,7 +584,7 @@ def verify_reset_token(
         )
 
     # Check if expired
-    if reset_token.expires_at < datetime.utcnow():
+    if reset_token.expires_at < datetime.now(timezone.utc):
         return VerifyResetTokenResponse(
             valid=False,
             message="Reset token has expired"
