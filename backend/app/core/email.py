@@ -13,6 +13,7 @@ from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
 from typing import List
 import os
+import asyncio
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -34,7 +35,9 @@ conf = ConnectionConfig(
     MAIL_STARTTLS=True,  # Use TLS encryption
     MAIL_SSL_TLS=False,  # Don't use SSL (we use STARTTLS instead)
     USE_CREDENTIALS=True,  # Authenticate with username/password
-    VALIDATE_CERTS=True  # Verify SSL certificates for security
+    VALIDATE_CERTS=True,  # Verify SSL certificates for security
+    TIMEOUT=30,  # Connection timeout in seconds (prevents hanging)
+    TEMPLATE_FOLDER=None  # Not using template files
 )
 
 # Initialize FastMail instance
@@ -203,15 +206,35 @@ async def send_password_reset_email(
         subtype="html"  # Send as HTML email
     )
 
-    try:
-        # Send email asynchronously
-        await fm.send_message(message)
-        print(f"✅ Password reset email sent successfully to {email}")
-        return True
-    except Exception as e:
-        # Log error but don't expose details to caller (security)
-        print(f"❌ Error sending email to {email}: {str(e)}")
-        return False
+    # Retry logic for better reliability (Gmail SMTP can be temperamental)
+    max_retries = 3
+    retry_delay = 2  # seconds
+
+    print(f"[EMAIL] Preparing to send password reset email to {email}")
+    print(f"[LINK] Reset link: {reset_link}")
+
+    for attempt in range(max_retries):
+        try:
+            print(f"[ATTEMPT {attempt + 1}/{max_retries}] Sending email to {email}...")
+            # Send email asynchronously
+            await fm.send_message(message)
+            print(f"[SUCCESS] Password reset email sent successfully to {email}")
+            return True
+        except Exception as e:
+            print(f"[ERROR] Attempt {attempt + 1}/{max_retries} failed sending email to {email}")
+            print(f"   Error details: {type(e).__name__}: {str(e)}")
+
+            # If not last attempt, wait before retrying
+            if attempt < max_retries - 1:
+                print(f"[RETRY] Waiting {retry_delay} seconds before retry...")
+                await asyncio.sleep(retry_delay)
+            else:
+                # All retries failed
+                print(f"[FAILED] All {max_retries} attempts failed for {email}")
+                print(f"   Last error: {type(e).__name__}: {str(e)}")
+                return False
+
+    return False
 
 
 async def send_welcome_email(
@@ -333,10 +356,10 @@ async def send_welcome_email(
 
     try:
         await fm.send_message(message)
-        print(f"✅ Welcome email sent to {email}")
+        print(f"[SUCCESS] Welcome email sent to {email}")
         return True
     except Exception as e:
-        print(f"❌ Error sending welcome email to {email}: {str(e)}")
+        print(f"[ERROR] Error sending welcome email to {email}: {str(e)}")
         return False
 
 
@@ -426,10 +449,10 @@ async def send_oauth_account_linked_email(
 
     try:
         await fm.send_message(message)
-        print(f"✅ OAuth linked notification sent to {email}")
+        print(f"[SUCCESS] OAuth linked notification sent to {email}")
         return True
     except Exception as e:
-        print(f"❌ Error sending OAuth notification to {email}: {str(e)}")
+        print(f"[ERROR] Error sending OAuth notification to {email}: {str(e)}")
         return False
 
 
