@@ -10,7 +10,6 @@ export default function SignupPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState('USER');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -36,13 +35,13 @@ export default function SignupPage() {
         throw new Error('Password must be at least 6 characters');
       }
 
-      // Call real API
+      // Call real API - always register as USER
       const response = await fetch('http://localhost:8000/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, role: 'USER' }),
       });
 
       if (!response.ok) {
@@ -148,44 +147,6 @@ export default function SignupPage() {
                 placeholder="••••••••"
                 required
               />
-            </div>
-
-            {/* Role Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-2 text-purple-200">
-                Account Type
-              </label>
-              <div className="space-y-3">
-                <label className="flex items-center p-4 bg-gray-700/30 rounded-xl border border-purple-500/20 hover:border-purple-500/40 cursor-pointer transition-all">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="USER"
-                    checked={role === 'USER'}
-                    onChange={() => setRole('USER')}
-                    className="mr-3 h-5 w-5 text-purple-500"
-                  />
-                  <div>
-                    <p className="font-medium text-purple-200">User Account</p>
-                    <p className="text-sm text-gray-400">Control your devices with gestures</p>
-                  </div>
-                </label>
-
-                <label className="flex items-center p-4 bg-gray-700/30 rounded-xl border border-purple-500/20 hover:border-purple-500/40 cursor-pointer transition-all">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="ADMIN"
-                    checked={role === 'ADMIN'}
-                    onChange={() => setRole('ADMIN')}
-                    className="mr-3 h-5 w-5 text-purple-500"
-                  />
-                  <div>
-                    <p className="font-medium text-purple-200">Admin Account</p>
-                    <p className="text-sm text-gray-400">Manage users and system settings</p>
-                  </div>
-                </label>
-              </div>
             </div>
 
             <button

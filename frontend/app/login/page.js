@@ -9,7 +9,6 @@ import GoogleSignInButton from '../components/GoogleSignInButton';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('USER');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
@@ -92,35 +91,6 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 required
               />
-            </div>
-
-            {/* Role Selection for Demo */}
-            <div>
-              <label className="block text-md font-medium mb-2 text-cyan-200">
-                Login as
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRole('USER')}
-                  className={`py-2 px-4 rounded-xl font-medium transition-all duration-300 ${role === 'USER'
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 border border-cyan-500/30'
-                      : 'bg-gray-700/50 hover:bg-gray-700'
-                    }`}
-                >
-                  User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('ADMIN')}
-                  className={`py-2 px-4 rounded-xl font-medium transition-all duration-300 ${role === 'ADMIN'
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-600 border border-purple-500/30'
-                      : 'bg-gray-700/50 hover:bg-gray-700'
-                    }`}
-                >
-                  Admin
-                </button>
-              </div>
             </div>
 
             <button
