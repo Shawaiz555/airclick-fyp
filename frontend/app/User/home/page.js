@@ -534,7 +534,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row gap-4 mb-8">
               <button
                 onClick={toggleCamera}
-                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 ${isCameraActive
+                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:cursor-pointer ${isCameraActive
                     ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600'
                     : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
                   } focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50`}
@@ -559,7 +559,7 @@ export default function Home() {
 
               <button
                 onClick={() => setHybridMode(!hybridMode)}
-                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 ${hybridMode
+                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:cursor-pointer ${hybridMode
                     ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700'
                     : 'bg-gray-700 hover:bg-gray-600'
                   }`}

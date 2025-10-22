@@ -305,7 +305,7 @@ export default function SystemSettings() {
                 <button
                   onClick={handleSaveSettings}
                   disabled={isSaving}
-                  className="flex-1 py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-6 hover:cursor-pointer bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
                   {isSaving ? (
                     <>
@@ -327,7 +327,7 @@ export default function SystemSettings() {
 
                 <button
                   onClick={handleResetSettings}
-                  className="flex-1 py-3 px-6 bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50"
+                  className="flex-1 py-3 px-6 hover:cursor-pointer bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50"
                 >
                   Reset to Defaults
                 </button>

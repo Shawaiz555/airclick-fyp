@@ -51,7 +51,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="text-center my-8">
-          <h1 className="text-3xl lg:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
+          <h1 className="text-3xl lg:text-[42px] font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
             Welcome Back
           </h1>
           <p className="text-purple-200">Sign in to your AirClick account</p>
@@ -98,7 +98,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-lg hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full py-2 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-lg hover:cursor-pointer hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>

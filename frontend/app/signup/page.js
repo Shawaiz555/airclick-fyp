@@ -69,7 +69,7 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="text-center my-8">
-          <h1 className="text-3xl lg:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 mb-2">
+          <h1 className="text-3xl lg:text-[42px] font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 mb-2">
             Create an Account
           </h1>
           <p className="text-purple-200">Join AirClick and start controlling your devices with gestures</p>
@@ -145,8 +145,8 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={isLoading || success}
-              className="w-full py-2 px-6 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-bold text-lg hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
+              disabled={isLoading}
+              className="w-full py-2 px-6 bg-gradient-to-r hover:cursor-pointer from-purple-500 to-pink-600 rounded-xl font-bold text-lg hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -155,13 +155,6 @@ export default function SignupPage() {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                   Creating Account...
-                </>
-              ) : success ? (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Account Created!
                 </>
               ) : (
                 <>

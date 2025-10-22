@@ -469,7 +469,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
           </h2>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-700/50 transition-colors"
+            className="p-2 rounded-lg hover:cursor-pointer hover:bg-gray-700/50 transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -634,7 +634,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
             <button
               onClick={isRecording ? stopRecording : startRecording}
               disabled={isProcessing || !isConnected}
-              className={`flex-1 py-3 px-6 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
+              className={`flex-1 py-3 px-6 hover:cursor-pointer rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
                 isRecording
                   ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600'
                   : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
@@ -662,7 +662,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
             <button
               onClick={handleSave}
               disabled={isProcessing || isRecording || recordedFrames.length === 0 || !gestureName.trim()}
-              className="flex-1 py-3 px-6 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-medium hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 py-3 px-6 hover:cursor-pointer bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-medium hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               title={!gestureName.trim() && recordedFrames.length > 0 ? "Please enter a gesture name" : ""}
             >
               {isProcessing ? (

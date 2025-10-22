@@ -22,7 +22,7 @@ export default function ConfirmModal({
           <h2 className="text-xl font-semibold text-cyan-200">{title}</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:cursor-pointer hover:text-white transition-colors"
             aria-label="Close modal"
           >
             <X className="w-5 h-5" />
@@ -38,7 +38,7 @@ export default function ConfirmModal({
         <div className="flex gap-3 p-6 border-t border-gray-700/50">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            className="flex-1 px-4 py-2 hover:cursor-pointer bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
           >
             {cancelText}
           </button>
@@ -47,7 +47,7 @@ export default function ConfirmModal({
               onConfirm();
               onClose();
             }}
-            className={`flex-1 px-4 py-2 text-white rounded-lg transition-colors ${confirmButtonClass}`}
+            className={`flex-1 px-4 py-2 hover:cursor-pointer text-white rounded-lg transition-colors ${confirmButtonClass}`}
           >
             {confirmText}
           </button>

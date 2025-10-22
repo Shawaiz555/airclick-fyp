@@ -144,7 +144,7 @@ export default function AdminOverview() {
               {stats.map((stat, index) => (
                 <div
                   key={index}
-                  className={`bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 transform transition-all duration-500 hover:scale-[1.02] hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                  className={`bg-gray-800/30 hover:cursor-pointer backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 transform transition-all duration-500 hover:scale-[1.02] hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                     }`}
                   style={{ transitionDelay: `${index * 100}ms` }}
                 >

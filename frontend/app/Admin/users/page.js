@@ -161,7 +161,7 @@ export default function UserManagement() {
                           <div className="flex justify-end space-x-2">
                             <button
                               onClick={() => handleViewLogs(user)}
-                              className="p-2 rounded-lg hover:bg-cyan-500/10 transition-colors"
+                              className="p-2 rounded-lg hover:cursor-pointer hover:bg-cyan-500/10 transition-colors"
                               title="View Logs"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -170,7 +170,7 @@ export default function UserManagement() {
                             </button>
                             <button
                               onClick={() => handleEditUser(user)}
-                              className="p-2 rounded-lg hover:bg-purple-500/10 transition-colors"
+                              className="p-2 rounded-lg hover:cursor-pointer hover:bg-purple-500/10 transition-colors"
                               title="Edit"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -180,7 +180,7 @@ export default function UserManagement() {
                             {user.status === 'ACTIVE' && (
                               <button
                                 onClick={() => handleDisableUser(user.id)}
-                                className="p-2 rounded-lg hover:bg-amber-500/10 transition-colors"
+                                className="p-2 rounded-lg hover:cursor-pointer hover:bg-amber-500/10 transition-colors"
                                 title="Disable"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -203,7 +203,7 @@ export default function UserManagement() {
                 <button
                   onClick={() => paginate(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="px-3 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-2 rounded-lg hover:cursor-pointer bg-gray-800/50 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Previous
                 </button>
@@ -212,7 +212,7 @@ export default function UserManagement() {
                   <button
                     key={number}
                     onClick={() => paginate(number)}
-                    className={`px-3 py-2 rounded-lg transition-colors ${currentPage === number
+                    className={`px-3 py-2 rounded-lg hover:cursor-pointer transition-colors ${currentPage === number
                         ? 'bg-gradient-to-r from-cyan-500 to-blue-500'
                         : 'bg-gray-800/50 hover:bg-gray-700'
                       }`}
@@ -224,7 +224,7 @@ export default function UserManagement() {
                 <button
                   onClick={() => paginate(currentPage + 1)}
                   disabled={currentPage === Math.ceil(users.length / usersPerPage)}
-                  className="px-3 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-2 rounded-lg hover:cursor-pointer bg-gray-800/50 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Next
                 </button>
@@ -244,7 +244,7 @@ export default function UserManagement() {
                       </h2>
                       <button
                         onClick={() => setShowLogsModal(false)}
-                        className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-gray-800/50"
+                        className="text-gray-400 hover:cursor-pointer hover:text-white transition-colors p-2 rounded-full hover:bg-gray-800/50"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -287,7 +287,7 @@ export default function UserManagement() {
                       </h2>
                       <button
                         onClick={() => setShowEditModal(false)}
-                        className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-gray-800/50"
+                        className="text-gray-400 hover:cursor-pointer hover:text-white transition-colors p-2 rounded-full hover:bg-gray-800/50"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -394,13 +394,13 @@ export default function UserManagement() {
                     <div className="flex gap-4 pt-6">
                       <button
                         onClick={handleSaveUser}
-                        className="flex-1 py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300"
+                        className="flex-1 py-3 hover:cursor-pointer px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300"
                       >
                         Save Changes
                       </button>
                       <button
                         onClick={() => setShowEditModal(false)}
-                        className="flex-1 py-3 px-6 bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300"
+                        className="flex-1 py-3 px-6 hover:cursor-pointer bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300"
                       >
                         Cancel
                       </button>

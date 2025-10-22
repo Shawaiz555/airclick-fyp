@@ -105,7 +105,7 @@ export default function CustomGestureManagement() {
           <div className="flex justify-center mb-12">
             <button
               onClick={() => setIsRecordingModalOpen(true)}
-              className="relative px-8 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full font-bold text-lg shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50"
+              className="relative px-8 py-4 bg-gradient-to-r hover:cursor-pointer from-cyan-500 to-blue-600 rounded-full font-bold text-lg shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50"
             >
               <span className="relative z-10">Record New Gesture</span>
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 to-blue-700 rounded-full opacity-0 hover:opacity-100 transition-opacity duration-300"></div>
@@ -149,7 +149,7 @@ export default function CustomGestureManagement() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleDeleteGesture(gesture.id)}
-                            className="p-2 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            className="p-2 hover:cursor-pointer rounded-lg hover:bg-rose-500/10 transition-colors"
                             title="Delete gesture"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

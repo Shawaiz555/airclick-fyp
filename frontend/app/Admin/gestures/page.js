@@ -183,13 +183,13 @@ export default function GestureProfileManagement() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
             <button
               onClick={handleAddProfile}
-              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50"
+              className="px-6 py-3 hover:cursor-pointer bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50"
             >
               Add New Profile
             </button>
             <button
               onClick={handleTestGesture}
-              className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-medium hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50"
+              className="px-6 py-3 hover:cursor-pointer bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-medium hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50"
             >
               Live Test Gesture
             </button>
@@ -237,7 +237,7 @@ export default function GestureProfileManagement() {
                         <div className="flex justify-end space-x-2">
                           <button
                             onClick={() => handleEditProfile(profile)}
-                            className="p-2 rounded-lg hover:bg-cyan-500/10 transition-colors"
+                            className="p-2 rounded-lg hover:cursor-pointer hover:bg-cyan-500/10 transition-colors"
                             title="Edit"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -246,7 +246,7 @@ export default function GestureProfileManagement() {
                           </button>
                           <button
                             onClick={() => handleDeleteProfile(profile.id)}
-                            className="p-2 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            className="p-2 rounded-lg hover:cursor-pointer hover:bg-rose-500/10 transition-colors"
                             title="Delete"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -275,7 +275,7 @@ export default function GestureProfileManagement() {
                     </h2>
                     <button 
                       onClick={() => setIsEditing(false)}
-                      className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-gray-800/50"
+                      className="text-gray-400 hover:cursor-pointer hover:text-white transition-colors p-2 rounded-full hover:bg-gray-800/50"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -353,13 +353,13 @@ export default function GestureProfileManagement() {
                   <div className="flex gap-4 pt-6">
                     <button
                       onClick={handleSaveProfile}
-                      className="flex-1 py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300"
+                      className="flex-1 py-3 hover:cursor-pointer px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300"
                     >
                       Save Profile
                     </button>
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="flex-1 py-3 px-6 bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300"
+                      className="flex-1 py-3 px-6 hover:cursor-pointer bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300"
                     >
                       Cancel
                     </button>
