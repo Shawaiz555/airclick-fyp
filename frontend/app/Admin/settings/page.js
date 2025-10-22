@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import AdminSidebar from '../../components/AdminSidebar';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import toast from 'react-hot-toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function SystemSettings() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -21,7 +23,7 @@ export default function SystemSettings() {
     defaultAppContext: 'GLOBAL'
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const appContexts = ['GLOBAL', 'YOUTUBE', 'POWERPOINT', 'ZOOM', 'SPOTIFY', 'NETFLIX'];
   const sensitivityLevels = [
@@ -36,16 +38,14 @@ export default function SystemSettings() {
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
-    setSaveStatus('Saving settings...');
 
     try {
       // Simulate API call to save settings
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      setSaveStatus('Settings saved successfully!');
-      setTimeout(() => setSaveStatus(''), 3000);
+      toast.success('Settings saved successfully!');
     } catch (error) {
-      setSaveStatus('Failed to save settings. Please try again.');
+      toast.error('Failed to save settings. Please try again.');
       console.error('Save error:', error);
     } finally {
       setIsSaving(false);
@@ -53,22 +53,23 @@ export default function SystemSettings() {
   };
 
   const handleResetSettings = () => {
-    if (confirm('Are you sure you want to reset all settings to default values?')) {
-      setSettings({
-        systemName: 'Gesture Control Pro',
-        maintenanceMode: false,
-        maxConcurrentSessions: 1000,
-        gestureSensitivity: 'medium',
-        cloudSyncEnabled: true,
-        auditLogging: true,
-        emailNotifications: true,
-        autoUpdate: true,
-        dataRetentionDays: 30,
-        defaultAppContext: 'GLOBAL'
-      });
-      setSaveStatus('Settings reset to defaults');
-      setTimeout(() => setSaveStatus(''), 3000);
-    }
+    setShowResetConfirm(true);
+  };
+
+  const confirmReset = () => {
+    setSettings({
+      systemName: 'Gesture Control Pro',
+      maintenanceMode: false,
+      maxConcurrentSessions: 1000,
+      gestureSensitivity: 'medium',
+      cloudSyncEnabled: true,
+      auditLogging: true,
+      emailNotifications: true,
+      autoUpdate: true,
+      dataRetentionDays: 30,
+      defaultAppContext: 'GLOBAL'
+    });
+    toast.success('Settings reset to defaults');
   };
 
   return (
@@ -99,16 +100,6 @@ export default function SystemSettings() {
               </h1>
               <p className="text-purple-200">Configure system-wide preferences and behaviors</p>
             </div>
-
-            {/* Save Status */}
-            {saveStatus && (
-              <div className={`mb-6 p-4 rounded-xl text-center transition-all duration-500 ${saveStatus.includes('success')
-                  ? 'bg-green-500/20 border border-green-500/30'
-                  : 'bg-amber-500/20 border border-amber-500/30'
-                }`}>
-                <span className="font-medium">{saveStatus}</span>
-              </div>
-            )}
 
             {/* Settings Form */}
             <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl border border-cyan-500/20 p-6 space-y-8">
@@ -342,6 +333,18 @@ export default function SystemSettings() {
                 </button>
               </div>
             </div>
+
+            {/* Reset Confirmation Modal */}
+            <ConfirmModal
+              isOpen={showResetConfirm}
+              onClose={() => setShowResetConfirm(false)}
+              onConfirm={confirmReset}
+              title="Reset System Settings"
+              message="Are you sure you want to reset all system settings to their default values? This will affect all users and cannot be undone."
+              confirmText="Reset"
+              cancelText="Cancel"
+              confirmButtonClass="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+            />
           </div>
         </main>
       </div>

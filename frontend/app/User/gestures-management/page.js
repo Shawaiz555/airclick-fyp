@@ -4,12 +4,15 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import GestureRecorderReal from '../../components/GestureRecorderReal';
+import toast from 'react-hot-toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function CustomGestureManagement() {
   const [isRecordingModalOpen, setIsRecordingModalOpen] = useState(false);
   const [gestures, setGestures] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [statusMessage, setStatusMessage] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [gestureToDelete, setGestureToDelete] = useState(null);
 
   // Load gestures from database
   useEffect(() => {
@@ -27,14 +30,15 @@ export default function CustomGestureManagement() {
       if (response.ok) {
         const data = await response.json();
         setGestures(data);
-        setStatusMessage(`✓ Loaded ${data.length} gestures from database`);
-        setTimeout(() => setStatusMessage(''), 3000);
+        if (data.length > 0) {
+          toast.success(`Loaded ${data.length} gesture${data.length > 1 ? 's' : ''} from database`);
+        }
       } else {
-        setStatusMessage('⚠ Failed to load gestures');
+        toast.error('Failed to load gestures');
       }
     } catch (error) {
       console.error('Error loading gestures:', error);
-      setStatusMessage('❌ Error loading gestures');
+      toast.error('Error loading gestures');
     } finally {
       setIsLoading(false);
     }
@@ -44,33 +48,34 @@ export default function CustomGestureManagement() {
     // Gesture is already saved by GestureRecorderReal component
     // Just reload the list
     await loadGesturesFromDatabase();
-    setStatusMessage('✅ Gesture saved successfully!');
-    setTimeout(() => setStatusMessage(''), 3000);
+    toast.success('Gesture saved successfully!');
   };
 
   const handleDeleteGesture = async (id) => {
-    if (!confirm('Are you sure you want to delete this gesture?')) {
-      return;
-    }
+    setGestureToDelete(id);
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDelete = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/gestures/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/gestures/${gestureToDelete}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.ok) {
         // Remove from local state
-        setGestures(gestures.filter(g => g.id !== id));
-        setStatusMessage('✅ Gesture deleted successfully!');
-        setTimeout(() => setStatusMessage(''), 3000);
+        setGestures(gestures.filter(g => g.id !== gestureToDelete));
+        toast.success('Gesture deleted successfully!');
       } else {
-        setStatusMessage('❌ Failed to delete gesture');
+        toast.error('Failed to delete gesture');
       }
     } catch (error) {
       console.error('Error deleting gesture:', error);
-      setStatusMessage('❌ Error deleting gesture');
+      toast.error('Error deleting gesture');
+    } finally {
+      setGestureToDelete(null);
     }
   };
 
@@ -87,19 +92,6 @@ export default function CustomGestureManagement() {
               Record, assign, and manage your custom hand gestures for seamless device control
             </p>
           </div>
-
-          {/* Status Message */}
-          {statusMessage && (
-            <div className={`mb-6 p-4 rounded-xl text-center transition-all duration-500 ${
-              statusMessage.includes('✅') || statusMessage.includes('✓')
-                ? 'bg-green-500/20 border border-green-500/30'
-                : statusMessage.includes('❌')
-                ? 'bg-red-500/20 border border-red-500/30'
-                : 'bg-amber-500/20 border border-amber-500/30'
-            }`}>
-              <span className="font-medium">{statusMessage}</span>
-            </div>
-          )}
 
           {/* Loading State */}
           {isLoading && (
@@ -195,14 +187,28 @@ export default function CustomGestureManagement() {
 
         {/* Recording Modal */}
         {isRecordingModalOpen && (
-          <GestureRecorderReal 
-            onSave={handleSaveGesture} 
-            onClose={() => setIsRecordingModalOpen(false)} 
+          <GestureRecorderReal
+            onSave={handleSaveGesture}
+            onClose={() => setIsRecordingModalOpen(false)}
           />
         )}
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmModal
+          isOpen={showDeleteConfirm}
+          onClose={() => {
+            setShowDeleteConfirm(false);
+            setGestureToDelete(null);
+          }}
+          onConfirm={confirmDelete}
+          title="Delete Gesture"
+          message="Are you sure you want to delete this gesture? This action cannot be undone."
+          confirmText="Delete"
+          cancelText="Cancel"
+        />
       </div>
     </div>
     </ProtectedRoute>
-    
+
   );
 }

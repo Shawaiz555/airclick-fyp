@@ -22,6 +22,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 /**
  * GoogleSignInButton Component
@@ -129,7 +130,7 @@ export default function GoogleSignInButton({
       }
 
       // Show error to user
-      alert(`Google Sign-In Error: ${errorMessage}`);
+      toast.error(`Google Sign-In Error: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

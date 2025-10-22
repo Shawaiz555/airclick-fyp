@@ -10,6 +10,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 /**
  * Reset Password Form Component
@@ -32,7 +33,6 @@ function ResetPasswordForm() {
   const [tokenValid, setTokenValid] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   const [tokenError, setTokenError] = useState('');
 
@@ -123,7 +123,9 @@ function ResetPasswordForm() {
       }
 
       // Success!
-      setSuccess(true);
+      toast.success('Password reset successful! Redirecting to login...', {
+        duration: 3000,
+      });
       console.log('✅ Password reset successful');
 
       // Redirect to login after 3 seconds
@@ -207,58 +209,6 @@ function ResetPasswordForm() {
                   Back to Login
                 </Link>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Success state
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg">
-          <div className="text-center my-8">
-            <h1 className="text-3xl lg:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-500 mb-2">
-              Password Reset Successful!
-            </h1>
-            <p className="text-purple-200">Your password has been updated</p>
-          </div>
-
-          <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-8 border border-green-500/20 shadow-2xl">
-            <div className="space-y-6">
-              {/* Success Icon */}
-              <div className="flex justify-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
-                  <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Success Message */}
-              <div className="text-center space-y-4">
-                <p className="text-purple-200 text-lg">
-                  Your password has been successfully updated.
-                </p>
-                <p className="text-cyan-300 font-semibold">
-                  Redirecting to login in 3 seconds...
-                </p>
-              </div>
-
-              {/* Login Button */}
-              <Link
-                href="/login"
-                className="block w-full py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-center hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  Go to Login Now
-                </div>
-              </Link>
             </div>
           </div>
         </div>

@@ -6,9 +6,12 @@ import { usePathname } from 'next/navigation';
 import { Home, Users, Hand, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext'; // Make sure this path matches your project
 import Image from 'next/image';
+import toast from 'react-hot-toast';
+import ConfirmModal from './ConfirmModal';
 
 export default function AdminSidebar({ isOpen, onToggle }) {
   const [isMobile, setIsMobile] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const pathname = usePathname();
   const { logout } = useAuth();
 
@@ -60,13 +63,17 @@ export default function AdminSidebar({ isOpen, onToggle }) {
   const activeTab = getActiveTab();
 
   const handleLogout = () => {
-    if (confirm('Are you sure you want to log out?')) {
-      logout();
-    }
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    logout();
+    toast.success('Logged out successfully');
   };
 
   if (isMobile) {
     return (
+      <>
       <div className="fixed top-2 right-4 z-50 w-full flex justify-end">
         <button
           onClick={onToggle}
@@ -137,10 +144,21 @@ export default function AdminSidebar({ isOpen, onToggle }) {
           </nav>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="Confirm Logout"
+        message="Are you sure you want to log out?"
+        confirmText="Logout"
+        cancelText="Cancel"
+      />
+      </>
     );
   }
 
   return (
+    <>
     <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/90 backdrop-blur-lg border-r overflow-y-auto thin-scrollbar border-cyan-500/20 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
       <div className="p-4 py-10 border-b border-cyan-500/20">
         <div className="flex items-center justify-center space-x-3">
@@ -182,5 +200,15 @@ export default function AdminSidebar({ isOpen, onToggle }) {
         </button>
       </nav>
     </div>
+    <ConfirmModal
+      isOpen={showLogoutConfirm}
+      onClose={() => setShowLogoutConfirm(false)}
+      onConfirm={confirmLogout}
+      title="Confirm Logout"
+      message="Are you sure you want to log out?"
+      confirmText="Logout"
+      cancelText="Cancel"
+    />
+    </>
   );
 }

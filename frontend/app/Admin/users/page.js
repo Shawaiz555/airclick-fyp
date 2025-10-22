@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import AdminSidebar from '../../components/AdminSidebar';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import toast from 'react-hot-toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function UserManagement() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -14,6 +16,8 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+  const [userToDisable, setUserToDisable] = useState(null);
 
   // Mock user data
   useEffect(() => {
@@ -52,11 +56,16 @@ export default function UserManagement() {
   };
 
   const handleDisableUser = (userId) => {
-    if (confirm('Are you sure you want to disable this user?')) {
-      setUsers(users.map(user =>
-        user.id === userId ? { ...user, status: 'INACTIVE' } : user
-      ));
-    }
+    setUserToDisable(userId);
+    setShowDisableConfirm(true);
+  };
+
+  const confirmDisable = () => {
+    setUsers(users.map(user =>
+      user.id === userToDisable ? { ...user, status: 'INACTIVE' } : user
+    ));
+    toast.success('User disabled successfully');
+    setUserToDisable(null);
   };
 
   const handleSaveUser = () => {
@@ -64,6 +73,7 @@ export default function UserManagement() {
       setUsers(users.map(user =>
         user.id === currentUser.id ? currentUser : user
       ));
+      toast.success('User updated successfully');
     }
     setShowEditModal(false);
     setCurrentUser(null);
@@ -399,6 +409,20 @@ export default function UserManagement() {
                 </div>
               </div>
             )}
+
+            {/* Disable User Confirmation Modal */}
+            <ConfirmModal
+              isOpen={showDisableConfirm}
+              onClose={() => {
+                setShowDisableConfirm(false);
+                setUserToDisable(null);
+              }}
+              onConfirm={confirmDisable}
+              title="Disable User"
+              message="Are you sure you want to disable this user? They will no longer be able to access the system."
+              confirmText="Disable"
+              cancelText="Cancel"
+            />
           </div>
         </main>
       </div>

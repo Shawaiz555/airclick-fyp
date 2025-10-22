@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import toast from 'react-hot-toast';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -11,7 +12,6 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -19,7 +19,6 @@ export default function SignupPage() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    setSuccess('');
 
     try {
       // Validation
@@ -52,12 +51,13 @@ export default function SignupPage() {
       // Don't need to use the response data since we're not auto-logging in
       await response.json();
 
-      setSuccess('Account created successfully! Redirecting to login...');
+      toast.success('Account created successfully! Redirecting to login...');
+      setIsLoading(false);
 
       // Redirect to login page (don't auto-login for email/password signup)
       setTimeout(() => {
         router.push('/login');
-      }, 1500);
+      }, 2000);
 
     } catch (err) {
       setError(err.message || 'Failed to create account');
@@ -79,12 +79,6 @@ export default function SignupPage() {
           {error && (
             <div className="mb-6 p-3 bg-rose-500/20 border border-rose-500/30 rounded-lg text-rose-300 text-center">
               {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="mb-6 p-3 bg-green-500/20 border border-green-500/30 rounded-lg text-green-300 text-center">
-              {success}
             </div>
           )}
 

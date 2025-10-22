@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import toast from 'react-hot-toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function UserSettings() {
   const [settings, setSettings] = useState({
@@ -17,7 +19,7 @@ export default function UserSettings() {
     vibrationFeedback: true
   });
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Load settings from localStorage
   useEffect(() => {
@@ -35,37 +37,36 @@ export default function UserSettings() {
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
-    setSaveStatus('Saving settings...');
 
     try {
       await new Promise(resolve => setTimeout(resolve, 1000));
       localStorage.setItem('userSettings', JSON.stringify(settings));
-      setSaveStatus('Settings saved successfully!');
-      setTimeout(() => setSaveStatus(''), 3000);
+      toast.success('Settings saved successfully!');
     } catch (error) {
-      setSaveStatus('Failed to save settings.');
+      toast.error('Failed to save settings.');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleResetSettings = () => {
-    if (confirm('Reset all settings to default values?')) {
-      const defaultSettings = {
-        gestureSensitivity: 50,
-        dwellClickEnabled: true,
-        dwellClickTime: 500,
-        highContrast: false,
-        fontSize: 'medium',
-        voiceCommands: false,
-        showSkeleton: true,
-        vibrationFeedback: true
-      };
-      setSettings(defaultSettings);
-      localStorage.setItem('userSettings', JSON.stringify(defaultSettings));
-      setSaveStatus('Settings reset to defaults');
-      setTimeout(() => setSaveStatus(''), 3000);
-    }
+    setShowResetConfirm(true);
+  };
+
+  const confirmReset = () => {
+    const defaultSettings = {
+      gestureSensitivity: 50,
+      dwellClickEnabled: true,
+      dwellClickTime: 500,
+      highContrast: false,
+      fontSize: 'medium',
+      voiceCommands: false,
+      showSkeleton: true,
+      vibrationFeedback: true
+    };
+    setSettings(defaultSettings);
+    localStorage.setItem('userSettings', JSON.stringify(defaultSettings));
+    toast.success('Settings reset to defaults');
   };
 
   return (
@@ -79,16 +80,6 @@ export default function UserSettings() {
               </h1>
               <p className="text-purple-200">Customize your gesture control experience</p>
             </div>
-
-            {/* Save Status */}
-            {saveStatus && (
-              <div className={`mb-6 p-4 rounded-xl text-center transition-all duration-500 ${saveStatus.includes('success')
-                  ? 'bg-green-500/20 border border-green-500/30'
-                  : 'bg-amber-500/20 border border-amber-500/30'
-                }`}>
-                <span className="font-medium">{saveStatus}</span>
-              </div>
-            )}
 
             {/* Settings Form */}
             <div className="space-y-8">
@@ -293,6 +284,18 @@ export default function UserSettings() {
                 </button>
               </div>
             </div>
+
+            {/* Reset Confirmation Modal */}
+            <ConfirmModal
+              isOpen={showResetConfirm}
+              onClose={() => setShowResetConfirm(false)}
+              onConfirm={confirmReset}
+              title="Reset Settings"
+              message="Are you sure you want to reset all settings to their default values? This action cannot be undone."
+              confirmText="Reset"
+              cancelText="Cancel"
+              confirmButtonClass="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
+            />
           </div>
         </div>
       </div>

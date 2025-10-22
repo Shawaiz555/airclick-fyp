@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -19,7 +20,6 @@ export default function ForgotPasswordPage() {
 
   // UI state
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
   /**
@@ -30,7 +30,6 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
-    setSuccess(false);
 
     try {
       // Validate email format (client-side)
@@ -54,8 +53,13 @@ export default function ForgotPasswordPage() {
       }
 
       // Show success message
-      setSuccess(true);
+      toast.success(`Password reset email sent to ${email}. Please check your inbox (and spam folder).`, {
+        duration: 6000,
+      });
       console.log('✅ Password reset email sent to:', email);
+
+      // Reset form
+      setEmail('');
 
     } catch (err) {
       console.error('❌ Forgot password error:', err);
@@ -71,101 +75,15 @@ export default function ForgotPasswordPage() {
         {/* Header */}
         <div className="text-center my-8">
           <h1 className="text-3xl lg:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 mb-4">
-            {success ? 'Check Your Email' : 'Forgot Password'}
+            Forgot Password
           </h1>
           <p className="text-purple-200">
-            {success
-              ? "We've sent you a password reset link"
-              : "Enter your email to receive a password reset link"
-            }
+            Enter your email to receive a password reset link
           </p>
         </div>
 
         <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-8 border border-cyan-500/20 shadow-2xl">
-          {/* Success State */}
-          {success ? (
-            <div className="space-y-6">
-              {/* Success Icon */}
-              <div className="flex justify-center">
-                <div className="w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-600 rounded-full flex items-center justify-center shadow-lg">
-                  <svg
-                    className="w-12 h-12 text-white"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Success Message */}
-              <div className="text-center space-y-4">
-                <h3 className="text-2xl font-bold text-cyan-300">Email Sent!</h3>
-                <p className="text-purple-200">
-                  If an account exists with <span className="font-semibold text-cyan-400">{email}</span>,
-                  you will receive a password reset email shortly.
-                </p>
-              </div>
-
-              {/* Info Box */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="text-sm text-purple-200">
-                    <p className="font-semibold text-cyan-300 mb-1">Important:</p>
-                    <p>The reset link will expire in <span className="font-bold text-cyan-400">15 minutes</span>.
-                    Please check your spam folder if you dont see the email.</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Next Steps */}
-              <div className="bg-gray-700/30 rounded-xl p-4 border border-purple-500/20">
-                <p className="font-semibold text-purple-300 mb-3">Next Steps:</p>
-                <ol className="space-y-2 text-sm text-purple-200">
-                  <li className="flex items-start gap-2">
-                    <span className="text-cyan-400 font-bold">1.</span>
-                    <span>Check your email inbox (and spam folder)</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-cyan-400 font-bold">2.</span>
-                    <span>Click the reset link in the email</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-cyan-400 font-bold">3.</span>
-                    <span>Enter your new password</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-cyan-400 font-bold">4.</span>
-                    <span>Log in with your new password</span>
-                  </li>
-                </ol>
-              </div>
-
-              {/* Back to Login Button */}
-              <Link
-                href="/login"
-                className="block w-full py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-center hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 shadow-lg"
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                  Back to Login
-                </div>
-              </Link>
-            </div>
-          ) : (
-            /* Form State */
-            <div>
+          <div>
               {/* Error Message */}
               {error && (
                 <div className="mb-6 p-3 bg-rose-500/20 border border-rose-500/30 rounded-lg text-rose-300 text-center flex items-center justify-center gap-2">
@@ -254,7 +172,6 @@ export default function ForgotPasswordPage() {
                 </div>
               </div>
             </div>
-          )}
         </div>
       </div>
     </div>

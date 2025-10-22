@@ -22,6 +22,8 @@ import Head from 'next/head';
 import AdminSidebar from '../../components/AdminSidebar';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import GestureTester from '../../components/GestureTester';
+import toast from 'react-hot-toast';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function GestureProfileManagement() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -37,6 +39,8 @@ export default function GestureProfileManagement() {
   });
   const [showTestModal, setShowTestModal] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [profileToDelete, setProfileToDelete] = useState(null);
 
   const gestureOptions = [
     'SWIPE_LEFT',
@@ -94,10 +98,12 @@ export default function GestureProfileManagement() {
     if (currentProfile.id) {
       // Update existing
       setProfiles(profiles.map(p => p.id === currentProfile.id ? currentProfile : p));
+      toast.success('Gesture profile updated successfully');
     } else {
       // Add new
       const newProfile = { ...currentProfile, id: Date.now().toString() };
       setProfiles([...profiles, newProfile]);
+      toast.success('Gesture profile created successfully');
     }
     setIsEditing(false);
     setCurrentProfile({
@@ -111,9 +117,14 @@ export default function GestureProfileManagement() {
   };
 
   const handleDeleteProfile = (id) => {
-    if (confirm('Are you sure you want to delete this gesture profile?')) {
-      setProfiles(profiles.filter(p => p.id !== id));
-    }
+    setProfileToDelete(id);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    setProfiles(profiles.filter(p => p.id !== profileToDelete));
+    toast.success('Gesture profile deleted successfully');
+    setProfileToDelete(null);
   };
 
   /**
@@ -365,10 +376,24 @@ export default function GestureProfileManagement() {
               onTestComplete={handleTestComplete}
             />
           )}
+
+          {/* Delete Confirmation Modal */}
+          <ConfirmModal
+            isOpen={showDeleteConfirm}
+            onClose={() => {
+              setShowDeleteConfirm(false);
+              setProfileToDelete(null);
+            }}
+            onConfirm={confirmDelete}
+            title="Delete Gesture Profile"
+            message="Are you sure you want to delete this gesture profile? This action cannot be undone."
+            confirmText="Delete"
+            cancelText="Cancel"
+          />
         </div>
       </main>
     </div>
     </ProtectedRoute>
-    
+
   );
 }

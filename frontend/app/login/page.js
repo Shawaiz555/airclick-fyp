@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import Link from 'next/link';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import toast from 'react-hot-toast';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -33,6 +34,7 @@ export default function LoginPage() {
         const errorData = await response.json().catch(() => ({ detail: 'Login failed' }));
         throw new Error(errorData.detail || 'Invalid credentials');
       }
+      toast.success('Logged in successfully!!');
 
       const data = await response.json();
 
