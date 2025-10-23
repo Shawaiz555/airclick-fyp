@@ -23,7 +23,7 @@ export default function UserLayout({ children }) {
       )}
 
       {/* Main Content - Shifted right when sidebar is open */}
-      <main className={`transition-all duration-300 md:p-4`}>
+      <main className={`transition-all duration-300 md:p-2`}>
         {children}
       </main>
     </div>

@@ -82,8 +82,8 @@ export default function CustomGestureManagement() {
   return (
     <ProtectedRoute allowedRoles={['USER']}>
         <div className="md:ml-64 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-6xl mx-auto">
+      <div className="container py-12">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
               Custom Gesture Management

@@ -73,8 +73,8 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         {/* Header */}
-        <div className="text-center my-8">
-          <h1 className="text-3xl lg:text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 mb-4">
+        <div className="text-center my-6">
+          <h1 className="text-3xl lg:text-[42px] font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 mb-4">
             Forgot Password
           </h1>
           <p className="text-purple-200">
@@ -95,10 +95,10 @@ export default function ForgotPasswordPage() {
               )}
 
               {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-6 py-6">
+              <form onSubmit={handleSubmit} className="space-y-6 px-4 py-4">
                 {/* Email Input */}
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium mb-2 text-cyan-200">
+                  <label htmlFor="email" className="block text-md font-medium mb-2 text-cyan-200">
                     Email Address
                   </label>
                   <input
@@ -118,7 +118,7 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-3 px-6 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-lg hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                  className="w-full py-3 px-4 cursor-pointer bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-md hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                 >
                   {loading ? (
                     <div className="flex items-center justify-center gap-2">
@@ -140,8 +140,8 @@ export default function ForgotPasswordPage() {
               </form>
 
               {/* Divider */}
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
+              <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center px-4">
                   <div className="w-full border-t border-gray-600"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
@@ -150,7 +150,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               {/* Back to Login Link */}
-              <div className="text-center">
+              <div className="text-center px-4">
                 <p className="text-gray-400">
                   Remember your password?{' '}
                   <Link href="/login" className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors">
@@ -160,7 +160,7 @@ export default function ForgotPasswordPage() {
               </div>
 
               {/* Security Note */}
-              <div className="mt-6 bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+              <div className="mt-6 mx-auto bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <svg className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />

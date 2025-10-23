@@ -205,21 +205,21 @@ export default function GestureTester({ onClose, onTestComplete }) {
 
     // Detect fist (all fingertips close to palm)
     const isFist = landmarks[8].y > landmarks[6].y &&
-                   landmarks[12].y > landmarks[10].y &&
-                   landmarks[16].y > landmarks[14].y &&
-                   landmarks[20].y > landmarks[18].y;
+      landmarks[12].y > landmarks[10].y &&
+      landmarks[16].y > landmarks[14].y &&
+      landmarks[20].y > landmarks[18].y;
 
     // Detect open hand (all fingers extended)
     const isOpenHand = landmarks[8].y < landmarks[6].y &&
-                       landmarks[12].y < landmarks[10].y &&
-                       landmarks[16].y < landmarks[14].y &&
-                       landmarks[20].y < landmarks[18].y;
+      landmarks[12].y < landmarks[10].y &&
+      landmarks[16].y < landmarks[14].y &&
+      landmarks[20].y < landmarks[18].y;
 
     // Detect peace sign (index and middle finger extended, others closed)
     const isPeaceSign = landmarks[8].y < landmarks[6].y &&
-                        landmarks[12].y < landmarks[10].y &&
-                        landmarks[16].y > landmarks[14].y &&
-                        landmarks[20].y > landmarks[18].y;
+      landmarks[12].y < landmarks[10].y &&
+      landmarks[16].y > landmarks[14].y &&
+      landmarks[20].y > landmarks[18].y;
 
     // Determine detected gesture
     let gesture = null;
@@ -290,7 +290,7 @@ export default function GestureTester({ onClose, onTestComplete }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="relative w-full max-w-3xl bg-gray-900/90 backdrop-blur-lg rounded-2xl overflow-hidden border border-cyan-500/30 shadow-2xl">
+      <div className="relative w-full max-w-3xl bg-gray-900/90 backdrop-blur-lg rounded-2xl overflow-hidden max-h-[90vh] overflow-y-auto border border-cyan-500/30 shadow-2xl">
         {/* Header gradient line */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
 
@@ -342,20 +342,18 @@ export default function GestureTester({ onClose, onTestComplete }) {
 
             {/* Connection status indicator */}
             <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-xs flex items-center">
-              <div className={`w-2 h-2 rounded-full mr-2 ${
-                isConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500 animate-pulse'
-              }`}></div>
+              <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500 animate-pulse'
+                }`}></div>
               <span>{isConnected ? 'Connected' : 'Connecting...'}</span>
             </div>
           </div>
 
           {/* Test Result */}
           {testResult && (
-            <div className={`p-6 rounded-xl mb-6 ${
-              testResult.success
+            <div className={`p-4 rounded-xl mb-3 ${testResult.success
                 ? 'bg-green-500/20 border border-green-500/30'
                 : 'bg-amber-500/20 border border-amber-500/30'
-            }`}>
+              }`}>
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-full flex items-center justify-center">
                   {testResult.success ? (

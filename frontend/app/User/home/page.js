@@ -468,11 +468,11 @@ export default function Home() {
   return (
     <ProtectedRoute allowedRoles={['USER']}>
       <div className="md:ml-64 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
-        <div className="container mx-auto px-4 py-12">
+        <div className="container py-12">
           {/* Main Content */}
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             {/* Camera Preview - INCREASED SIZE */}
-            <div className="relative rounded-2xl overflow-hidden border-4 border-dashed border-cyan-500/50 bg-gray-800/50 mb-6 flex items-center justify-center" style={{ height: '600px' }}>
+            <div className="relative rounded-2xl overflow-hidden border-4 border-dashed border-cyan-500/50 bg-gray-800/50 mb-6 flex items-center justify-center" style={{ height: '700px' }}>
               {isCameraActive ? (
                 <>
                   {/* Canvas for hand skeleton drawing - LARGER RESOLUTION */}

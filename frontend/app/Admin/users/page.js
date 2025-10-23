@@ -109,7 +109,7 @@ export default function UserManagement() {
         )}
 
         <main className="md:ml-64 min-h-screen p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-8xl mx-auto">
             <div className="mb-8">
               <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                 User Management
@@ -234,12 +234,12 @@ export default function UserManagement() {
             {/* Logs Modal */}
             {showLogsModal && selectedUser && (
               <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="relative w-full max-w-2xl bg-gray-900/90 backdrop-blur-lg rounded-2xl overflow-hidden border border-cyan-500/30 shadow-2xl max-h-[80vh] flex flex-col">
+                <div className="relative w-full max-w-xl bg-gray-900/90 backdrop-blur-lg rounded-2xl overflow-hidden border border-cyan-500/30 shadow-2xl max-h-[80vh] flex flex-col">
                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
 
                   <div className="p-6 pb-4 border-b border-gray-700/50">
                     <div className="flex justify-between items-center">
-                      <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                      <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                         Activity Logs - {selectedUser.name}
                       </h2>
                       <button
@@ -277,12 +277,12 @@ export default function UserManagement() {
             {/* Edit User Modal */}
             {showEditModal && currentUser && (
               <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                <div className="relative w-full max-w-md bg-gray-900/90 backdrop-blur-lg rounded-2xl overflow-hidden border border-cyan-500/30 shadow-2xl">
+                <div className="relative w-full max-w-lg bg-gray-900/90 backdrop-blur-lg rounded-2xl overflow-hidden border border-cyan-500/30 shadow-2xl">
                   <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
 
-                  <div className="p-6">
-                    <div className="flex justify-between items-center mb-6">
-                      <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                  <div className="p-7 py-8">
+                    <div className="flex justify-between items-center mb-4">
+                      <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                         Edit User
                       </h2>
                       <button

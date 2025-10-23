@@ -125,14 +125,14 @@ export default function AdminOverview() {
 
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
+      <div className="min-h-screen bg-gradient-to-br px-4 py-6 from-indigo-900 via-purple-900 to-pink-800 text-white">
         <Head>
           <title>Admin Dashboard | System Overview</title>
           <meta name="description" content="Admin dashboard for system monitoring" />
         </Head>
 
         <main className="md:ml-64 min-h-screen p-4 md:p-2">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-8xl mx-auto">
             <div className="mb-8">
               <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                 System Overview
@@ -140,23 +140,23 @@ export default function AdminOverview() {
               <p className="text-purple-200">Monitor system performance and key metrics</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
               {stats.map((stat, index) => (
                 <div
                   key={index}
-                  className={`bg-gray-800/30 hover:cursor-pointer backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 transform transition-all duration-500 hover:scale-[1.02] hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                  className={`bg-gray-800/30 hover:cursor-pointer backdrop-blur-sm rounded-2xl p-6 py-10 border border-cyan-500/20 transform transition-all duration-500 hover:scale-[1.02] hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                     }`}
                   style={{ transitionDelay: `${index * 100}ms` }}
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <p className="text-cyan-200 text-sm mb-1">{stat.title}</p>
+                      <p className="text-cyan-200 text-lg font-semibold mb-1">{stat.title}</p>
                       <p className="text-2xl font-bold mb-2">{stat.value}</p>
                       <p className={`text-sm ${stat.change.startsWith('+') ? 'text-emerald-400' : 'text-amber-400'}`}>
                         {stat.change} from last month
                       </p>
                     </div>
-                    <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} opacity-20`}>
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} opacity-100`}>
                       {stat.icon}
                     </div>
                   </div>
@@ -167,7 +167,7 @@ export default function AdminOverview() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
                 <h3 className="text-xl font-semibold mb-4 text-cyan-200">User Growth</h3>
-                <div className="h-72">
+                <div className="h-88">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={userGrowthData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
@@ -196,7 +196,7 @@ export default function AdminOverview() {
 
               <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
                 <h3 className="text-xl font-semibold mb-4 text-emerald-200">Gesture Accuracy</h3>
-                <div className="h-72">
+                <div className="h-88">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={accuracyData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
@@ -225,14 +225,11 @@ export default function AdminOverview() {
                       />
                     </BarChart>
                   </ResponsiveContainer>
-
-
-
                 </div>
               </div>
             </div>
 
-            <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
+            <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 px-10 border border-cyan-500/20">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-semibold text-cyan-200">Real-time Status Logs</h3>
                 <div className="flex items-center space-x-2">
