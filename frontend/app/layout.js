@@ -30,46 +30,46 @@ export default function RootLayout({ children }) {
               toastOptions={{
                 duration: 3000,
                 style: {
-                  background: 'linear-gradient(135deg, #1f2937 0%, #111827 100%)',
-                  color: '#fff',
-                  border: '1px solid rgba(34, 211, 238, 0.4)',
+                  background: 'linear-gradient(135deg, var(--surface-dark) 0%, var(--surface-darker) 100%)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-accent)',
                   borderRadius: '12px',
                   padding: '16px 24px',
                   fontSize: '15px',
                   fontWeight: '500',
-                  boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(34, 211, 238, 0.1)',
+                  boxShadow: '0 10px 40px var(--shadow-dark), 0 0 20px var(--shadow-cyan)',
                   backdropFilter: 'blur(10px)',
                   minWidth: '340px',
                   maxWidth: '500px',
                 },
                 success: {
                   iconTheme: {
-                    primary: '#10b981',
-                    secondary: '#fff',
+                    primary: 'var(--success)',
+                    secondary: 'var(--text-primary)',
                   },
                   style: {
                     border: '1px solid rgba(16, 185, 129, 0.4)',
-                    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(16, 185, 129, 0.2)',
+                    boxShadow: '0 10px 40px var(--shadow-dark), 0 0 20px rgba(16, 185, 129, 0.2)',
                   },
                 },
                 error: {
                   iconTheme: {
-                    primary: '#ef4444',
-                    secondary: '#fff',
+                    primary: 'var(--error)',
+                    secondary: 'var(--text-primary)',
                   },
                   style: {
                     border: '1px solid rgba(239, 68, 68, 0.4)',
-                    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(239, 68, 68, 0.2)',
+                    boxShadow: '0 10px 40px var(--shadow-dark), 0 0 20px rgba(239, 68, 68, 0.2)',
                   },
                 },
                 loading: {
                   iconTheme: {
-                    primary: '#3b82f6',
-                    secondary: '#fff',
+                    primary: 'var(--info)',
+                    secondary: 'var(--text-primary)',
                   },
                   style: {
-                    border: '1px solid rgba(59, 130, 246, 0.4)',
-                    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.3), 0 0 20px rgba(59, 130, 246, 0.2)',
+                    border: '1px solid var(--border-accent)',
+                    boxShadow: '0 10px 40px var(--shadow-dark), 0 0 20px var(--shadow-blue)',
                   },
                 },
               }}

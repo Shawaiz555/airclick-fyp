@@ -2,30 +2,86 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Background Colors */
+  --background: #0f0f1b;
+  --foreground: #ffffff;
+
+  /* Primary Theme Colors - Cyan/Blue Gradient */
+  --primary-from: #06b6d4; /* cyan-500 */
+  --primary-to: #3b82f6;   /* blue-500 */
+  --primary-hover-from: #0891b2; /* cyan-600 */
+  --primary-hover-to: #2563eb;   /* blue-600 */
+
+  /* Accent Colors */
+  --accent-cyan: #06b6d4;
+  --accent-cyan-light: #22d3ee; /* cyan-400 */
+  --accent-blue: #3b82f6;
+  --accent-purple: #a855f7;
+  --accent-pink: #ec4899;
+
+  /* Surface Colors */
+  --surface-dark: #111827;      /* gray-900 */
+  --surface-darker: #0f172a;    /* gray-900 darker */
+  --surface-overlay: rgba(17, 24, 39, 0.9);
+  --surface-overlay-light: rgba(17, 24, 39, 0.5);
+
+  /* Border Colors */
+  --border-primary: rgba(6, 182, 212, 0.2);
+  --border-primary-hover: rgba(6, 182, 212, 0.3);
+  --border-accent: rgba(6, 182, 212, 0.4);
+
+  /* Text Colors */
+  --text-primary: #ffffff;
+  --text-secondary: #d1d5db;    /* gray-300 */
+  --text-cyan: #22d3ee;         /* cyan-400 */
+  --text-cyan-light: #a5f3fc;   /* cyan-200 */
+
+  /* Status Colors */
+  --success: #10b981;           /* green-500 */
+  --error: #ef4444;             /* red-500 */
+  --warning: #f59e0b;           /* amber-500 */
+  --info: #3b82f6;              /* blue-500 */
+
+  /* Shadow Colors */
+  --shadow-cyan: rgba(6, 182, 212, 0.3);
+  --shadow-blue: rgba(59, 130, 246, 0.2);
+  --shadow-dark: rgba(0, 0, 0, 0.3);
 }
 
 @theme inline {
+  /* Map CSS variables to Tailwind classes */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+
+  /* Custom colors accessible via Tailwind */
+  --color-primary-from: var(--primary-from);
+  --color-primary-to: var(--primary-to);
+  --color-primary-hover-from: var(--primary-hover-from);
+  --color-primary-hover-to: var(--primary-hover-to);
+
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-cyan-light: var(--accent-cyan-light);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-purple: var(--accent-purple);
+  --color-accent-pink: var(--accent-pink);
+
+  --color-surface-dark: var(--surface-dark);
+  --color-surface-darker: var(--surface-darker);
+
+  --color-text-secondary: var(--text-secondary);
+  --color-text-cyan: var(--text-cyan);
+  --color-text-cyan-light: var(--text-cyan-light);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   margin: 0;
   padding: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  background: #0f0f1b;
-  color: #ffffff;
+  background: var(--background);
+  color: var(--foreground);
   overflow-x: hidden;
 }
 
@@ -39,12 +95,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+  background: linear-gradient(to bottom, var(--primary-from), var(--primary-to));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #0891b2, #2563eb);
+  background: linear-gradient(to bottom, var(--primary-hover-from), var(--primary-hover-to));
 }
 
 /* Animation for gesture cards */
@@ -60,7 +116,7 @@ body {
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(to right, #06b6d4, #3b82f6);
+  background: linear-gradient(to right, var(--primary-from), var(--primary-to));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -77,24 +133,24 @@ body {
 }
 
 .max-h-\[90vh\] .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+  background: linear-gradient(to bottom, var(--primary-from), var(--primary-to));
   border-radius: 4px;
 }
 
 .max-h-\[90vh\] .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #0891b2, #2563eb);
+  background: linear-gradient(to bottom, var(--primary-hover-from), var(--primary-hover-to));
 }
 
 /* Ultra-thin scrollbar */
 .thin-scrollbar::-webkit-scrollbar {
-  width: 4px;          /* thinner than scrollbar-thin */
+  width: 4px;
 }
 
 .thin-scrollbar::-webkit-scrollbar-track {
-  background: #0f172a; /* matches gray-900 */
+  background: var(--surface-darker);
 }
 
 .thin-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #06b6d4, #3b82f6);
+  background: linear-gradient(to bottom, var(--primary-from), var(--primary-to));
   border-radius: 9999px;
 }
