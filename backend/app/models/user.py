@@ -15,6 +15,7 @@ class User(Base):
 
     # Primary identification
     id = Column(Integer, primary_key=True, index=True)
+    full_name = Column(String(255), nullable=True) 
     email = Column(String(255), unique=True, nullable=False, index=True)
 
     # Traditional authentication (nullable for OAuth users)
@@ -24,16 +25,14 @@ class User(Base):
     oauth_provider = Column(String(50), nullable=True)  # e.g., "google", "github"
     oauth_provider_id = Column(String(255), nullable=True, index=True)  # Provider's unique user ID
 
-    # User profile information
-    full_name = Column(String(255), nullable=True)  # From OAuth or user input
-    profile_picture = Column(String(500), nullable=True)  # URL to profile image
-
     # Authorization and settings
-    role = Column(String(20), default="USER", nullable=False)  # "USER" or "ADMIN"
+    role = Column(String(20), default="USER", nullable=False)  # "USER", "ADMIN", "MODERATOR"
     accessibility_settings = Column(JSONB, default={})  # Custom user preferences
+    status = Column(String(20), default="ACTIVE", nullable=False)  # "ACTIVE" or "INACTIVE"
 
-    # Email verification (for future enhancement)
+    # Email verification and login tracking
     email_verified = Column(Boolean, default=False)
+    last_login = Column(DateTime(timezone=True), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

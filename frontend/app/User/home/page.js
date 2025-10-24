@@ -23,9 +23,13 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 export default function Home() {
   // ==================== STATE MANAGEMENT ====================
+
+  // Initial loading state
+  const [isLoading, setIsLoading] = useState(true);
 
   // Camera and detection state
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -81,6 +85,8 @@ export default function Home() {
     } catch (error) {
       console.error('Error loading gestures:', error);
       setStatusMessage('⚠ Error loading gestures');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -465,302 +471,341 @@ export default function Home() {
 
   // ==================== RENDER ====================
 
-  return (
+return (
     <ProtectedRoute allowedRoles={['USER']}>
       <div className="md:ml-64 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
-        <div className="container py-12">
-          {/* Main Content */}
-          <div className="max-w-7xl mx-auto">
-            {/* Camera Preview - INCREASED SIZE */}
-            <div className="relative rounded-2xl overflow-hidden border-4 border-dashed border-cyan-500/50 bg-gray-800/50 mb-6 flex items-center justify-center" style={{ height: '700px' }}>
-              {isCameraActive ? (
-                <>
-                  {/* Canvas for hand skeleton drawing - LARGER RESOLUTION */}
-                  <canvas
-                    ref={canvasRef}
-                    width={1280}
-                    height={720}
-                    className="absolute inset-0 w-full h-full object-contain"
-                  />
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-screen">
+            <LoadingSpinner message="Loading dashboard..." size="lg" />
+          </div>
+        ) : (
+          <div className="py-6 md:py-10 px-4 lg:px-8">
+            <div className="max-w-[1400px] mx-auto">
 
-                  <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/20 to-blue-900/20"></div>
+              {/* Header */}
+              <div className="mb-8">
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
+                  Gesture Control Dashboard
+                </h1>
+                <p className="text-purple-200/90">Monitor and control your hand gesture recognition system</p>
+              </div>
 
-                  <div className="relative z-10 text-center">
-                    {!landmarkDetected ? (
-                      <div className="flex flex-col items-center">
-                        <div className="w-12 h-12 mb-3 rounded-full bg-amber-500/20 flex items-center justify-center animate-pulse">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                          </svg>
-                        </div>
-                        <p className="text-lg font-medium text-amber-300">
-                          {isConnected ? 'Detecting hand...' : 'Connecting to camera...'}
-                        </p>
-                      </div>
+              {/* Stats Row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                {/* Camera Status */}
+                <div className="bg-gray-800/30 backdrop-blur-md rounded-2xl p-4 py-8 border border-cyan-500/20">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+                    <div>
+                      <p className="text-md font-bold text-gray-400">Camera</p>
+                      <p className="text-sm font-bold text-white">{isConnected ? 'Active' : 'Inactive'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Hand Detection */}
+                <div className="bg-gray-800/30 backdrop-blur-md rounded-2xl p-4 py-8 border border-purple-500/20">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full ${handDetected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+                    <div>
+                      <p className="text-md font-bold text-gray-400">Hand</p>
+                      <p className="text-sm font-bold text-white">{handDetected ? 'Detected' : 'No Hand'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Loaded Gestures */}
+                <div className="bg-gray-800/30 backdrop-blur-md rounded-2xl p-4 py-8 border border-amber-500/20">
+                  <div className="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                    </svg>
+                    <div>
+                      <p className="text-md font-bold text-gray-400">Gestures</p>
+                      <p className="text-sm font-bold text-white">{userGestures.length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Context */}
+                <div className="bg-gray-800/30 backdrop-blur-md rounded-2xl p-4 py-8 border border-emerald-500/20">
+                  <div className="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    <div>
+                      <p className="text-md font-bold text-gray-400">Context</p>
+                      <p className="text-sm font-bold text-white truncate">{activeApp}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main Grid: Camera + Controls */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+                {/* Left: Camera Feed (2/3 width) */}
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Camera Preview */}
+                  <div className="relative rounded-3xl overflow-hidden border-2 border-cyan-500/30 bg-gray-900/30 backdrop-blur-md shadow-2xl" style={{ height: '540px' }}>
+                    {isCameraActive ? (
+                      <>
+                        <canvas
+                          ref={canvasRef}
+                          width={1280}
+                          height={720}
+                          className="absolute inset-0 w-full h-full object-contain"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-blue-900/10"></div>
+
+                        {!landmarkDetected ? (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-center">
+                              <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-amber-500/20 flex items-center justify-center animate-pulse">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                </svg>
+                              </div>
+                              <p className="text-lg font-medium text-amber-300">{isConnected ? 'Detecting hand...' : 'Connecting...'}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                            <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                          </div>
+                        )}
+                      </>
                     ) : (
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <p className="text-xl font-semibold mb-2">Camera Ready</p>
+                          <p className="text-cyan-300 text-sm">Click Start Camera to begin</p>
+                        </div>
                       </div>
                     )}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center">
-                  <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-lg">Position your hand in the frame</p>
-                  <p className="text-cyan-300 text-sm mt-1">Make a clear, consistent gesture</p>
-                </div>
-              )}
 
-              {/* Camera status indicator */}
-              <div className="absolute top-4 right-4 bg-black/50 px-3 py-1 rounded-full text-xs flex items-center">
-                <div className={`w-2 h-2 rounded-full mr-2 ${isCameraActive && isConnected ? 'bg-red-500 animate-pulse' : 'bg-green-500'
-                  }`}></div>
-                <span>
-                  {isCameraActive
-                    ? (isConnected ? 'Camera: Active' : 'Camera: Connecting...')
-                    : 'Camera: Ready'}
-                </span>
-              </div>
-            </div>
-
-            {/* Controls */}
-            <div className="flex flex-col sm:flex-row gap-4 mb-8">
-              <button
-                onClick={toggleCamera}
-                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:cursor-pointer ${isCameraActive
-                    ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600'
-                    : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
-                  } focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50`}
-              >
-                {isCameraActive ? (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                    </svg>
-                    Stop Camera
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Start Camera
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={() => setHybridMode(!hybridMode)}
-                className={`flex-1 py-4 px-6 rounded-xl font-bold text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:cursor-pointer ${hybridMode
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700'
-                    : 'bg-gray-700 hover:bg-gray-600'
-                  }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-                {hybridMode ? 'Hybrid Mode: ON' : 'Hybrid Mode: OFF'}
-              </button>
-            </div>
-
-            {/* Context Indicator */}
-            <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 mb-8">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-lg font-semibold text-cyan-200 mb-2">Active Application</h3>
-                  <select
-                    value={activeApp}
-                    onChange={(e) => setActiveApp(e.target.value)}
-                    className="bg-gray-700/50 border border-cyan-500/30 rounded-lg px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  >
-                    {apps.map(app => (
-                      <option key={app} value={app} className="bg-gray-800">{app}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-400">Context Mode</p>
-                  <p className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                    {activeApp}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Automatic Gesture Recognition Status */}
-            <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 mb-8">
-              <h3 className="text-lg font-semibold text-cyan-200 mb-4">🤖 Automatic Gesture Recognition</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                {/* Status Info */}
-                <div className="bg-gray-700/30 rounded-lg p-4">
-                  <div className="text-sm text-gray-400 space-y-2">
-                    <div className="flex justify-between">
-                      <span>Camera:</span>
-                      <span className={isConnected ? 'text-green-400' : 'text-red-400'}>
-                        {isConnected ? '✓ Active' : '✗ Inactive'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Hand Detection:</span>
-                      <span className={handDetected ? 'text-green-400' : 'text-gray-400'}>
-                        {handDetected ? '✓ Detected' : '✗ No hand'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Recognition:</span>
-                      <span className={isCameraActive && handDetected ? 'text-green-400 animate-pulse' : 'text-gray-400'}>
-                        {isCameraActive && handDetected ? '● ACTIVE' : '○ Standby'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Gestures:</span>
-                      <span className="text-cyan-400">{userGestures.length} loaded</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Context:</span>
-                      <span className="text-cyan-400 font-semibold">{activeApp}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Real-time Status */}
-                <div className="bg-gray-700/30 rounded-lg p-4 flex flex-col justify-center">
-                  {isCameraActive && handDetected ? (
-                    <div className="space-y-2">
+                    {/* Camera Indicator */}
+                    <div className="absolute top-4 right-4 bg-gray-900/90 backdrop-blur-md px-4 py-2 rounded-xl border border-cyan-500/30 shadow-lg">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                        <span className="text-green-400 font-medium">Listening for gestures...</span>
+                        <div className={`w-2.5 h-2.5 rounded-full ${isCameraActive && isConnected ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
+                        <span className="text-xs font-medium">{isCameraActive ? (isConnected ? 'LIVE' : 'Connecting...') : 'Ready'}</span>
                       </div>
-                      {recognitionFrames.length > 0 && (
-                        <div className="w-full bg-gray-600 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full transition-all duration-200"
-                            style={{ width: `${(recognitionFrames.length / 60) * 100}%` }}
-                          ></div>
-                        </div>
+                    </div>
+                  </div>
+
+                  {/* Control Buttons */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      onClick={toggleCamera}
+                      className={`py-4 px-6 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 shadow-lg ${
+                        isCameraActive
+                          ? 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 hover:shadow-red-500/40'
+                          : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 hover:shadow-cyan-500/40'
+                      } transform hover:scale-[1.02] cursor-pointer`}
+                    >
+                      {isCameraActive ? (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                          </svg>
+                          Stop Camera
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Start Camera
+                        </>
                       )}
-                      {isMatching && (
-                        <div className="flex items-center gap-2 text-amber-400 text-sm">
-                          <div className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
-                          <span>Analyzing...</span>
+                    </button>
+
+                    <button
+                      onClick={() => setHybridMode(!hybridMode)}
+                      className={`py-4 px-6 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 shadow-lg ${
+                        hybridMode
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 hover:shadow-purple-500/40'
+                          : 'bg-gray-800/60 hover:bg-gray-700/60 border-2 border-gray-600/50'
+                      } transform hover:scale-[1.02] cursor-pointer`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                      </svg>
+                      {hybridMode ? 'Hybrid: ON' : 'Hybrid: OFF'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Right: Status Panel (1/3 width) */}
+                <div className="space-y-4">
+
+                  {/* Recognition Status */}
+                  <div className="w-full h-[340px] bg-gray-800/30 backdrop-blur-md rounded-3xl p-6 border border-emerald-500/20 shadow-xl">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      <h3 className="text-lg font-bold text-white">Recognition Status</h3>
+                    </div>
+
+                    <div className="space-y-3">
+                      {isCameraActive && handDetected ? (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                            <span className="text-sm text-green-400 font-medium">Active - Listening</span>
+                          </div>
+
+                          {recognitionFrames.length > 0 && (
+                            <div>
+                              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                <span>Recording</span>
+                                <span>{recognitionFrames.length}/60 frames</span>
+                              </div>
+                              <div className="w-full bg-gray-700 rounded-full h-2">
+                                <div
+                                  className="bg-gradient-to-r from-cyan-500 to-blue-500 h-2 rounded-full transition-all"
+                                  style={{ width: `${(recognitionFrames.length / 60) * 100}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          )}
+
+                          {isMatching && (
+                            <div className="flex items-center gap-2 bg-amber-500/10 rounded-lg p-3 border border-amber-500/20">
+                              <div className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                              <span className="text-sm text-amber-400">Analyzing gesture...</span>
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="text-center py-8 text-gray-400">
+                          {!isCameraActive ? (
+                            <div>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-2 mt-10 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              <p className="text-md">Start camera to begin</p>
+                            </div>
+                          ) : (
+                            <div>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-2 mt-10 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+                              </svg>
+                              <p className="text-md">Show your hand</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  ) : (
-                    <div className="text-center text-gray-400 text-sm">
-                      {!isCameraActive ? (
-                        <>👆 Start camera to begin</>
-                      ) : (
-                        <>✋ Show your hand to activate</>
-                      )}
+                  </div>
+
+                  {/* Matched Gesture */}
+                  {matchedGesture && (
+                    <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-5 border border-green-500/40 shadow-xl">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-green-500/30 flex items-center justify-center flex-shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-1">
+                            <p className="font-bold text-green-300">{matchedGesture.name}</p>
+                            <span className="text-xs bg-green-500/30 px-2 py-1 rounded-full text-green-300">{(similarity * 100).toFixed(0)}%</span>
+                          </div>
+                          <p className="text-xs text-green-200/80">Action: {matchedGesture.action}</p>
+                          <p className="text-xs text-green-200/60">Context: {matchedGesture.app_context}</p>
+                        </div>
+                      </div>
                     </div>
                   )}
+
+                  {/* App Context Selector */}
+                  <div className="bg-gray-800/30 backdrop-blur-md rounded-3xl p-6 py-8 border border-cyan-500/20 shadow-xl">
+                    <div className="flex items-center gap-2 mb-4">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <h3 className="text-sm font-bold text-white">Application Context</h3>
+                    </div>
+                    <select
+                      value={activeApp}
+                      onChange={(e) => setActiveApp(e.target.value)}
+                      className="w-full bg-gray-700/50 border-2 border-cyan-500/30 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer font-medium"
+                    >
+                      {apps.map(app => (
+                        <option key={app} value={app} className="bg-gray-900">{app}</option>
+                      ))}
+                    </select>
+                  </div>
+
                 </div>
               </div>
 
-              {/* Status Message */}
-              {statusMessage && (
-                <div className="bg-gray-700/50 rounded-lg p-3 border border-cyan-500/30 mb-4">
-                  <p className="text-sm text-center text-cyan-200">{statusMessage}</p>
-                </div>
-              )}
-
-              {/* Matched Gesture Display */}
-              {matchedGesture && (
-                <div className="bg-gradient-to-r from-green-500/20 to-cyan-500/20 rounded-lg p-4 border border-green-500/30 mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-lg font-bold text-green-400">✅ {matchedGesture.name}</span>
-                    <span className="text-sm text-green-300">{(similarity * 100).toFixed(0)}% match</span>
+              {/* Bottom Section: Quick Actions */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Link href="/User/gestures-management" className="group bg-gray-800/30 backdrop-blur-md rounded-3xl p-6 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-cyan-500/20 cursor-pointer">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-cyan-200 group-hover:text-cyan-100 transition-colors">Manage Gestures</h3>
                   </div>
-                  <div className="text-sm text-gray-300">
-                    Action: <span className="text-white font-medium">{matchedGesture.action}</span> | Context: <span className="text-white font-medium">{matchedGesture.app_context}</span>
-                  </div>
-                </div>
-              )}
+                  <p className="text-sm text-cyan-300/80">Create and manage your custom hand gestures</p>
+                </Link>
 
-              {/* Instructions */}
-              <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3">
-                <p className="text-xs text-cyan-300 mb-2"><strong>ℹ️ How it works:</strong></p>
-                <ul className="text-xs text-cyan-300/80 space-y-1 list-disc list-inside">
-                  <li>Recognition is <strong>fully automatic</strong> when camera is on</li>
-                  <li>Just show your hand and perform any gesture you&apos;ve recorded</li>
-                  <li>System collects 2 seconds of movement and matches in real-time</li>
-                  <li>Actions execute <strong>immediately</strong> if context matches</li>
-                  <li>Make sure you&apos;re in the correct app context: <strong>{activeApp}</strong></li>
-                </ul>
-                <p className="text-xs text-amber-300 mt-2">
-                  <strong>💡 Tips:</strong> Keep gestures smooth • Hold hand steady after gesture • Switch context above if needed
-                </p>
-              </div>
-            </div>
-
-            {/* Gesture Detection Feedback (OLD - keeping for backward compatibility) */}
-            {detectedGesture && (
-              <div className="bg-green-500/20 border border-green-500/30 rounded-2xl p-6 mb-8 animate-fade-in">
-                <div className="flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-green-500/30 flex items-center justify-center mr-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+                <Link href="/User/settings" className="group bg-gray-800/30 backdrop-blur-md rounded-3xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-purple-500/20 cursor-pointer">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-purple-200 group-hover:text-purple-100 transition-colors">Settings</h3>
                   </div>
-                  <div>
-                    <p className="text-xl font-bold text-green-300">✔ {detectedGesture.gesture} Detected</p>
-                    <p className="text-green-400 text-sm">Gesture executed successfully</p>
+                  <p className="text-sm text-purple-300/80">Configure system preferences and options</p>
+                </Link>
+
+                <div className="bg-gray-800/30 backdrop-blur-md rounded-3xl p-6 border border-amber-500/20 shadow-xl">
+                  <div className="flex items-center gap-4 mb-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-amber-200">Performance</h3>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-amber-300/80">Latency</span>
+                      <span className="font-bold text-green-400">{isConnected ? '~33ms' : 'N/A'}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-amber-300/80">Frame Rate</span>
+                      <span className="font-bold text-green-400">{isConnected ? '30 FPS' : 'N/A'}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Link href="/User/gestures-management" className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300 hover:scale-105">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-cyan-200">Custom Gestures</h3>
-                </div>
-                <p className="text-cyan-300 text-sm">Create and manage your own gestures</p>
-              </Link>
-
-              <Link href="/User/settings" className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:scale-105">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-purple-200">Settings</h3>
-                </div>
-                <p className="text-purple-300 text-sm">Adjust sensitivity and accessibility</p>
-              </Link>
-
-              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-amber-500/20">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 flex items-center justify-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-amber-200">Performance</h3>
-                </div>
-                <p className="text-amber-300 text-sm">Latency: {isConnected ? '~33ms (30 FPS)' : 'Not connected'}</p>
-              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </ProtectedRoute>
   );

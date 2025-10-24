@@ -93,6 +93,7 @@ async def register(
 
     # Create new user instance
     new_user = User(
+        full_name=user_data.full_name,
         email=user_data.email,
         password_hash=hashed_password,
         role=user_data.role,
@@ -174,6 +175,12 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
+
+    # Update last login timestamp
+    from datetime import datetime, timezone
+    user.last_login = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
 
     # Generate JWT access token
     access_token = create_access_token(data={"sub": user.id})
@@ -305,12 +312,12 @@ async def google_auth(
             )
 
         # Update profile information from Google (if not set)
-        if not existing_user.full_name:
-            existing_user.full_name = google_user["full_name"]
-        if not existing_user.profile_picture:
-            existing_user.profile_picture = google_user["profile_picture"]
         if google_user["email_verified"]:
             existing_user.email_verified = True
+
+        # Update last login timestamp
+        from datetime import datetime, timezone
+        existing_user.last_login = datetime.now(timezone.utc)
 
         db.commit()
         db.refresh(existing_user)
@@ -320,15 +327,15 @@ async def google_auth(
         # New user - create account with Google OAuth
         is_new_user = True
 
+        from datetime import datetime, timezone
         new_user = User(
             email=google_user["email"],
             password_hash=None,  # OAuth users don't have passwords
             oauth_provider="google",
             oauth_provider_id=google_user["google_id"],
-            full_name=google_user["full_name"],
-            profile_picture=google_user["profile_picture"],
             email_verified=google_user["email_verified"],
-            role="USER"  # Default role for OAuth users
+            role="USER",  # Default role for OAuth users
+            last_login=datetime.now(timezone.utc)
         )
 
         db.add(new_user)

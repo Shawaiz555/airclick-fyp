@@ -75,15 +75,24 @@ export default function UserSidebar({ isOpen, onToggle }) {
    if (isMobile) {
       return (
          <>
-            <div className="fixed top-2 right-4 z-50 w-full flex justify-end">
+            <div className="fixed top-4 right-4 z-50">
                <button
                   onClick={onToggle}
-                  className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105"
+                  className="group relative p-3 rounded-2xl bg-gray-800/30 backdrop-blur-lg border border-cyan-500/30 shadow-xl hover:shadow-cyan-500/50 transition-all duration-300 transform hover:scale-105 hover:border-cyan-500/50"
                   aria-label="Toggle sidebar"
                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
+                  {/* Animated Gradient Background */}
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-blue-600/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+                  {/* Menu Icon with Animation */}
+                  <div className="relative z-10 flex flex-col gap-1.5">
+                     <span className={`block h-0.5 w-6 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-300 ${isOpen ? 'rotate-45 translate-y-2' : ''}`}></span>
+                     <span className={`block h-0.5 w-6 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-300 ${isOpen ? 'opacity-0' : ''}`}></span>
+                     <span className={`block h-0.5 w-6 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full transition-all duration-300 ${isOpen ? '-rotate-45 -translate-y-2' : ''}`}></span>
+                  </div>
+
+                  {/* Glow Effect */}
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 opacity-0 group-hover:opacity-20 blur-xl transition-opacity duration-300"></div>
                </button>
 
                {/* Fullscreen overlay for mobile when isOpen === true */}

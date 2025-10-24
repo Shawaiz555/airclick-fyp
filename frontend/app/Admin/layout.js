@@ -23,7 +23,7 @@ export default function AdminLayout({ children }) {
       )}
 
       {/* Main Content - Shifted right when sidebar is open */}
-      <main className={`transition-all duration-300 md:p-2`}>
+      <main className={`transition-all duration-300 p-4 md:p-2`}>
         {children}
       </main>
     </div>

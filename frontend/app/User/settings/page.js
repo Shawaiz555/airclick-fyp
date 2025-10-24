@@ -4,10 +4,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
 
 export default function UserSettings() {
+  const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState({
     gestureSensitivity: 50,
     dwellClickEnabled: true,
@@ -23,10 +25,15 @@ export default function UserSettings() {
 
   // Load settings from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('userSettings');
-    if (saved) {
-      setSettings(JSON.parse(saved));
-    }
+    const loadSettings = async () => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const saved = localStorage.getItem('userSettings');
+      if (saved) {
+        setSettings(JSON.parse(saved));
+      }
+      setIsLoading(false);
+    };
+    loadSettings();
   }, []);
 
   const handleSettingChange = (key, value) => {
@@ -71,11 +78,16 @@ export default function UserSettings() {
 
   return (
     <ProtectedRoute allowedRoles={['USER']}>
-      <div className="md:ml-64 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
+      <div className="md:ml-72 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
+        {isLoading ? (
+          <div className="flex items-center justify-center min-h-screen">
+            <LoadingSpinner message="Loading settings..." size="lg" />
+          </div>
+        ) : (
         <div className="container py-12">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-4xl">
             <div className="mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+              <h1 className="text-3xl md:text-[41px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                 User Settings
               </h1>
               <p className="text-purple-200">Customize your gesture control experience</p>
@@ -298,8 +310,8 @@ export default function UserSettings() {
             />
           </div>
         </div>
+        )}
       </div>
     </ProtectedRoute>
-
   );
 }

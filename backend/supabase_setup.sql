@@ -5,15 +5,31 @@
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),  -- Nullable for OAuth users
     role VARCHAR(20) DEFAULT 'USER' NOT NULL,
+
+    -- OAuth fields
+    oauth_provider VARCHAR(50),  -- e.g., "google"
+    oauth_provider_id VARCHAR(255),
+
+    -- Status and verification
+    email_verified BOOLEAN DEFAULT FALSE,
+    status VARCHAR(20) DEFAULT 'ACTIVE' NOT NULL,  -- 'ACTIVE' or 'INACTIVE'
+    last_login TIMESTAMP WITH TIME ZONE,
+
+    -- Settings
     accessibility_settings JSONB DEFAULT '{}',
+
+    -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE
 );
 
--- Create index on email for faster lookups
+-- Create indexes on users table for faster lookups
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+CREATE INDEX IF NOT EXISTS idx_users_oauth_provider_id ON users(oauth_provider_id);
 
 -- Gestures table
 CREATE TABLE IF NOT EXISTS gestures (

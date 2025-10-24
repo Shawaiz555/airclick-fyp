@@ -20,6 +20,7 @@ class UserCreate(BaseModel):
 
     Validates email format and enforces minimum password length.
     """
+    full_name: Optional[str] = Field(None, max_length=255, description="Full name of the user")
     email: EmailStr  # Automatically validates email format
     password: str = Field(..., min_length=6, description="Password (minimum 6 characters)")
     role: Optional[str] = Field(default="USER", description="User role: USER or ADMIN")

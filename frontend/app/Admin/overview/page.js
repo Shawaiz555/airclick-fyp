@@ -5,6 +5,7 @@ import Head from 'next/head';
 // import AdminSidebar from '../../components/AdminSidebar';
 import dynamic from 'next/dynamic';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import LoadingSpinner from '../../components/LoadingSpinner';
 
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
 const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
@@ -42,37 +43,51 @@ export default function AdminOverview() {
   ]);
 
   useEffect(() => {
-    setIsLoaded(true);
+    const initializeDashboard = async () => {
+      // Simulate loading dashboard data
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setIsLoaded(true);
 
-    const logMessages = [
-      "User 'admin' logged in",
-      "Gesture 'Swipe Left' executed successfully",
-      "System health check passed",
-      "New user registered: user123",
-      "Gesture accuracy improved to 94%",
-      "False trigger detected and filtered",
-      "Cloud sync completed successfully",
-      "Camera module initialized",
-      "Gesture 'Pinch to Zoom' executed",
-      "System resources optimized"
-    ];
+      const logMessages = [
+        "User 'admin' logged in",
+        "Gesture 'Swipe Left' executed successfully",
+        "System health check passed",
+        "New user registered: user123",
+        "Gesture accuracy improved to 94%",
+        "False trigger detected and filtered",
+        "Cloud sync completed successfully",
+        "Camera module initialized",
+        "Gesture 'Pinch to Zoom' executed",
+        "System resources optimized"
+      ];
 
-    const generateLog = () => {
-      const randomMessage = logMessages[Math.floor(Math.random() * logMessages.length)];
-      const newLog = {
-        id: Date.now(),
-        message: randomMessage,
-        timestamp: new Date().toLocaleTimeString(),
-        type: Math.random() > 0.7 ? 'warning' : 'info'
+      let logCounter = 0;
+
+      const generateLog = () => {
+        const randomMessage = logMessages[Math.floor(Math.random() * logMessages.length)];
+        const newLog = {
+          id: `log-${Date.now()}-${logCounter++}`,
+          message: randomMessage,
+          timestamp: new Date().toLocaleTimeString(),
+          type: Math.random() > 0.7 ? 'warning' : 'info'
+        };
+
+        setLogs(prev => [newLog, ...prev.slice(0, 9)]);
       };
 
-      setLogs(prev => [newLog, ...prev.slice(0, 9)]);
+      const interval = setInterval(generateLog, 5000);
+      generateLog();
+
+      return () => clearInterval(interval);
     };
 
-    const interval = setInterval(generateLog, 5000);
-    generateLog();
+    const cleanup = initializeDashboard();
 
-    return () => clearInterval(interval);
+    return () => {
+      cleanup.then(clearIntervalFn => {
+        if (clearIntervalFn) clearIntervalFn();
+      });
+    };
   }, []);
 
   const stats = [
@@ -132,6 +147,11 @@ export default function AdminOverview() {
         </Head>
 
         <main className="md:ml-64 min-h-screen p-4 md:p-2">
+          {!isLoaded ? (
+            <div className="flex items-center justify-center min-h-[80vh]">
+              <LoadingSpinner message="Loading dashboard..." size="lg" />
+            </div>
+          ) : (
           <div className="max-w-8xl mx-auto">
             <div className="mb-8">
               <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
@@ -257,9 +277,9 @@ export default function AdminOverview() {
               </div>
             </div>
           </div>
+          )}
         </main>
       </div>
     </ProtectedRoute>
-
   );
 }

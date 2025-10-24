@@ -7,7 +7,7 @@ import GoogleSignInButton from '../components/GoogleSignInButton';
 import toast from 'react-hot-toast';
 
 export default function SignupPage() {
-  const [name, setName] = useState('');
+  const [full_name, setfull_name] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,7 +22,7 @@ export default function SignupPage() {
 
     try {
       // Validation
-      if (!email || !password || !confirmPassword) {
+      if (!full_name ||!email || !password || !confirmPassword) {
         throw new Error('Please fill in all fields');
       }
 
@@ -40,7 +40,7 @@ export default function SignupPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, role: 'USER' }),
+        body: JSON.stringify({ full_name, email, password, role: 'USER' }),
       });
 
       if (!response.ok) {
@@ -84,14 +84,14 @@ export default function SignupPage() {
 
           <form onSubmit={handleSubmit} className="space-y-8 py-6">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium mb-2 text-purple-200">
+              <label htmlFor="full_name" className="block text-sm font-medium mb-2 text-purple-200">
                 Full Name
               </label>
               <input
                 type="text"
-                id="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                id="full_name"
+                value={full_name}
+                onChange={(e) => setfull_name(e.target.value)}
                 className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-400"
                 placeholder="John Doe"
                 required

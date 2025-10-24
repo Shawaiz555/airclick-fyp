@@ -5,11 +5,13 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import AdminSidebar from '../../components/AdminSidebar';
 import ProtectedRoute from '../../components/ProtectedRoute';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
 
 export default function SystemSettings() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState({
     systemName: 'Gesture Control Pro',
     maintenanceMode: false,
@@ -31,6 +33,15 @@ export default function SystemSettings() {
     { value: 'medium', label: 'Medium (Balanced accuracy and responsiveness)' },
     { value: 'high', label: 'High (More sensitive, may have more false triggers)' }
   ];
+
+  useEffect(() => {
+    // Simulate loading settings from API
+    const loadSettings = async () => {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsLoading(false);
+    };
+    loadSettings();
+  }, []);
 
   const handleInputChange = (field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
@@ -92,8 +103,13 @@ export default function SystemSettings() {
           ></div>
         )}
 
-        <main className="md:ml-64 min-h-screen p-4 md:p-8">
-          <div className="max-w-8xl mx-auto">
+        <main className="md:ml-68 min-h-screen p-4 md:p-8">
+          {isLoading ? (
+            <div className="flex items-center justify-center min-h-[80vh]">
+              <LoadingSpinner message="Loading settings..." size="lg" />
+            </div>
+          ) : (
+          <div className="max-w-4xl">
             <div className="mb-8">
               <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                 System Settings
@@ -346,9 +362,9 @@ export default function SystemSettings() {
               confirmButtonClass="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"
             />
           </div>
+          )}
         </main>
       </div>
     </ProtectedRoute>
-
   );
 }
