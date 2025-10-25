@@ -13,6 +13,8 @@ import logging
 import time
 from typing import List, Optional, Dict
 from app.core.actions import get_action_details, AppContext
+from app.core.database import get_db
+from app.models.action_mapping import ActionMapping
 
 logger = logging.getLogger(__name__)
 
@@ -229,24 +231,40 @@ class ActionExecutor:
             Dictionary with execution result
         """
         try:
-            # Get action details
-            app_context = AppContext(context)
-            action_details = get_action_details(action_id, app_context)
+            # Get database session
+            db = next(get_db())
 
-            if not action_details:
-                return {
-                    "success": False,
-                    "error": f"Action '{action_id}' not found in context '{context}'"
-                }
+            try:
+                # First, try to get action from database (NEW: Dynamic actions)
+                action_mapping = ActionMapping.get_by_action_id(db, action_id)
 
-            # Get keyboard shortcut
-            keyboard_shortcut = action_details.get("keyboard_shortcut", [])
+                if action_mapping and action_mapping.is_active:
+                    # Use action from database
+                    action_name = action_mapping.name
+                    keyboard_shortcut = action_mapping.keyboard_keys
+                    logger.info(f"✓ Using action from database: {action_id}")
+                else:
+                    # Fallback to hardcoded actions from actions.py (DEPRECATED)
+                    logger.warning(f"⚠ Action '{action_id}' not in database, using fallback from actions.py")
+                    app_context = AppContext(context)
+                    action_details = get_action_details(action_id, app_context)
 
-            if not keyboard_shortcut:
-                return {
-                    "success": False,
-                    "error": f"No keyboard shortcut defined for action '{action_id}'"
-                }
+                    if not action_details:
+                        return {
+                            "success": False,
+                            "error": f"Action '{action_id}' not found in database or fallback"
+                        }
+
+                    action_name = action_details.get("name")
+                    keyboard_shortcut = action_details.get("keyboard_shortcut", [])
+
+                if not keyboard_shortcut:
+                    return {
+                        "success": False,
+                        "error": f"No keyboard shortcut defined for action '{action_id}'"
+                    }
+            finally:
+                db.close()
 
             # CRITICAL: Ensure correct app is focused before executing
             focus_result = self.ensure_app_focused(context)
@@ -257,7 +275,7 @@ class ActionExecutor:
                     "success": False,
                     "error": focus_result.get("reason"),
                     "action_id": action_id,
-                    "action_name": action_details.get("name"),
+                    "action_name": action_name,
                     "context": context,
                     "app_not_found": True
                 }
@@ -274,7 +292,7 @@ class ActionExecutor:
             result = {
                 "success": success,
                 "action_id": action_id,
-                "action_name": action_details.get("name"),
+                "action_name": action_name,
                 "context": context,
                 "keyboard_shortcut": keyboard_shortcut,
                 "simulation_mode": self.simulation_mode,

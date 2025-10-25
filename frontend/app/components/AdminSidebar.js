@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Hand, Settings, LogOut } from 'lucide-react';
+import { Home, Users, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext'; // Make sure this path matches your project
 import Image from 'next/image';
 import toast from 'react-hot-toast';
@@ -39,10 +39,14 @@ export default function AdminSidebar({ isOpen, onToggle }) {
       icon: Users
     },
     {
-      id: 'gestures',
-      label: 'Gesture Profiles',
-      href: '/Admin/gestures',
-      icon: Hand
+      id: 'action-mappings',
+      label: 'Action Mappings',
+      href: '/Admin/action-mappings',
+      icon: ({className}) => (
+        <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      )
     },
     {
       id: 'settings',
@@ -55,7 +59,7 @@ export default function AdminSidebar({ isOpen, onToggle }) {
   const getActiveTab = () => {
     if (pathname === '/Admin/overview') return 'overview';
     if (pathname === '/Admin/users') return 'users';
-    if (pathname === '/Admin/gestures') return 'gestures';
+    if (pathname === '/Admin/action-mappings') return 'action-mappings';
     if (pathname === '/Admin/settings') return 'settings';
     return 'overview';
   };

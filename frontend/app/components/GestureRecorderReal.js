@@ -43,54 +43,7 @@ const APP_CONTEXTS = [
   { id: 'WORD', name: 'MS Word' },
 ];
 
-/**
- * Available actions organized by context
- */
-const ACTIONS_BY_CONTEXT = {
-  GLOBAL: [
-    { id: 'play_pause', name: '⏯ Play/Pause Media' },
-    { id: 'volume_up', name: '🔊 Volume Up' },
-    { id: 'volume_down', name: '🔉 Volume Down' },
-    { id: 'mute', name: '🔇 Mute/Unmute' },
-    { id: 'next_track', name: '⏭ Next Track' },
-    { id: 'prev_track', name: '⏮ Previous Track' },
-    { id: 'screenshot', name: '📸 Screenshot' },
-    { id: 'minimize_window', name: '🗕 Minimize Window' },
-    { id: 'maximize_window', name: '🗖 Maximize Window' },
-    { id: 'close_window', name: '✖ Close Window' },
-  ],
-  POWERPOINT: [
-    { id: 'ppt_next_slide', name: '→ Next Slide' },
-    { id: 'ppt_prev_slide', name: '← Previous Slide' },
-    { id: 'ppt_first_slide', name: '⇤ First Slide' },
-    { id: 'ppt_last_slide', name: '⇥ Last Slide' },
-    { id: 'ppt_start_presentation', name: '▶ Start Presentation' },
-    { id: 'ppt_end_presentation', name: '◼ End Presentation' },
-    { id: 'ppt_toggle_laser', name: '🔦 Laser Pointer' },
-    { id: 'ppt_toggle_pen', name: '✏️ Toggle Pen' },
-    { id: 'ppt_erase_annotations', name: '🧹 Erase Annotations' },
-    { id: 'ppt_blank_screen', name: '⬛ Blank Screen' },
-    { id: 'ppt_new_slide', name: '➕ New Slide' },
-    { id: 'ppt_duplicate_slide', name: '📋 Duplicate Slide' },
-  ],
-  WORD: [
-    { id: 'word_page_down', name: '↓ Page Down' },
-    { id: 'word_page_up', name: '↑ Page Up' },
-    { id: 'word_doc_start', name: '⇤ Document Start' },
-    { id: 'word_doc_end', name: '⇥ Document End' },
-    { id: 'word_bold', name: 'B Bold' },
-    { id: 'word_italic', name: 'I Italic' },
-    { id: 'word_underline', name: 'U Underline' },
-    { id: 'word_increase_font', name: 'A+ Increase Font' },
-    { id: 'word_decrease_font', name: 'A- Decrease Font' },
-    { id: 'word_align_left', name: '⬅ Align Left' },
-    { id: 'word_align_center', name: '⬌ Center' },
-    { id: 'word_align_right', name: '➡ Align Right' },
-    { id: 'word_undo', name: '↶ Undo' },
-    { id: 'word_redo', name: '↷ Redo' },
-    { id: 'word_save', name: '💾 Save' },
-  ],
-};
+// Actions will be fetched from API dynamically
 
 export default function GestureRecorderReal({ onSave, onClose, editingGesture = null }) {
   // ==================== STATE MANAGEMENT ====================
@@ -103,9 +56,10 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   // Form state
   const [gestureName, setGestureName] = useState(editingGesture?.name || '');
   const [selectedContext, setSelectedContext] = useState(editingGesture?.app_context || 'GLOBAL');
-  const [selectedAction, setSelectedAction] = useState(editingGesture?.action || 'play_pause');
-  const [availableActions, setAvailableActions] = useState(ACTIONS_BY_CONTEXT[editingGesture?.app_context || 'GLOBAL']);
+  const [selectedAction, setSelectedAction] = useState(editingGesture?.action || '');
+  const [availableActions, setAvailableActions] = useState([]);
   const [isEditMode] = useState(!!editingGesture); // Track if we're editing
+  const [isLoadingActions, setIsLoadingActions] = useState(false);
 
   // UI state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -122,6 +76,57 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   const intervalRef = useRef(null);              // Recording timer
   const reconnectTimerRef = useRef(null);        // Auto-reconnect timer
   const isMountedRef = useRef(true);             // Track if component is mounted
+
+  // ==================== API FUNCTIONS ====================
+
+  /**
+   * Fetch available actions for the selected context from API
+   */
+  const fetchActionsForContext = async (context) => {
+    setIsLoadingActions(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(
+        `http://localhost:8000/api/action-mappings/context/${context}?active_only=true`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      if (response.ok) {
+        const actions = await response.json();
+        // Format actions for dropdown: { id: action_id, name: "icon name" }
+        const formattedActions = actions.map(action => ({
+          id: action.action_id,
+          name: action.icon ? `${action.icon} ${action.name}` : action.name,
+          description: action.description
+        }));
+
+        setAvailableActions(formattedActions);
+
+        // If no action is selected yet and actions are available, select the first one
+        if (!selectedAction && formattedActions.length > 0) {
+          setSelectedAction(formattedActions[0].id);
+        }
+      } else {
+        console.error('Failed to fetch actions');
+        setValidationMessage('Failed to load actions. Using offline mode.');
+        // Keep empty array to show error state
+        setAvailableActions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching actions:', error);
+      setValidationMessage('Failed to connect to server. Please check backend.');
+      setAvailableActions([]);
+    } finally {
+      setIsLoadingActions(false);
+    }
+  };
+
+  // Load actions when component mounts or context changes
+  useEffect(() => {
+    fetchActionsForContext(selectedContext);
+  }, [selectedContext]);
 
   // ==================== DRAWING FUNCTIONS ====================
 
@@ -593,8 +598,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
                   onChange={(e) => {
                     const newContext = e.target.value;
                     setSelectedContext(newContext);
-                    setAvailableActions(ACTIONS_BY_CONTEXT[newContext]);
-                    setSelectedAction(ACTIONS_BY_CONTEXT[newContext][0]?.id || '');
+                    // Actions will be fetched automatically by useEffect
                   }}
                   className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
                   disabled={isProcessing || isRecording}
@@ -624,20 +628,38 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
                   value={selectedAction}
                   onChange={(e) => setSelectedAction(e.target.value)}
                   className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
-                  disabled={isProcessing || isRecording}
+                  disabled={isProcessing || isRecording || isLoadingActions}
                 >
-                  {availableActions.map(action => (
-                    <option key={action.id} value={action.id} className="bg-gray-800 text-white">
-                      {action.name}
-                    </option>
-                  ))}
+                  {isLoadingActions ? (
+                    <option>Loading actions...</option>
+                  ) : availableActions.length === 0 ? (
+                    <option>No actions available for this context</option>
+                  ) : (
+                    availableActions.map(action => (
+                      <option key={action.id} value={action.id} className="bg-gray-800 text-white" title={action.description}>
+                        {action.name}
+                      </option>
+                    ))
+                  )}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-cyan-400">
-                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
+                  {isLoadingActions ? (
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </div>
               </div>
+              {availableActions.length === 0 && !isLoadingActions && (
+                <p className="mt-1 text-xs text-amber-400">
+                  No actions available. Please contact admin to add actions for {selectedContext} context.
+                </p>
+              )}
             </div>
           </div>
 

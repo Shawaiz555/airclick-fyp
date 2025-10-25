@@ -46,3 +46,6 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
             detail="Not enough permissions",
         )
     return current_user
+
+# Alias for clarity
+require_admin = get_current_admin
