@@ -166,39 +166,6 @@ export default function CustomGestureManagement() {
                 </p>
               </div>
 
-              {/* Statistics Overview - Only Total and Global */}
-              <div className="max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-8 px-10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-cyan-200 text-lg lg:text-xl font-medium mb-2">Total Gestures</p>
-                      <p className="text-4xl font-bold">{stats.total}</p>
-                      <p className="text-gray-400 text-xs mt-2">Across all contexts</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-8 px-10 border border-amber-500/20 hover:border-amber-500/40 transition-all duration-300">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-amber-200 text-lg lg:text-xl font-medium mb-2">Global Gestures</p>
-                      <p className="text-4xl font-bold">{stats.global}</p>
-                      <p className="text-gray-400 text-xs mt-2">Available everywhere</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Actions Bar - Fully Responsive */}
               <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-cyan-500/20 mb-8">
                 <div className="space-y-4">

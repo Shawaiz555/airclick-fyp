@@ -78,7 +78,7 @@ export default function UserSidebar({ isOpen, onToggle }) {
             <div className="fixed top-4 right-4 z-50">
                <button
                   onClick={onToggle}
-                  className="group relative p-3 rounded-2xl bg-gray-800/30 backdrop-blur-lg border border-cyan-500/30 shadow-xl hover:shadow-cyan-500/50 transition-all duration-300 transform hover:scale-105 hover:border-cyan-500/50"
+                  className="group relative p-3 px-2.5 rounded-xl bg-gray-800/30 backdrop-blur-lg border border-cyan-500/30 shadow-xl hover:shadow-cyan-500/50 transition-all duration-300 transform hover:scale-105 hover:border-cyan-500/50"
                   aria-label="Toggle sidebar"
                >
                   {/* Animated Gradient Background */}
