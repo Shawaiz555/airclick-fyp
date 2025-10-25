@@ -484,7 +484,7 @@ return (
 
               {/* Header */}
               <div className="mb-8">
-                <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
+                <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
                   Gesture Control Dashboard
                 </h1>
                 <p className="text-purple-200/90">Monitor and control your hand gesture recognition system</p>

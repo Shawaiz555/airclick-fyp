@@ -304,7 +304,7 @@ export default function UserManagement() {
           <div className="max-w-8xl mx-auto">
             {/* Header */}
             <div className="mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2 gradient-text">
+              <h1 className="text-3xl md:text-[44px] font-bold mb-2 gradient-text">
                 User Management
               </h1>
               <p className="text-purple-200">Manage user access, roles, and accessibility configurations</p>
