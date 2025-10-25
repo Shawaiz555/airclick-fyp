@@ -27,6 +27,7 @@ class GestureResponse(BaseModel):
     app_context: str
     accuracy_score: Optional[float]
     created_at: datetime
+    updated_at: Optional[datetime] = None  # Make optional until column is added
 
     class Config:
         from_attributes = True

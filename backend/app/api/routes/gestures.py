@@ -75,6 +75,67 @@ def get_user_gestures(
     gestures = db.query(Gesture).filter(Gesture.user_id == current_user.id).order_by(Gesture.created_at.desc()).all()
     return gestures
 
+@router.put("/{gesture_id}", response_model=GestureResponse)
+def update_gesture(
+    gesture_id: int,
+    gesture_data: GestureCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update an existing gesture."""
+    # Get existing gesture
+    gesture = db.query(Gesture).filter(
+        Gesture.id == gesture_id,
+        Gesture.user_id == current_user.id
+    ).first()
+
+    if not gesture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Gesture not found"
+        )
+
+    # Update basic fields
+    gesture.name = gesture_data.name
+    gesture.action = gesture_data.action
+    gesture.app_context = gesture_data.app_context
+
+    # If new frames are provided, update landmark data
+    if gesture_data.frames and len(gesture_data.frames) > 0:
+        # Validate frames have 21 landmarks each
+        for frame in gesture_data.frames:
+            if len(frame.landmarks) != 21:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Each frame must have exactly 21 landmarks"
+                )
+
+        # Convert frames to storable format
+        landmark_data = {
+            "frames": [
+                {
+                    "timestamp": frame.timestamp,
+                    "landmarks": [
+                        {"x": lm.x, "y": lm.y, "z": lm.z}
+                        for lm in frame.landmarks
+                    ],
+                    "handedness": frame.handedness,
+                    "confidence": frame.confidence
+                }
+                for frame in gesture_data.frames
+            ],
+            "metadata": {
+                "total_frames": len(gesture_data.frames),
+                "duration": (gesture_data.frames[-1].timestamp - gesture_data.frames[0].timestamp) / 1000.0 if len(gesture_data.frames) > 1 else 0
+            }
+        }
+        gesture.landmark_data = landmark_data
+
+    db.commit()
+    db.refresh(gesture)
+
+    return gesture
+
 @router.delete("/{gesture_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_gesture(
     gesture_id: int,

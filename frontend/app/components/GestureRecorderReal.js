@@ -92,7 +92,7 @@ const ACTIONS_BY_CONTEXT = {
   ],
 };
 
-export default function GestureRecorderReal({ onSave, onClose }) {
+export default function GestureRecorderReal({ onSave, onClose, editingGesture = null }) {
   // ==================== STATE MANAGEMENT ====================
 
   // Recording state
@@ -101,10 +101,11 @@ export default function GestureRecorderReal({ onSave, onClose }) {
   const [recordedFrames, setRecordedFrames] = useState([]);
 
   // Form state
-  const [gestureName, setGestureName] = useState('');
-  const [selectedContext, setSelectedContext] = useState('GLOBAL');
-  const [selectedAction, setSelectedAction] = useState('play_pause');
-  const [availableActions, setAvailableActions] = useState(ACTIONS_BY_CONTEXT.GLOBAL);
+  const [gestureName, setGestureName] = useState(editingGesture?.name || '');
+  const [selectedContext, setSelectedContext] = useState(editingGesture?.app_context || 'GLOBAL');
+  const [selectedAction, setSelectedAction] = useState(editingGesture?.action || 'play_pause');
+  const [availableActions, setAvailableActions] = useState(ACTIONS_BY_CONTEXT[editingGesture?.app_context || 'GLOBAL']);
+  const [isEditMode] = useState(!!editingGesture); // Track if we're editing
 
   // UI state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -403,9 +404,12 @@ export default function GestureRecorderReal({ onSave, onClose }) {
     }
 
     // Validation: Check minimum recording length (1 second = ~10 frames)
-    if (recordedFrames.length < 10) {
-      setValidationMessage('Please record for at least 1 second');
-      return;
+    // Only check if new recording was made OR if creating new gesture
+    if (!isEditMode || recordedFrames.length > 0) {
+      if (recordedFrames.length < 10) {
+        setValidationMessage('Please record for at least 1 second');
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -414,44 +418,64 @@ export default function GestureRecorderReal({ onSave, onClose }) {
       // Get JWT token from localStorage
       const token = localStorage.getItem('token');
 
-      // Send gesture data to FastAPI backend
-      const response = await fetch('http://localhost:8000/api/gestures/record', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+      let response;
+
+      if (isEditMode) {
+        // UPDATE existing gesture
+        const updatePayload = {
           name: gestureName,
           action: selectedAction,
-          app_context: selectedContext,
-          frames: recordedFrames
-        })
-      });
+          app_context: selectedContext
+        };
+
+        // Only include frames if new recording was made
+        if (recordedFrames.length > 0) {
+          updatePayload.frames = recordedFrames;
+        }
+
+        response = await fetch(`http://localhost:8000/api/gestures/${editingGesture.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(updatePayload)
+        });
+      } else {
+        // CREATE new gesture
+        response = await fetch('http://localhost:8000/api/gestures/record', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            name: gestureName,
+            action: selectedAction,
+            app_context: selectedContext,
+            frames: recordedFrames
+          })
+        });
+      }
 
       if (!response.ok) {
-        throw new Error('Failed to save gesture');
+        throw new Error(isEditMode ? 'Failed to update gesture' : 'Failed to save gesture');
       }
 
       const data = await response.json();
-      setValidationMessage('Gesture saved successfully!');
 
-      // Call parent callback
+      // Call parent callback first
       if (onSave) {
         onSave(data);
       }
 
-      // Reset form after 2 seconds
-      setTimeout(() => {
-        setGestureName('');
-        setRecordedFrames([]);
-        setValidationMessage('');
-        setIsProcessing(false);
-      }, 2000);
+      // Close immediately - parent will handle success message
+      setIsProcessing(false);
+      onClose();
 
     } catch (error) {
       console.error('Save error:', error);
-      setValidationMessage('Failed to save gesture. Please try again.');
+      setValidationMessage(isEditMode ? 'Failed to update gesture. Please try again.' : 'Failed to save gesture. Please try again.');
       setIsProcessing(false);
     }
   };
@@ -465,7 +489,7 @@ export default function GestureRecorderReal({ onSave, onClose }) {
         {/* Modal Header */}
         <div className="flex justify-between items-center p-6 border-b border-cyan-500/20">
           <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-            Record New Gesture
+            {isEditMode ? 'Edit Gesture' : 'Record New Gesture'}
           </h2>
           <button
             onClick={onClose}

@@ -18,6 +18,9 @@ export default function CustomGestureManagement() {
   const [filterContext, setFilterContext] = useState('ALL');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
+  // Edit gesture state
+  const [editingGesture, setEditingGesture] = useState(null);
+
   // Load gestures from database
   useEffect(() => {
     loadGesturesFromDatabase();
@@ -50,9 +53,20 @@ export default function CustomGestureManagement() {
 
   const handleSaveGesture = async (gestureData) => {
     // Gesture is already saved by GestureRecorderReal component
-    // Just reload the list
+    // Just reload the list and show toast
     await loadGesturesFromDatabase();
-    toast.success('Gesture saved successfully!');
+
+    // Show success toast based on whether it was an edit or create
+    if (editingGesture) {
+      toast.success('Gesture updated successfully!');
+    } else {
+      toast.success('Gesture saved successfully!');
+    }
+
+    // Clear editing state if it was an edit
+    if (editingGesture) {
+      setEditingGesture(null);
+    }
   };
 
   const handleDeleteGesture = async (id) => {
@@ -81,6 +95,11 @@ export default function CustomGestureManagement() {
     } finally {
       setGestureToDelete(null);
     }
+  };
+
+  // Handle edit gesture - open recorder with existing data
+  const handleEditGesture = (gesture) => {
+    setEditingGesture(gesture);
   };
 
   // Dynamically get all unique contexts from gestures
@@ -325,15 +344,26 @@ export default function CustomGestureManagement() {
                                     </span>
                                   </div>
                                 </div>
-                                <button
-                                  onClick={() => handleDeleteGesture(gesture.id)}
-                                  className="p-2 hover:cursor-pointer rounded-lg hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all duration-300"
-                                  title="Delete gesture"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => handleEditGesture(gesture)}
+                                    className="p-2 hover:cursor-pointer rounded-lg hover:bg-cyan-500/20 border border-transparent hover:border-cyan-500/30 transition-all duration-300"
+                                    title="Edit gesture"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteGesture(gesture.id)}
+                                    className="p-2 hover:cursor-pointer rounded-lg hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all duration-300"
+                                    title="Delete gesture"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
 
                               <div className="space-y-3">
@@ -420,15 +450,26 @@ export default function CustomGestureManagement() {
                               </div>
 
                               {/* Actions */}
-                              <button
-                                onClick={() => handleDeleteGesture(gesture.id)}
-                                className="p-3 hover:cursor-pointer rounded-xl hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all duration-300"
-                                title="Delete gesture"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditGesture(gesture)}
+                                  className="p-3 hover:cursor-pointer rounded-xl hover:bg-cyan-500/20 border border-transparent hover:border-cyan-500/30 transition-all duration-300"
+                                  title="Edit gesture"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteGesture(gesture.id)}
+                                  className="p-3 hover:cursor-pointer rounded-xl hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all duration-300"
+                                  title="Delete gesture"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </div>
                         );
@@ -439,11 +480,25 @@ export default function CustomGestureManagement() {
               )}
             </div>
 
-            {/* Recording Modal */}
+            {/* Recording Modal - For creating new gestures */}
             {isRecordingModalOpen && (
               <GestureRecorderReal
-                onSave={handleSaveGesture}
+                onSave={(data) => {
+                  handleSaveGesture(data);
+                  setIsRecordingModalOpen(false);
+                }}
                 onClose={() => setIsRecordingModalOpen(false)}
+              />
+            )}
+
+            {/* Edit Gesture Modal - Same component, just with existing data */}
+            {editingGesture && (
+              <GestureRecorderReal
+                editingGesture={editingGesture}
+                onSave={(data) => {
+                  handleSaveGesture(data);
+                }}
+                onClose={() => setEditingGesture(null)}
               />
             )}
 
