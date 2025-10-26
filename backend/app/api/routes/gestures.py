@@ -233,6 +233,20 @@ def match_gesture(
         logger.info(f"Context: {matched_gesture['app_context']}")
         logger.info(f"{'='*60}\n")
 
+        # Update rolling average accuracy score for the matched gesture
+        gesture_db = db.query(Gesture).filter(Gesture.id == matched_gesture["id"]).first()
+        if gesture_db:
+            # Update rolling average
+            gesture_db.total_similarity = (gesture_db.total_similarity or 0.0) + similarity
+            gesture_db.match_count = (gesture_db.match_count or 0) + 1
+            gesture_db.accuracy_score = gesture_db.total_similarity / gesture_db.match_count
+
+            logger.info(f"📊 Rolling Average Updated:")
+            logger.info(f"   Match Count: {gesture_db.match_count}")
+            logger.info(f"   Total Similarity: {gesture_db.total_similarity:.4f}")
+            logger.info(f"   Accuracy Score (Avg): {gesture_db.accuracy_score:.2%}")
+            logger.info(f"{'='*60}\n")
+
         # Log the match
         activity_log = ActivityLog(
             user_id=current_user.id,
@@ -243,7 +257,9 @@ def match_gesture(
                 "action": matched_gesture["action"],
                 "app_context": matched_gesture["app_context"],
                 "similarity": similarity,
-                "input_frames": len(frames)
+                "input_frames": len(frames),
+                "accuracy_score": gesture_db.accuracy_score if gesture_db else None,
+                "match_count": gesture_db.match_count if gesture_db else None
             }
         )
         db.add(activity_log)
@@ -255,7 +271,9 @@ def match_gesture(
                 "id": matched_gesture["id"],
                 "name": matched_gesture["name"],
                 "action": matched_gesture["action"],
-                "app_context": matched_gesture["app_context"]
+                "app_context": matched_gesture["app_context"],
+                "accuracy_score": gesture_db.accuracy_score if gesture_db else None,
+                "match_count": gesture_db.match_count if gesture_db else 0
             },
             "similarity": similarity
         }

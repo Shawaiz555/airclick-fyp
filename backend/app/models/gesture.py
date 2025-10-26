@@ -12,8 +12,11 @@ class Gesture(Base):
     action = Column(String(50), nullable=False)
     app_context = Column(String(50), default="GLOBAL")
     landmark_data = Column(JSONB, nullable=False)
-    accuracy_score = Column(Float, nullable=True)
+    accuracy_score = Column(Float, nullable=True)  # Rolling average of similarity scores
+    total_similarity = Column(Float, default=0.0)  # Sum of all similarity scores
+    match_count = Column(Integer, default=0)  # Total number of successful matches
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"

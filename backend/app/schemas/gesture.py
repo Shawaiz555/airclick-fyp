@@ -26,6 +26,7 @@ class GestureResponse(BaseModel):
     action: str
     app_context: str
     accuracy_score: Optional[float]
+    match_count: Optional[int] = 0  # Total successful matches
     created_at: datetime
     updated_at: Optional[datetime] = None  # Make optional until column is added
 
