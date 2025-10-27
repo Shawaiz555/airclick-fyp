@@ -1,31 +1,27 @@
-'use client';
+import ClientUserLayout from './ClientUserLayout';
 
-import { useState } from 'react';
-import UserSidebar from '../components/UserSidebar';
+// Metadata for the User section
+export const metadata = {
+  title: {
+    template: '%s | AirClick Dashboard',
+    default: 'Dashboard',
+  },
+  description: 'Your AirClick dashboard - Control your computer with hand gestures, create custom gestures, manage settings, and personalize your gesture control experience.',
+  openGraph: {
+    title: 'AirClick Dashboard',
+    description: 'Control your computer with hand gestures and manage your settings',
+    url: '/User',
+  },
+  twitter: {
+    title: 'AirClick Dashboard',
+    description: 'Control your computer with hand gestures and manage your settings',
+  },
+  robots: {
+    index: false, // Don't index user dashboard pages
+    follow: false,
+  },
+};
 
 export default function UserLayout({ children }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
-      {/* Render Sidebar */}
-      <UserSidebar 
-        isOpen={isSidebarOpen} 
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-      />
-
-      {/* Mobile Overlay - Click to close sidebar */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Main Content - Shifted right when sidebar is open */}
-      <main className={`transition-all duration-300 p-4 md:p-2`}>
-        {children}
-      </main>
-    </div>
-  );
+  return <ClientUserLayout>{children}</ClientUserLayout>;
 }

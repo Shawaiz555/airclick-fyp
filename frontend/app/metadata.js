@@ -1,18 +1,4 @@
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import ClientLayout from "./ClientLayout";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-// Root metadata for the entire application
+// Root metadata configuration for the application
 export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
   title: {
@@ -20,11 +6,10 @@ export const metadata = {
     default: 'AirClick - Hand Gesture Control System',
   },
   description: 'Control your computer with hand gestures using AI-powered gesture recognition. AirClick enables touchless computer control with custom gestures and real-time tracking.',
-  keywords: ['hand gesture control', 'AI gesture recognition', 'touchless control', 'hand tracking', 'gesture interface', 'computer control', 'accessibility', 'MediaPipe'],
+  keywords: ['hand gesture control', 'AI gesture recognition', 'touchless control', 'hand tracking', 'gesture interface', 'computer control', 'accessibility'],
   authors: [{ name: 'AirClick Team' }],
   creator: 'AirClick',
   publisher: 'AirClick',
-  applicationName: 'AirClick',
   formatDetection: {
     email: false,
     address: false,
@@ -43,7 +28,6 @@ export const metadata = {
         width: 1200,
         height: 630,
         alt: 'AirClick - Hand Gesture Control System',
-        type: 'image/jpeg',
       },
     ],
   },
@@ -65,36 +49,10 @@ export const metadata = {
       'max-snippet': -1,
     },
   },
-  icons: {
-    icon: [
-      { url: '/favicon.ico' },
-      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    apple: [
-      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
-    ],
+  verification: {
+    // Add your verification codes here when available
+    // google: 'your-google-verification-code',
+    // yandex: 'your-yandex-verification-code',
+    // bing: 'your-bing-verification-code',
   },
-  manifest: '/manifest.json',
 };
-
-// Viewport configuration (separate export required in Next.js 15)
-export const viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 5,
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#1a1a2e' },
-  ],
-};
-
-export default function RootLayout({ children }) {
-  return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ClientLayout>{children}</ClientLayout>
-      </body>
-    </html>
-  );
-}

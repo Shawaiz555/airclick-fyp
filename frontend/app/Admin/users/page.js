@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import Head from 'next/head';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import toast from 'react-hot-toast';
@@ -290,11 +289,6 @@ export default function UserManagement() {
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
-        <Head>
-          <title>User Management | Admin Dashboard</title>
-          <meta name="description" content="Manage user access and roles" />
-        </Head>
-
         <main className="min-h-screen md:ml-64 p-4 md:p-6 lg:p-8">
           {isLoading ? (
             <div className="flex items-center justify-center min-h-[80vh]">

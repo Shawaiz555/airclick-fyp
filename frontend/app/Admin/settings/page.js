@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Head from 'next/head';
 import AdminSidebar from '../../components/AdminSidebar';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -86,11 +85,6 @@ export default function SystemSettings() {
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
-        <Head>
-          <title>System Settings | Admin Dashboard</title>
-          <meta name="description" content="Configure system-wide settings" />
-        </Head>
-
         <AdminSidebar
           isOpen={isSidebarOpen}
           onToggle={() => setIsSidebarOpen(!isSidebarOpen)}

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Head from 'next/head';
 // import AdminSidebar from '../../components/AdminSidebar';
 import dynamic from 'next/dynamic';
 import ProtectedRoute from '../../components/ProtectedRoute';
@@ -141,11 +140,6 @@ export default function AdminOverview() {
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
       <div className="min-h-screen bg-gradient-to-br px-4 py-6 from-indigo-900 via-purple-900 to-pink-800 text-white">
-        <Head>
-          <title>Admin Dashboard | System Overview</title>
-          <meta name="description" content="Admin dashboard for system monitoring" />
-        </Head>
-
         <main className="md:ml-64 min-h-screen p-4 md:p-2">
           {!isLoaded ? (
             <div className="flex items-center justify-center min-h-[80vh]">

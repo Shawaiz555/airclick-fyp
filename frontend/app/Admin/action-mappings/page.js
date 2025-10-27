@@ -20,7 +20,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Head from 'next/head';
 import AdminSidebar from '../../components/AdminSidebar';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -435,11 +434,6 @@ export default function ActionMappingsManagement() {
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
       <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
-        <Head>
-          <title>Action Mappings | Admin Dashboard</title>
-          <meta name="description" content="Manage keyboard shortcut actions" />
-        </Head>
-
         <AdminSidebar
           isOpen={isSidebarOpen}
           onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
