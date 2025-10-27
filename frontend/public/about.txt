@@ -1,6 +1,6 @@
 This favicon was generated using the following font:
 
-- Font Title: Aladin
+- Font Title: Leckerli One
 - Font Author: undefined
-- Font Source: https://fonts.gstatic.com/s/aladin/v25/ZgNSjPJFPrvJV5f16Sf4pGT2Ng.ttf
-- Font License: (undefined)
+- Font Source: https://fonts.gstatic.com/s/leckerlione/v21/V8mCoQH8VCsNttEnxnGQ-1itLZxcBtItFw.ttf
+- Font License: undefined)
