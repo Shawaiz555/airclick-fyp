@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
 import Link from 'next/link';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
@@ -12,8 +13,18 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isPageLoading, setIsPageLoading] = useState(true);
   const { login } = useAuth();
   const router = useRouter();
+
+  // Simulate page load (remove loading spinner after component mounts)
+  useEffect(() => {
+    // Simulate initial page load
+    const timer = setTimeout(() => {
+      setIsPageLoading(false);
+    }, 500); // Adjust timing as needed
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,10 +58,20 @@ export default function LoginPage() {
     }
   };
 
+  // Show full-page loading on initial page load
+  if (isPageLoading) {
+    return <LoadingSpinner message="Loading..." size="lg" fullScreen={true} />;
+  }
+
+  // Show full-page loading during sign in
+  if (isLoading) {
+    return <LoadingSpinner message="Signing you in..." size="lg" fullScreen={true} />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
-        <div className="text-center my-8">
+          <div className="text-center my-8">
           <h1 className="text-3xl lg:text-[42px] font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 mb-2">
             Welcome Back
           </h1>
