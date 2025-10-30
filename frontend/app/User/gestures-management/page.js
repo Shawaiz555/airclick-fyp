@@ -148,20 +148,20 @@ export default function CustomGestureManagement() {
 
   return (
     <ProtectedRoute allowedRoles={['USER']}>
-      <div className="md:ml-72 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
+      <div className="md:ml-64 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
         {isLoading ? (
           <div className="flex items-center justify-center min-h-screen">
             <LoadingSpinner message="Loading gestures..." size="lg" />
           </div>
         ) : (
-          <div className="container py-12">
-            <div className="max-w-7xl">
+          <div className="py-6 md:py-10 px-4 lg:px-8">
+            <div className="max-w-[1400px] mx-auto">
               {/* Header Section */}
               <div className="mb-8">
-                <h1 className="text-4xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
                   Gesture Management
                 </h1>
-                <p className="text-lg text-purple-200">
+                <p className="text-purple-200/90">
                   Record, organize, and manage your custom hand gestures.
                 </p>
               </div>

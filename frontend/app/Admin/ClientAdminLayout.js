@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import AdminSidebar from '../components/AdminSidebar';
+import UserHeader from '../components/UserHeader';
 
 export default function ClientAdminLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -21,6 +22,9 @@ export default function ClientAdminLayout({ children }) {
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
+
+      {/* Header with User Info */}
+      <UserHeader />
 
       {/* Main Content - Shifted right when sidebar is open */}
       <main className={`transition-all duration-300 p-4 md:p-2`}>

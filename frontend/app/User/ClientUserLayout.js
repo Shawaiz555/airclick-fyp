@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import UserSidebar from '../components/UserSidebar';
+import UserHeader from '../components/UserHeader';
 
 export default function ClientUserLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -22,8 +23,11 @@ export default function ClientUserLayout({ children }) {
         />
       )}
 
+      {/* Header with User Info */}
+      <UserHeader />
+
       {/* Main Content - Shifted right when sidebar is open */}
-      <main className={`transition-all duration-300 p-4 md:p-2`}>
+      <main className={`transition-all duration-300`}>
         {children}
       </main>
     </div>
