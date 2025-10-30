@@ -54,7 +54,7 @@ export default function UserHeader() {
                 <span className="text-md font-medium text-white">
                   {currentUser.full_name || 'User'}
                 </span>
-                <span className="text-xs text-cyan-300">
+                <span className="text-sm text-cyan-300">
                   {currentUser.email}
                 </span>
               </div>
@@ -86,7 +86,7 @@ export default function UserHeader() {
                 />
 
                 {/* Dropdown Content */}
-                <div className="absolute right-0 mt-2 w-64 bg-gray-800/95 backdrop-blur-lg rounded-lg border border-cyan-500/30 shadow-2xl z-20">
+                <div className="absolute right-0 mt-2 w-73 bg-gray-800/95 backdrop-blur-lg rounded-lg border border-cyan-500/30 shadow-2xl z-20">
                   {/* User Info Section */}
                   <div className="px-4 py-3 border-b border-cyan-500/20">
                     <div className="flex items-center gap-3 mb-2">
@@ -104,7 +104,7 @@ export default function UserHeader() {
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-gray-400">Role:</span>
-                      <span className="px-2 py-1 bg-cyan-500/20 text-cyan-300 rounded">
+                      <span className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded">
                         {currentUser.role || 'USER'}
                       </span>
                     </div>
