@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -66,6 +67,11 @@ export default function LoginPage() {
   // Show full-page loading during sign in
   if (isLoading) {
     return <LoadingSpinner message="Signing you in..." size="lg" fullScreen={true} />;
+  }
+
+  // Show full-page loading during Google sign in
+  if (isGoogleLoading) {
+    return <LoadingSpinner message="Signing in with Google..." size="lg" fullScreen={true} />;
   }
 
   return (
@@ -151,7 +157,10 @@ export default function LoginPage() {
           </div>
 
           {/* Google Sign-In Button */}
-          <GoogleSignInButton text="signin_with" />
+          <GoogleSignInButton
+            text="signin_with"
+            onLoadingChange={setIsGoogleLoading}
+          />
 
           {/* Forgot Password Link */}
           <div className="mt-4 text-center">

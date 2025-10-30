@@ -15,6 +15,7 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
 
   // Simulate page load (remove loading spinner after component mounts)
@@ -84,6 +85,11 @@ export default function SignupPage() {
   // Show full-page loading during sign up
   if (isLoading) {
     return <LoadingSpinner message="Creating your account..." size="lg" fullScreen={true} />;
+  }
+
+  // Show full-page loading during Google sign up
+  if (isGoogleLoading) {
+    return <LoadingSpinner message="Signing up with Google..." size="lg" fullScreen={true} />;
   }
 
   return (
@@ -197,7 +203,10 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <GoogleSignInButton text="signup_with" />
+          <GoogleSignInButton
+            text="signup_with"
+            onLoadingChange={setIsGoogleLoading}
+          />
 
           <div className="mt-6 text-center">
             <p className="text-gray-400">

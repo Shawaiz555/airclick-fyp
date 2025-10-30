@@ -32,6 +32,7 @@ import toast from 'react-hot-toast';
  * @param {Object} props - Component props
  * @param {Function} props.onSuccess - Optional callback when login succeeds
  * @param {Function} props.onError - Optional callback when login fails
+ * @param {Function} props.onLoadingChange - Optional callback when loading state changes
  * @param {string} props.text - Button text ("signin_with" or "signup_with")
  *
  * @returns {JSX.Element} Google Sign-In button
@@ -39,6 +40,7 @@ import toast from 'react-hot-toast';
 export default function GoogleSignInButton({
   onSuccess,
   onError,
+  onLoadingChange,
   text = "signin_with"  // "signin_with" or "signup_with"
 }) {
   const router = useRouter();
@@ -68,6 +70,7 @@ export default function GoogleSignInButton({
    */
   const handleGoogleSuccess = async (credentialResponse) => {
     setLoading(true);
+    if (onLoadingChange) onLoadingChange(true);
     setError(null);
 
     try {
@@ -133,6 +136,7 @@ export default function GoogleSignInButton({
       toast.error(`Google Sign-In Error: ${errorMessage}`);
     } finally {
       setLoading(false);
+      if (onLoadingChange) onLoadingChange(false);
     }
   };
 
