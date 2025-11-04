@@ -9,12 +9,17 @@ from app.models.gesture import Gesture, ActivityLog
 from app.schemas.gesture import GestureCreate, GestureResponse
 from app.services.gesture_matcher import get_gesture_matcher
 from app.services.action_executor import get_action_executor
+from app.services.gesture_indexing import rebuild_gesture_index
+from app.services.gesture_cache import invalidate_user_cache
 from app.core.actions import get_all_actions_flat, get_actions_by_context, AppContext
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Phase 3: Track if index needs rebuilding
+_index_needs_rebuild = True
 
 @router.post("/record", response_model=GestureResponse, status_code=status.HTTP_201_CREATED)
 def record_gesture(
@@ -63,6 +68,15 @@ def record_gesture(
     db.add(new_gesture)
     db.commit()
     db.refresh(new_gesture)
+
+    # Phase 3: Mark that index needs rebuilding
+    global _index_needs_rebuild
+    _index_needs_rebuild = True
+
+    # Phase 3: Invalidate user's cache since gestures changed
+    invalidate_user_cache(current_user.id)
+
+    logger.info(f"Gesture recorded: {new_gesture.name} | Index marked for rebuild")
 
     return new_gesture
 
@@ -134,6 +148,15 @@ def update_gesture(
     db.commit()
     db.refresh(gesture)
 
+    # Phase 3: Mark that index needs rebuilding
+    global _index_needs_rebuild
+    _index_needs_rebuild = True
+
+    # Phase 3: Invalidate user's cache since gesture changed
+    invalidate_user_cache(current_user.id)
+
+    logger.info(f"Gesture updated: {gesture.name} | Index marked for rebuild")
+
     return gesture
 
 @router.delete("/{gesture_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -156,6 +179,15 @@ def delete_gesture(
 
     db.delete(gesture)
     db.commit()
+
+    # Phase 3: Mark that index needs rebuilding
+    global _index_needs_rebuild
+    _index_needs_rebuild = True
+
+    # Phase 3: Invalidate user's cache since gesture deleted
+    invalidate_user_cache(current_user.id)
+
+    logger.info(f"Gesture deleted: {gesture.name} | Index marked for rebuild")
 
     return None
 
@@ -216,10 +248,23 @@ def match_gesture(
         frame_count = len(g["landmark_data"].get("frames", []))
         logger.info(f"  {idx}. '{g['name']}' - {frame_count} frames | Action: {g['action']} | Context: {g['app_context']}")
 
-    # Match gesture
-    logger.info("\nStarting DTW matching algorithm...")
+    # Phase 3: Rebuild index if needed (after gestures are added/updated/deleted)
+    global _index_needs_rebuild
+    if _index_needs_rebuild:
+        logger.info("\nPhase 3: Building gesture index (first-time or after changes)...")
+        rebuild_gesture_index(gestures_dict)
+        _index_needs_rebuild = False
+        logger.info("✓ Index built successfully")
+
+    # Match gesture with Phase 3 enhancements
+    logger.info("\nStarting DTW matching algorithm with Phase 3 optimizations...")
     matcher = get_gesture_matcher()
-    match_result = matcher.match_gesture(frames, gestures_dict)
+    match_result = matcher.match_gesture(
+        frames,
+        gestures_dict,
+        user_id=current_user.id,  # Phase 3: For caching
+        app_context=None  # Can be filtered later if needed
+    )
 
     if match_result:
         matched_gesture, similarity = match_result
@@ -282,10 +327,11 @@ def match_gesture(
         logger.info(f"✗ NO MATCH FOUND")
         logger.info(f"{'='*60}")
         logger.info(f"No gesture exceeded the similarity threshold (80%)")
-        logger.info(f"Phase 1+2 enhancements active:")
-        logger.info(f"  - Procrustes normalization + temporal smoothing")
-        logger.info(f"  - Enhanced DTW with velocity/acceleration features")
-        logger.info(f"  - Ensemble matching (standard + direction + multi-feature)")
+        logger.info(f"Phase 1+2+3 enhancements active:")
+        logger.info(f"  Phase 1: Procrustes normalization + temporal smoothing")
+        logger.info(f"  Phase 2: Enhanced DTW with velocity/acceleration features")
+        logger.info(f"  Phase 2: Ensemble matching (standard + direction + multi-feature)")
+        logger.info(f"  Phase 3: Indexing + caching + parallel processing")
         logger.info(f"Tip: Try performing the gesture more similar to how you recorded it")
         logger.info(f"{'='*60}\n")
 

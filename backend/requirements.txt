@@ -28,6 +28,7 @@ pydantic-settings==2.6.0
 numpy==1.26.4
 opencv-python==4.10.0.84
 scipy==1.11.4  # For Gaussian smoothing in temporal preprocessing
+scikit-learn==1.3.2  # For K-means clustering in Phase 3 indexing
 
 # MediaPipe Hand Tracking
 mediapipe>=0.10.14
