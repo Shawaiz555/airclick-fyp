@@ -27,6 +27,7 @@ pydantic-settings==2.6.0
 # ML dependencies (for future weeks)
 numpy==1.26.4
 opencv-python==4.10.0.84
+scipy==1.11.4  # For Gaussian smoothing in temporal preprocessing
 
 # MediaPipe Hand Tracking
 mediapipe>=0.10.14
