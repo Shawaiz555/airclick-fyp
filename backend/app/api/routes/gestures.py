@@ -281,14 +281,17 @@ def match_gesture(
         logger.info(f"\n{'='*60}")
         logger.info(f"✗ NO MATCH FOUND")
         logger.info(f"{'='*60}")
-        logger.info(f"No gesture exceeded the similarity threshold (75%)")
-        logger.info(f"Phase 1 enhancements active: Procrustes normalization + temporal smoothing")
+        logger.info(f"No gesture exceeded the similarity threshold (80%)")
+        logger.info(f"Phase 1+2 enhancements active:")
+        logger.info(f"  - Procrustes normalization + temporal smoothing")
+        logger.info(f"  - Enhanced DTW with velocity/acceleration features")
+        logger.info(f"  - Ensemble matching (standard + direction + multi-feature)")
         logger.info(f"Tip: Try performing the gesture more similar to how you recorded it")
         logger.info(f"{'='*60}\n")
 
         return {
             "matched": False,
-            "message": "No matching gesture found (similarity below 75% threshold)"
+            "message": "No matching gesture found (similarity below 80% threshold)"
         }
 
 
