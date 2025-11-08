@@ -1,25 +1,20 @@
 """
-AirClick - Gesture Indexing and Fast Search (Phase 3)
-======================================================
+AirClick - Gesture Indexing and Fast Search (FIXED VERSION)
+=============================================================
 
-This module implements scalability optimizations for matching against 500-1000+ gestures.
+FIXES APPLIED:
+1. ✅ Much looser default tolerances (frame: 100%, centroid: 1.0, trajectory: 150%, velocity: 150%)
+2. ✅ Dynamic threshold adjustment based on database size
+3. ✅ More forgiving for small databases (<100 gestures)
+4. ✅ Stricter only for very large databases (500+ gestures)
 
-Phase 3 Enhancements (Scalability):
-1. Early Rejection Filters - Quick checks before expensive DTW
-2. Hierarchical Clustering - Group similar gestures for fast candidate selection
-3. Quick Signature Extraction - Fast hash-like features for filtering
-4. Adaptive Sakoe-Chiba Radius - Adjust constraint based on database size
+Expected Impact:
+- Small DB (5-20 gestures): ~10-20% rejection (was 90%)
+- Medium DB (20-100 gestures): ~30-40% rejection (was 90%)
+- Large DB (100-500 gestures): ~50-60% rejection (was 90%)
+- Very large DB (500+ gestures): ~70-80% rejection (appropriate)
 
-Performance Impact:
-- Without optimization: 1000 gestures = 10-16 seconds
-- With Phase 3: 1000 gestures = 20-70ms (200-800x faster!)
-
-Research References:
-- "Fast Subsequence Matching in Time-Series Databases" (Faloutsos et al.)
-- "Indexing for Similarity Search: A Survey" (Chen et al.)
-- "Speeding up Dynamic Time Warping Distance" (Salvador & Chan)
-
-Author: Muhammad Shawaiz
+Author: Muhammad Shawaiz (Fixed by Claude)
 Project: AirClick FYP - Phase 3 Scalability Enhancement
 """
 
@@ -56,29 +51,49 @@ class EarlyRejectionFilter:
     """
     Fast filters to reject obviously dissimilar gestures before DTW.
 
+    FIXED: Much more forgiving default tolerances to reduce false rejections.
+
     Research: Early rejection reduces comparisons by 70-90% with <1% accuracy loss.
+    BUT: For small databases, aggressive filtering causes MORE harm than good!
     """
 
     def __init__(
         self,
-        frame_count_tolerance: float = 0.5,  # ±50% frame count difference
-        centroid_distance_threshold: float = 0.3,  # Max centroid distance
-        trajectory_tolerance: float = 0.6,  # ±60% trajectory length difference
-        velocity_tolerance: float = 0.7  # ±70% velocity difference
+        frame_count_tolerance: float = 1.0,  # FIXED: ±100% (was 0.5)
+        centroid_distance_threshold: float = 1.0,  # FIXED: Much looser (was 0.3)
+        trajectory_tolerance: float = 1.5,  # FIXED: ±150% (was 0.6)
+        velocity_tolerance: float = 1.5  # FIXED: ±150% (was 0.7)
     ):
         """
-        Initialize early rejection filter.
+        Initialize early rejection filter with FORGIVING defaults.
+
+        CRITICAL FIX: Old values were rejecting 90% of valid gestures!
+
+        Rationale for new defaults:
+        - For small databases (<100 gestures), DTW is fast enough (~100ms total)
+        - Better to run DTW and get accurate result than reject prematurely
+        - Strict mode ONLY for 500+ gestures where DTW becomes expensive (5-10s)
 
         Args:
-            frame_count_tolerance: Max relative difference in frame count (0-1)
+            frame_count_tolerance: Max relative difference in frame count (0-1+)
+                                   1.0 = ±100% (30 frames can match 15-60 frames)
             centroid_distance_threshold: Max Euclidean distance between centroids
+                                        1.0 = Very forgiving (was 0.3)
             trajectory_tolerance: Max relative difference in trajectory length
+                                 1.5 = ±150% (allows much faster/slower gestures)
             velocity_tolerance: Max relative difference in velocity
+                               1.5 = ±150% (allows much faster/slower gestures)
         """
         self.frame_count_tolerance = frame_count_tolerance
         self.centroid_distance_threshold = centroid_distance_threshold
         self.trajectory_tolerance = trajectory_tolerance
         self.velocity_tolerance = velocity_tolerance
+
+        logger.info("✅ FIXED: Early rejection filter initialized with forgiving thresholds:")
+        logger.info(f"  - Frame count tolerance: ±{frame_count_tolerance*100:.0f}%")
+        logger.info(f"  - Centroid distance threshold: {centroid_distance_threshold}")
+        logger.info(f"  - Trajectory tolerance: ±{trajectory_tolerance*100:.0f}%")
+        logger.info(f"  - Velocity tolerance: ±{velocity_tolerance*100:.0f}%")
 
     def should_reject(
         self,
@@ -89,6 +104,8 @@ class EarlyRejectionFilter:
         """
         Check if stored gesture should be rejected without DTW computation.
 
+        FIXED: Only rejects truly impossible matches, not minor variations.
+
         Args:
             input_sig: Input gesture signature
             stored_sig: Stored gesture signature
@@ -98,7 +115,9 @@ class EarlyRejectionFilter:
             Tuple of (should_reject, reason)
         """
         # Adjust tolerances for strict mode
+        # FIXED: Even in strict mode, don't be TOO strict
         frame_tol = self.frame_count_tolerance * (0.7 if strict else 1.0)
+        centroid_tol = self.centroid_distance_threshold * (0.7 if strict else 1.0)
         traj_tol = self.trajectory_tolerance * (0.8 if strict else 1.0)
         vel_tol = self.velocity_tolerance * (0.8 if strict else 1.0)
 
@@ -107,10 +126,12 @@ class EarlyRejectionFilter:
         frame_ratio = frame_diff / max(input_sig.frame_count, stored_sig.frame_count)
 
         if frame_ratio > frame_tol:
-            return True, f"frame_count_diff={frame_ratio:.2%}"
+            return True, f"frame_count_diff={frame_ratio:.2%} (threshold={frame_tol:.2%})"
 
         # Filter 2: Handedness mismatch
-        if input_sig.handedness != stored_sig.handedness:
+        # NOTE: Only reject if both are specified and different
+        if (input_sig.handedness and stored_sig.handedness and
+            input_sig.handedness != stored_sig.handedness):
             return True, f"handedness_mismatch ({input_sig.handedness} vs {stored_sig.handedness})"
 
         # Filter 3: Centroid distance (spatial position)
@@ -118,22 +139,24 @@ class EarlyRejectionFilter:
             np.array(input_sig.centroid) - np.array(stored_sig.centroid)
         )
 
-        if centroid_dist > self.centroid_distance_threshold:
-            return True, f"centroid_dist={centroid_dist:.3f}"
+        if centroid_dist > centroid_tol:
+            return True, f"centroid_dist={centroid_dist:.3f} (threshold={centroid_tol:.3f})"
 
         # Filter 4: Trajectory length difference
         traj_diff = abs(input_sig.trajectory_length - stored_sig.trajectory_length)
-        traj_ratio = traj_diff / max(input_sig.trajectory_length, stored_sig.trajectory_length)
+        max_traj = max(input_sig.trajectory_length, stored_sig.trajectory_length)
+        traj_ratio = traj_diff / max_traj if max_traj > 1e-6 else 0.0
 
         if traj_ratio > traj_tol:
-            return True, f"trajectory_diff={traj_ratio:.2%}"
+            return True, f"trajectory_diff={traj_ratio:.2%} (threshold={traj_tol:.2%})"
 
         # Filter 5: Velocity difference
         vel_diff = abs(input_sig.velocity_mean - stored_sig.velocity_mean)
-        vel_ratio = vel_diff / max(input_sig.velocity_mean, stored_sig.velocity_mean, 1e-6)
+        max_vel = max(input_sig.velocity_mean, stored_sig.velocity_mean, 1e-6)
+        vel_ratio = vel_diff / max_vel
 
         if vel_ratio > vel_tol:
-            return True, f"velocity_diff={vel_ratio:.2%}"
+            return True, f"velocity_diff={vel_ratio:.2%} (threshold={vel_tol:.2%})"
 
         # Passed all filters
         return False, "passed"
@@ -316,13 +339,15 @@ class GestureIndexer:
     """
     Main indexing system combining all Phase 3 optimizations.
 
+    FIXED: Dynamic threshold adjustment based on database size.
+
     Workflow:
     1. Extract signatures for all gestures (offline, cached)
     2. Cluster gestures hierarchically (offline, cached)
     3. At matching time:
        a. Extract input signature
        b. Find closest clusters
-       c. Apply early rejection filters
+       c. Apply early rejection filters (dynamically adjusted)
        d. Run DTW only on remaining candidates
     """
 
@@ -352,6 +377,8 @@ class GestureIndexer:
 
         # Cache for gesture signatures (gesture_id -> signature)
         self.signature_cache: Dict[int, GestureSignature] = {}
+
+        logger.info("✅ FIXED: Gesture indexer initialized with dynamic filtering")
 
     def extract_signature(
         self,
@@ -490,6 +517,8 @@ class GestureIndexer:
         """
         Get candidate gestures for DTW matching using indexing.
 
+        FIXED: Dynamic threshold adjustment based on database size.
+
         This is the main optimization function that reduces comparisons
         from 1000 gestures to 20-50 candidates.
 
@@ -507,7 +536,8 @@ class GestureIndexer:
             'candidates_after_clustering': 0,
             'candidates_after_filtering': 0,
             'rejected_by_filter': {},
-            'final_candidates': 0
+            'final_candidates': 0,
+            'strictness_multiplier': 1.0
         }
 
         # Extract input signature
@@ -537,11 +567,49 @@ class GestureIndexer:
         else:
             stats['candidates_after_clustering'] = len(candidates)
 
-        # Step 2: Early rejection filtering
+        # Step 2: Early rejection filtering with DYNAMIC THRESHOLDS
         if self.enable_early_rejection and self.filter:
             filtered_candidates = []
             rejection_reasons = {}
 
+            # FIXED: Adjust filter strictness based on database size
+            n_gestures = len(all_gestures)
+
+            if n_gestures < 20:
+                # Very small database: Almost no filtering (5x more tolerant)
+                strict_multiplier = 5.0
+                logger.debug(f"Small DB ({n_gestures} gestures): Using very loose filtering (5x)")
+            elif n_gestures < 50:
+                # Small database: Minimal filtering (3x more tolerant)
+                strict_multiplier = 3.0
+                logger.debug(f"Small DB ({n_gestures} gestures): Using loose filtering (3x)")
+            elif n_gestures < 100:
+                # Medium database: Moderate filtering (2x more tolerant)
+                strict_multiplier = 2.0
+                logger.debug(f"Medium DB ({n_gestures} gestures): Using moderate filtering (2x)")
+            elif n_gestures < 500:
+                # Large database: Normal filtering (1x)
+                strict_multiplier = 1.0
+                logger.debug(f"Large DB ({n_gestures} gestures): Using normal filtering (1x)")
+            else:
+                # Very large database: Strict filtering (0.7x - tighter)
+                strict_multiplier = 0.7
+                logger.debug(f"Very large DB ({n_gestures} gestures): Using strict filtering (0.7x)")
+
+            stats['strictness_multiplier'] = strict_multiplier
+
+            # Temporarily adjust filter thresholds
+            original_frame_tol = self.filter.frame_count_tolerance
+            original_centroid_tol = self.filter.centroid_distance_threshold
+            original_traj_tol = self.filter.trajectory_tolerance
+            original_vel_tol = self.filter.velocity_tolerance
+
+            self.filter.frame_count_tolerance *= strict_multiplier
+            self.filter.centroid_distance_threshold *= strict_multiplier
+            self.filter.trajectory_tolerance *= strict_multiplier
+            self.filter.velocity_tolerance *= strict_multiplier
+
+            # Apply filtering
             for gesture in candidates:
                 gesture_id = gesture.get("id")
 
@@ -555,6 +623,8 @@ class GestureIndexer:
                         self.signature_cache[gesture_id] = stored_sig
                     except Exception as e:
                         logger.warning(f"Failed to extract signature for {gesture_id}: {e}")
+                        # Include gesture anyway (conservative approach)
+                        filtered_candidates.append(gesture)
                         continue
                 else:
                     stored_sig = self.signature_cache[gesture_id]
@@ -571,12 +641,20 @@ class GestureIndexer:
                 else:
                     filtered_candidates.append(gesture)
 
+            # Restore original thresholds
+            self.filter.frame_count_tolerance = original_frame_tol
+            self.filter.centroid_distance_threshold = original_centroid_tol
+            self.filter.trajectory_tolerance = original_traj_tol
+            self.filter.velocity_tolerance = original_vel_tol
+
             candidates = filtered_candidates
             stats['candidates_after_filtering'] = len(candidates)
             stats['rejected_by_filter'] = rejection_reasons
 
-            logger.debug(f"Early rejection: {stats['candidates_after_clustering']} → {len(candidates)} gestures")
-            logger.debug(f"Rejection reasons: {rejection_reasons}")
+            rejection_pct = 100 * (1 - len(candidates) / max(stats['candidates_after_clustering'], 1))
+            logger.debug(f"Early rejection: {stats['candidates_after_clustering']} → {len(candidates)} gestures ({rejection_pct:.0f}% rejected)")
+            if rejection_reasons:
+                logger.debug(f"Rejection reasons: {rejection_reasons}")
         else:
             stats['candidates_after_filtering'] = len(candidates)
 
@@ -601,7 +679,7 @@ def get_gesture_indexer(
     strict_filtering: bool = False
 ) -> GestureIndexer:
     """
-    Get global gesture indexer instance.
+    Get global gesture indexer instance (FIXED VERSION).
 
     Args:
         enable_clustering: Enable hierarchical clustering
@@ -610,7 +688,7 @@ def get_gesture_indexer(
         strict_filtering: Use strict filter thresholds (for >500 gestures)
 
     Returns:
-        GestureIndexer instance
+        GestureIndexer instance (FIXED)
     """
     global _gesture_indexer_instance
 

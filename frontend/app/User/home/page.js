@@ -53,6 +53,14 @@ export default function Home() {
   const [statusMessage, setStatusMessage] = useState('');
   const [isMatching, setIsMatching] = useState(false);
 
+  // NEW: Enhanced UX state
+  const [recentMatches, setRecentMatches] = useState([]);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [showFailureAnimation, setShowFailureAnimation] = useState(false);
+  const [actualLatency, setActualLatency] = useState(0);
+  const [actualFPS, setActualFPS] = useState(0);
+  const [frameTimes, setFrameTimes] = useState([]);
+
   // ==================== REFS ====================
 
   const wsRef = useRef(null);                    // WebSocket connection
@@ -133,7 +141,22 @@ export default function Home() {
     // Receive hand tracking data
     ws.onmessage = (event) => {
       try {
+        const receiveTime = Date.now();
         const data = JSON.parse(event.data);
+
+        // NEW: Calculate real-time performance metrics
+        if (data.timestamp) {
+          setActualLatency(receiveTime - data.timestamp);
+        }
+
+        setFrameTimes(prev => {
+          const times = [...prev, receiveTime].slice(-30);
+          if (times.length > 1) {
+            const fps = 1000 / ((times[times.length - 1] - times[0]) / (times.length - 1));
+            setActualFPS(Math.round(fps));
+          }
+          return times;
+        });
 
         // Check if hand is detected
         const handsDetected = data.hand_count > 0;
@@ -358,6 +381,19 @@ export default function Home() {
         setMatchedGesture(result.gesture);
         setSimilarity(result.similarity);
 
+        // NEW: Add to recent matches history
+        setRecentMatches(prev => [{
+          name: result.gesture.name,
+          similarity: (result.similarity * 100).toFixed(0),
+          success: true,
+          timestamp: new Date().toLocaleTimeString(),
+          action: result.gesture.action
+        }, ...prev].slice(0, 5));
+
+        // NEW: Show success animation
+        setShowSuccessAnimation(true);
+        setTimeout(() => setShowSuccessAnimation(false), 2000);
+
         // Check if context matches
         if (result.gesture.app_context === activeApp) {
           setStatusMessage(`✅ Matched: ${result.gesture.name} (${(result.similarity * 100).toFixed(0)}%) - Executing...`);
@@ -373,6 +409,19 @@ export default function Home() {
           setStatusMessage('👋 Ready - Perform a gesture');
         }, 2000);
       } else {
+        // NEW: Add failed match to history
+        setRecentMatches(prev => [{
+          name: 'No Match',
+          similarity: '0',
+          success: false,
+          timestamp: new Date().toLocaleTimeString(),
+          action: '-'
+        }, ...prev].slice(0, 5));
+
+        // NEW: Show failure animation briefly
+        setShowFailureAnimation(true);
+        setTimeout(() => setShowFailureAnimation(false), 1000);
+
         // Don't show "no match" messages to avoid spam
         setStatusMessage('👋 Ready - Perform a gesture');
       }
@@ -577,6 +626,63 @@ return (
                             </div>
                           </div>
                         )}
+
+                        {/* NEW: Hand Position Calibration Guide */}
+                        {!landmarkDetected && (
+                          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            <div className="relative w-2/3 h-2/3 border-4 border-dashed border-green-500/30 rounded-3xl">
+                              <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-green-500/20 backdrop-blur-md px-6 py-2 rounded-full border border-green-500/40">
+                                <span className="text-sm font-medium text-green-300">👋 Place hand here for best detection</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* NEW: Recording Indicator */}
+                        {recognitionFrames.length > 0 && (
+                          <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-20">
+                            <div className="bg-red-500/95 backdrop-blur-md rounded-full px-6 py-3 shadow-2xl animate-pulse border-2 border-red-300">
+                              <div className="flex items-center gap-3">
+                                <div className="w-3 h-3 bg-white rounded-full animate-ping"></div>
+                                <span className="font-bold text-white text-sm">
+                                  🎬 RECORDING: {recognitionFrames.length}/60 frames
+                                </span>
+                                <div className="w-20 bg-white/30 rounded-full h-2">
+                                  <div
+                                    className="bg-white h-2 rounded-full transition-all"
+                                    style={{ width: `${(recognitionFrames.length / 60) * 100}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* NEW: Success Animation */}
+                        {showSuccessAnimation && (
+                          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                            <div className="animate-bounce">
+                              <div className="w-32 h-32 rounded-full bg-green-500/90 flex items-center justify-center shadow-2xl">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* NEW: Failure Animation */}
+                        {showFailureAnimation && (
+                          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                            <div className="animate-pulse">
+                              <div className="w-32 h-32 rounded-full bg-red-500/90 flex items-center justify-center shadow-2xl">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </>
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -731,6 +837,36 @@ return (
                     </div>
                   )}
 
+                  {/* NEW: Recent Matches History */}
+                  {recentMatches.length > 0 && (
+                    <div className="bg-gray-800/30 backdrop-blur-md rounded-2xl p-5 border border-purple-500/20 shadow-xl">
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 className="text-sm font-bold text-white">Recent Matches</h3>
+                      </div>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {recentMatches.map((match, idx) => (
+                          <div key={idx} className={`flex items-center justify-between text-xs p-2 rounded-lg ${match.success ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${match.success ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                              <span className={`font-medium truncate ${match.success ? 'text-green-300' : 'text-red-300'}`}>
+                                {match.name}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className={`font-bold ${match.success ? 'text-green-400' : 'text-red-400'}`}>
+                                {match.similarity}%
+                              </span>
+                              <span className="text-gray-500 text-[10px]">{match.timestamp}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* App Context Selector */}
                   <div className="bg-gray-800/30 backdrop-blur-md rounded-3xl p-6 py-8 border border-cyan-500/20 shadow-xl">
                     <div className="flex items-center gap-2 mb-4">
@@ -792,11 +928,19 @@ return (
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-amber-300/80">Latency</span>
-                      <span className="font-bold text-green-400">{isConnected ? '~33ms' : 'N/A'}</span>
+                      <span className={`font-bold ${actualLatency < 50 ? 'text-green-400' : actualLatency < 100 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {isConnected && actualLatency > 0 ? `${actualLatency}ms` : 'N/A'}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-amber-300/80">Frame Rate</span>
-                      <span className="font-bold text-green-400">{isConnected ? '30 FPS' : 'N/A'}</span>
+                      <span className={`font-bold ${actualFPS >= 25 ? 'text-green-400' : actualFPS >= 15 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {isConnected && actualFPS > 0 ? `${actualFPS} FPS` : 'N/A'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-amber-300/80">Gestures Loaded</span>
+                      <span className="font-bold text-cyan-400">{userGestures.length}</span>
                     </div>
                   </div>
                 </div>
