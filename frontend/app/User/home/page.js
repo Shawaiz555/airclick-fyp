@@ -55,8 +55,6 @@ export default function Home() {
 
   // NEW: Enhanced UX state
   const [recentMatches, setRecentMatches] = useState([]);
-  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
-  const [showFailureAnimation, setShowFailureAnimation] = useState(false);
   const [actualLatency, setActualLatency] = useState(0);
   const [actualFPS, setActualFPS] = useState(0);
   const [frameTimes, setFrameTimes] = useState([]);
@@ -76,7 +74,27 @@ export default function Home() {
 
   useEffect(() => {
     loadUserGestures();
+    syncTokenForElectron();
   }, []);
+
+  // Sync token to Electron overlay
+  const syncTokenForElectron = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (token) {
+        // Send token to Electron token helper server
+        await fetch('http://localhost:3001/save-token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        }).catch(err => {
+          console.log('Token helper not running (this is okay if not using Electron overlay)');
+        });
+      }
+    } catch (error) {
+      console.log('Could not sync token to Electron');
+    }
+  };
 
   const loadUserGestures = async () => {
     try {
@@ -180,6 +198,14 @@ export default function Home() {
 
             // Keep only last 60 frames (2 seconds at 30fps) - sliding window
             const framesToKeep = newFrames.slice(-60);
+
+            // Send recording status to Electron overlay
+            if (typeof window !== 'undefined' && window.electronAPI) {
+              window.electronAPI.send('update-overlay', {
+                recording: framesToKeep.length > 0,
+                recordingProgress: framesToKeep.length
+              });
+            }
 
             // Auto-match when we have 60 frames and not in cooldown
             if (framesToKeep.length === 60 && !matchCooldownRef.current) {
@@ -390,9 +416,18 @@ export default function Home() {
           action: result.gesture.action
         }, ...prev].slice(0, 5));
 
-        // NEW: Show success animation
-        setShowSuccessAnimation(true);
-        setTimeout(() => setShowSuccessAnimation(false), 2000);
+        // Send match result to Electron overlay
+        if (typeof window !== 'undefined' && window.electronAPI) {
+          window.electronAPI.send('update-overlay', {
+            gestureMatch: {
+              matched: true,
+              name: result.gesture.name,
+              action: result.gesture.action,
+              similarity: Math.round(result.similarity * 100),
+              frames: 60
+            }
+          });
+        }
 
         // Check if context matches
         if (result.gesture.app_context === activeApp) {
@@ -418,9 +453,17 @@ export default function Home() {
           action: '-'
         }, ...prev].slice(0, 5));
 
-        // NEW: Show failure animation briefly
-        setShowFailureAnimation(true);
-        setTimeout(() => setShowFailureAnimation(false), 1000);
+        // Send no match result to Electron overlay
+        if (typeof window !== 'undefined' && window.electronAPI) {
+          window.electronAPI.send('update-overlay', {
+            gestureMatch: {
+              matched: false,
+              name: '',
+              similarity: 0,
+              frames: 60
+            }
+          });
+        }
 
         // Don't show "no match" messages to avoid spam
         setStatusMessage('👋 Ready - Perform a gesture');
@@ -633,52 +676,6 @@ return (
                             <div className="relative w-2/3 h-2/3 border-4 border-dashed border-green-500/30 rounded-3xl">
                               <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-green-500/20 backdrop-blur-md px-6 py-2 rounded-full border border-green-500/40">
                                 <span className="text-sm font-medium text-green-300">👋 Place hand here for best detection</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* NEW: Recording Indicator */}
-                        {recognitionFrames.length > 0 && (
-                          <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-20">
-                            <div className="bg-red-500/95 backdrop-blur-md rounded-full px-6 py-3 shadow-2xl animate-pulse border-2 border-red-300">
-                              <div className="flex items-center gap-3">
-                                <div className="w-3 h-3 bg-white rounded-full animate-ping"></div>
-                                <span className="font-bold text-white text-sm">
-                                  🎬 RECORDING: {recognitionFrames.length}/60 frames
-                                </span>
-                                <div className="w-20 bg-white/30 rounded-full h-2">
-                                  <div
-                                    className="bg-white h-2 rounded-full transition-all"
-                                    style={{ width: `${(recognitionFrames.length / 60) * 100}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* NEW: Success Animation */}
-                        {showSuccessAnimation && (
-                          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-                            <div className="animate-bounce">
-                              <div className="w-32 h-32 rounded-full bg-green-500/90 flex items-center justify-center shadow-2xl">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                </svg>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* NEW: Failure Animation */}
-                        {showFailureAnimation && (
-                          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-                            <div className="animate-pulse">
-                              <div className="w-32 h-32 rounded-full bg-red-500/90 flex items-center justify-center shadow-2xl">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-20 w-20 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
                               </div>
                             </div>
                           </div>

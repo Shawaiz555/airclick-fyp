@@ -15,56 +15,67 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
       background: transparent;
       overflow: hidden;
-      -webkit-app-region: drag; /* Allow dragging */
       user-select: none;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      width: 100vw;
+      height: 100vh;
+      padding: 0;
+      margin: 0;
     }
 
     #overlay-container {
-      width: 320px;
-      background: rgba(17, 24, 39, 0.95);
-      backdrop-filter: blur(16px);
-      border: 2px solid rgba(6, 182, 212, 0.3);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+      width: 480px;
+      background: rgba(17, 24, 39, 0.98);
+      backdrop-filter: blur(20px);
+      border: 3px solid rgba(6, 182, 212, 0.6);
+      border-radius: 24px;
+      overflow: hidden;
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+                  0 0 50px rgba(6, 182, 212, 0.3);
       transition: all 0.3s ease;
     }
 
     #overlay-container.recording {
-      border-color: rgba(239, 68, 68, 0.8);
-      box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+      border-color: rgba(239, 68, 68, 0.9);
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+                  0 0 60px rgba(239, 68, 68, 0.5);
+      animation: pulse-border 1.5s infinite;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { border-color: rgba(239, 68, 68, 0.9); }
+      50% { border-color: rgba(239, 68, 68, 0.5); }
     }
 
     #overlay-container.matched {
-      border-color: rgba(34, 197, 94, 0.8);
-      box-shadow: 0 0 30px rgba(34, 197, 94, 0.4);
-    }
-
-    #overlay-container.failed {
-      border-color: rgba(239, 68, 68, 0.8);
-      box-shadow: 0 0 30px rgba(239, 68, 68, 0.4);
+      border-color: rgba(34, 197, 94, 0.9);
+      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+                  0 0 60px rgba(34, 197, 94, 0.5);
     }
 
     /* Header */
     .header {
+      background: rgba(6, 182, 212, 0.15);
+      padding: 12px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 12px;
+      border-bottom: 2px solid rgba(6, 182, 212, 0.3);
+      cursor: move;
+      -webkit-app-region: drag; /* Make header draggable */
     }
 
-    .header h3 {
-      color: rgba(6, 182, 212, 1);
-      font-size: 14px;
-      font-weight: 700;
+    .header-title {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
 
     .status-dot {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       background: #6b7280;
       transition: all 0.3s ease;
@@ -72,16 +83,180 @@
 
     .status-dot.active {
       background: #22c55e;
-      box-shadow: 0 0 10px rgba(34, 197, 94, 0.6);
-      animation: pulse 2s infinite;
+      box-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
+      animation: pulse-dot 2s infinite;
     }
 
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.2); }
     }
 
-    /* Status rows */
+    .header h3 {
+      color: rgba(6, 182, 212, 1);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .drag-icon {
+      width: 20px;
+      height: 20px;
+      opacity: 0.5;
+      flex-shrink: 0;
+    }
+
+    .close-btn {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #ef4444;
+      border-radius: 8px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      pointer-events: auto;
+      -webkit-app-region: no-drag; /* Make button clickable (not draggable) */
+    }
+
+    .close-btn:hover {
+      background: rgba(239, 68, 68, 0.3);
+      transform: scale(1.05);
+    }
+
+    /* Canvas Container */
+    .canvas-container {
+      position: relative;
+      width: 100%;
+      height: 360px;
+      background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(31, 41, 55, 0.95));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    #handCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* No hand detected overlay */
+    .no-hand-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(17, 24, 39, 0.8);
+      backdrop-filter: blur(10px);
+      transition: opacity 0.3s;
+    }
+
+    .no-hand-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .hand-icon {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .no-hand-text {
+      color: rgba(156, 163, 175, 1);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    /* Recording indicator */
+    .recording-indicator {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(239, 68, 68, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 10px 20px;
+      border-radius: 20px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+      animation: slideDown 0.3s ease;
+      z-index: 10;
+    }
+
+    @keyframes slideDown {
+      from {
+        transform: translateX(-50%) translateY(-20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .recording-indicator.visible {
+      display: flex;
+    }
+
+    .rec-pulse {
+      width: 10px;
+      height: 10px;
+      background: white;
+      border-radius: 50%;
+      animation: pulse-rec 1s infinite;
+    }
+
+    @keyframes pulse-rec {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.3; transform: scale(0.8); }
+    }
+
+    .rec-text {
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .rec-progress {
+      width: 60px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .rec-progress-bar {
+      height: 100%;
+      background: white;
+      border-radius: 2px;
+      transition: width 0.2s ease;
+    }
+
+    /* Info Panel */
+    .info-panel {
+      padding: 16px 20px;
+      background: rgba(31, 41, 55, 0.5);
+    }
+
     .status-row {
       display: flex;
       align-items: center;
@@ -97,12 +272,16 @@
     .status-label {
       color: rgba(156, 163, 175, 1);
       font-size: 12px;
+      font-weight: 500;
     }
 
     .status-value {
       color: white;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .status-value.success {
@@ -117,42 +296,39 @@
       color: #ef4444;
     }
 
-    /* Progress bar */
-    .progress-container {
-      margin-top: 8px;
-      background: rgba(75, 85, 99, 0.3);
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
       border-radius: 8px;
-      height: 6px;
-      overflow: hidden;
-      display: none;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
     }
 
-    .progress-container.visible {
-      display: block;
+    .status-badge.success {
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #22c55e;
     }
 
-    .progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, #ef4444, #dc2626);
-      border-radius: 8px;
-      transition: width 0.3s ease;
-      box-shadow: 0 0 10px rgba(239, 68, 68, 0.6);
+    .status-badge.error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #ef4444;
     }
 
-    /* Gesture result */
+    /* Gesture Result */
     .gesture-result {
       margin-top: 12px;
-      padding: 10px;
-      border-radius: 10px;
+      padding: 16px;
+      border-radius: 16px;
       display: none;
-      align-items: center;
-      gap: 10px;
-      animation: slideIn 0.3s ease;
+      animation: slideUp 0.3s ease;
     }
 
-    @keyframes slideIn {
+    @keyframes slideUp {
       from {
-        transform: translateY(-10px);
+        transform: translateY(10px);
         opacity: 0;
       }
       to {
@@ -161,36 +337,57 @@
       }
     }
 
+    @keyframes scaleIn {
+      from {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0;
+      }
+      to {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+    }
+
     .gesture-result.visible {
-      display: flex;
+      display: block;
     }
 
     .gesture-result.success {
       background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.3);
+      border: 2px solid rgba(34, 197, 94, 0.4);
     }
 
     .gesture-result.failed {
       background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      border: 2px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .gesture-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
     }
 
     .gesture-icon {
-      width: 32px;
-      height: 32px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 24px;
+      flex-shrink: 0;
     }
 
     .gesture-icon.success {
-      background: rgba(34, 197, 94, 0.2);
+      background: rgba(34, 197, 94, 0.25);
+      color: #22c55e;
     }
 
     .gesture-icon.failed {
-      background: rgba(239, 68, 68, 0.2);
+      background: rgba(239, 68, 68, 0.25);
+      color: #ef4444;
     }
 
     .gesture-info {
@@ -199,20 +396,93 @@
 
     .gesture-name {
       color: white;
-      font-size: 13px;
+      font-size: 16px;
       font-weight: 700;
-      margin-bottom: 2px;
+      margin-bottom: 4px;
     }
 
-    .gesture-similarity {
+    .gesture-action {
       color: rgba(156, 163, 175, 1);
       font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    /* Hidden state */
-    #overlay-container.hidden {
-      opacity: 0;
-      transform: scale(0.9);
+    .gesture-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .stat-item {
+      text-align: center;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: rgba(156, 163, 175, 1);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .stat-value.success {
+      color: #22c55e;
+    }
+
+    .stat-value.warning {
+      color: #f59e0b;
+    }
+
+    /* Match Status Banner */
+    .match-status-banner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(34, 197, 94, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 16px 32px;
+      border-radius: 20px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 30px rgba(34, 197, 94, 0.6);
+      animation: scaleIn 0.3s ease;
+      z-index: 20;
+      min-width: 250px;
+      justify-content: center;
+    }
+
+    .match-status-banner.visible {
+      display: flex;
+    }
+
+    .match-status-banner.no-match {
+      background: rgba(239, 68, 68, 0.95);
+      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .match-status-icon {
+      width: 32px;
+      height: 32px;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .match-status-text {
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-align: center;
     }
   </style>
 </head>
@@ -220,39 +490,83 @@
   <div id="overlay-container">
     <!-- Header -->
     <div class="header">
-      <h3>
+      <div class="header-title">
         <div class="status-dot" id="statusDot"></div>
-        AirClick
-      </h3>
+        <h3>
+          <svg class="drag-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+          </svg>
+          AirClick Gesture Control
+        </h3>
+      </div>
+      <button class="close-btn" id="closeBtn">Hide</button>
     </div>
 
-    <!-- Status Information -->
-    <div class="status-row">
-      <span class="status-label">Hand</span>
-      <span class="status-value" id="handStatus">No Hand</span>
+    <!-- Canvas Container -->
+    <div class="canvas-container">
+      <canvas id="handCanvas" width="640" height="480"></canvas>
+
+      <!-- No Hand Overlay -->
+      <div class="no-hand-overlay" id="noHandOverlay">
+        <svg class="hand-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+        </svg>
+        <p class="no-hand-text">Show your hand to the camera</p>
+      </div>
+
+      <!-- Recording Indicator -->
+      <div class="recording-indicator" id="recordingIndicator">
+        <div class="rec-pulse"></div>
+        <span class="rec-text" id="recText">RECORDING</span>
+        <div class="rec-progress">
+          <div class="rec-progress-bar" id="recProgressBar"></div>
+        </div>
+      </div>
+
+      <!-- Match Status Banner -->
+      <div class="match-status-banner" id="matchStatusBanner">
+        <span class="match-status-icon" id="matchStatusIcon">✓</span>
+        <span class="match-status-text" id="matchStatusText">GESTURE MATCHED!</span>
+      </div>
     </div>
 
-    <div class="status-row">
-      <span class="status-label">Recording</span>
-      <span class="status-value" id="recordingStatus">Idle</span>
-    </div>
+    <!-- Info Panel -->
+    <div class="info-panel">
+      <div class="status-row">
+        <span class="status-label">Hand Detection</span>
+        <span class="status-value" id="handStatus">
+          <span class="status-badge error">NO HAND</span>
+        </span>
+      </div>
 
-    <div class="status-row">
-      <span class="status-label">Performance</span>
-      <span class="status-value" id="performanceStatus">N/A</span>
-    </div>
+      <div class="status-row">
+        <span class="status-label">Performance</span>
+        <span class="status-value" id="performanceStatus">N/A</span>
+      </div>
 
-    <!-- Progress Bar (hidden by default) -->
-    <div class="progress-container" id="progressContainer">
-      <div class="progress-bar" id="progressBar"></div>
-    </div>
-
-    <!-- Gesture Result (hidden by default) -->
-    <div class="gesture-result" id="gestureResult">
-      <div class="gesture-icon" id="gestureIcon">✓</div>
-      <div class="gesture-info">
-        <div class="gesture-name" id="gestureName">Gesture Name</div>
-        <div class="gesture-similarity" id="gestureSimilarity">85% match</div>
+      <!-- Gesture Result -->
+      <div class="gesture-result" id="gestureResult">
+        <div class="gesture-header">
+          <div class="gesture-icon" id="gestureIcon">✓</div>
+          <div class="gesture-info">
+            <div class="gesture-name" id="gestureName">Gesture Name</div>
+            <div class="gesture-action" id="gestureAction">Action</div>
+          </div>
+        </div>
+        <div class="gesture-stats">
+          <div class="stat-item">
+            <div class="stat-label">Similarity</div>
+            <div class="stat-value success" id="gestureSimilarity">0%</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Frames</div>
+            <div class="stat-value" id="gestureFrames" style="color: white;">0</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Status</div>
+            <div class="stat-value success" id="gestureStatus">✓</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -264,28 +578,54 @@
     const container = document.getElementById('overlay-container');
     const statusDot = document.getElementById('statusDot');
     const handStatus = document.getElementById('handStatus');
-    const recordingStatus = document.getElementById('recordingStatus');
     const performanceStatus = document.getElementById('performanceStatus');
-    const progressContainer = document.getElementById('progressContainer');
-    const progressBar = document.getElementById('progressBar');
+    const noHandOverlay = document.getElementById('noHandOverlay');
+    const recordingIndicator = document.getElementById('recordingIndicator');
+    const recText = document.getElementById('recText');
+    const recProgressBar = document.getElementById('recProgressBar');
     const gestureResult = document.getElementById('gestureResult');
     const gestureIcon = document.getElementById('gestureIcon');
     const gestureName = document.getElementById('gestureName');
+    const gestureAction = document.getElementById('gestureAction');
     const gestureSimilarity = document.getElementById('gestureSimilarity');
+    const gestureFrames = document.getElementById('gestureFrames');
+    const gestureStatus = document.getElementById('gestureStatus');
+    const closeBtn = document.getElementById('closeBtn');
+    const matchStatusBanner = document.getElementById('matchStatusBanner');
+    const matchStatusIcon = document.getElementById('matchStatusIcon');
+    const matchStatusText = document.getElementById('matchStatusText');
+
+    // Canvas
+    const canvas = document.getElementById('handCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Hand skeleton connections (21 landmarks)
+    const HAND_CONNECTIONS = [
+      // Thumb
+      [0, 1], [1, 2], [2, 3], [3, 4],
+      // Index finger
+      [0, 5], [5, 6], [6, 7], [7, 8],
+      // Middle finger
+      [0, 9], [9, 10], [10, 11], [11, 12],
+      // Ring finger
+      [0, 13], [13, 14], [14, 15], [15, 16],
+      // Pinky
+      [0, 17], [17, 18], [18, 19], [19, 20],
+      // Palm
+      [5, 9], [9, 13], [13, 17]
+    ];
 
     // State
-    let currentState = {
-      handDetected: false,
-      recording: false,
-      recordingProgress: 0,
-      fps: 0,
-      latency: 0,
-      lastMatch: null
-    };
+    let handDetected = false;
+    let recording = false;
+    let recordingProgress = 0;
+    let recognitionFrames = [];
+    let matchCooldown = false;
 
-    // Listen for updates from main process
-    ipcRenderer.on('update-overlay', (event, data) => {
-      updateOverlay(data);
+    // Close button
+    closeBtn.addEventListener('click', () => {
+      // Send message to main process to hide overlay
+      window.close();
     });
 
     // Connect to backend WebSocket
@@ -299,11 +639,51 @@
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        updateOverlay({
-          handDetected: data.hand_count > 0,
-          fps: data.fps || 0,
-          latency: data.latency || 0
-        });
+
+        // Update hand detection
+        const handsDetected = data.hand_count > 0;
+        updateHandStatus(handsDetected);
+
+        // Draw hand skeleton
+        if (handsDetected && data.hands && data.hands.length > 0) {
+          drawHand(data);
+          noHandOverlay.classList.add('hidden');
+
+          // Collect frames for gesture recognition
+          const frame = {
+            timestamp: Date.now(),
+            landmarks: data.hands[0].landmarks,
+            handedness: data.hands[0].handedness,
+            confidence: data.hands[0].confidence
+          };
+
+          recognitionFrames.push(frame);
+
+          // Keep only last 60 frames (2 seconds at 30fps)
+          if (recognitionFrames.length > 60) {
+            recognitionFrames = recognitionFrames.slice(-60);
+          }
+
+          // Update recording indicator
+          updateRecording(recognitionFrames.length > 0, recognitionFrames.length);
+
+          // Auto-match when we have 60 frames and not in cooldown
+          if (recognitionFrames.length === 60 && !matchCooldown) {
+            matchGesture(recognitionFrames);
+            recognitionFrames = []; // Clear after matching
+          }
+        } else {
+          clearCanvas();
+          noHandOverlay.classList.remove('hidden');
+          recognitionFrames = []; // Clear frames when hand is lost
+          updateRecording(false, 0);
+        }
+
+        // Update performance
+        if (data.fps || data.latency) {
+          updatePerformance(data.fps, data.latency);
+        }
+
       } catch (error) {
         console.error('Error parsing WebSocket data:', error);
       }
@@ -313,108 +693,305 @@
       console.log('❌ Overlay disconnected from backend');
       statusDot.classList.remove('active');
       setTimeout(() => {
-        // Attempt reconnect
         location.reload();
       }, 3000);
     };
 
-    // Update overlay display
-    function updateOverlay(data) {
-      // Update hand detection
-      if (data.handDetected !== undefined) {
-        currentState.handDetected = data.handDetected;
-        handStatus.textContent = data.handDetected ? 'Detected' : 'No Hand';
-        handStatus.className = data.handDetected ? 'status-value success' : 'status-value';
-      }
+    // Update hand status
+    function updateHandStatus(detected) {
+      handDetected = detected;
 
-      // Update recording status
-      if (data.recording !== undefined) {
-        currentState.recording = data.recording;
-        if (data.recording) {
-          container.classList.add('recording');
-          recordingStatus.textContent = `${data.recordingProgress || 0}/60`;
-          recordingStatus.className = 'status-value warning';
-
-          // Show and update progress bar
-          progressContainer.classList.add('visible');
-          const progress = ((data.recordingProgress || 0) / 60) * 100;
-          progressBar.style.width = `${progress}%`;
-        } else {
-          container.classList.remove('recording');
-          recordingStatus.textContent = 'Idle';
-          recordingStatus.className = 'status-value';
-
-          // Hide progress bar
-          progressContainer.classList.remove('visible');
-          progressBar.style.width = '0%';
-        }
-      }
-
-      // Update performance
-      if (data.fps !== undefined || data.latency !== undefined) {
-        currentState.fps = data.fps || currentState.fps;
-        currentState.latency = data.latency || currentState.latency;
-
-        const fpsText = currentState.fps > 0 ? `${currentState.fps} FPS` : 'N/A';
-        const latencyText = currentState.latency > 0 ? `${currentState.latency}ms` : '';
-
-        performanceStatus.textContent = latencyText ? `${latencyText} | ${fpsText}` : fpsText;
-
-        // Color code based on performance
-        if (currentState.fps >= 25 && currentState.latency < 50) {
-          performanceStatus.className = 'status-value success';
-        } else if (currentState.fps >= 15 || currentState.latency < 100) {
-          performanceStatus.className = 'status-value warning';
-        } else {
-          performanceStatus.className = 'status-value error';
-        }
-      }
-
-      // Update gesture match result
-      if (data.gestureMatch !== undefined) {
-        if (data.gestureMatch.matched) {
-          // Success
-          container.classList.add('matched');
-          container.classList.remove('failed');
-
-          gestureResult.classList.add('visible', 'success');
-          gestureResult.classList.remove('failed');
-
-          gestureIcon.classList.add('success');
-          gestureIcon.classList.remove('failed');
-          gestureIcon.textContent = '✓';
-
-          gestureName.textContent = data.gestureMatch.name;
-          gestureSimilarity.textContent = `${data.gestureMatch.similarity}% match`;
-
-          // Auto-hide after 2 seconds
-          setTimeout(() => {
-            gestureResult.classList.remove('visible');
-            container.classList.remove('matched');
-          }, 2000);
-        } else {
-          // Failure
-          container.classList.add('failed');
-          container.classList.remove('matched');
-
-          gestureResult.classList.add('visible', 'failed');
-          gestureResult.classList.remove('success');
-
-          gestureIcon.classList.add('failed');
-          gestureIcon.classList.remove('success');
-          gestureIcon.textContent = '✗';
-
-          gestureName.textContent = 'No Match';
-          gestureSimilarity.textContent = 'Try again';
-
-          // Auto-hide after 1 second
-          setTimeout(() => {
-            gestureResult.classList.remove('visible');
-            container.classList.remove('failed');
-          }, 1000);
-        }
+      if (detected) {
+        handStatus.innerHTML = '<span class="status-badge success">HAND DETECTED</span>';
+      } else {
+        handStatus.innerHTML = '<span class="status-badge error">NO HAND</span>';
       }
     }
+
+    // Update performance
+    function updatePerformance(fps, latency) {
+      const fpsText = fps > 0 ? `${fps} FPS` : 'N/A';
+      const latencyText = latency > 0 ? `${latency}ms` : '';
+
+      performanceStatus.textContent = latencyText ? `${latencyText} | ${fpsText}` : fpsText;
+
+      // Color code
+      if (fps >= 25 && latency < 50) {
+        performanceStatus.className = 'status-value success';
+      } else if (fps >= 15 || latency < 100) {
+        performanceStatus.className = 'status-value warning';
+      } else {
+        performanceStatus.className = 'status-value error';
+      }
+    }
+
+    // Draw hand skeleton
+    function drawHand(handData) {
+      const width = canvas.width;
+      const height = canvas.height;
+
+      // Clear canvas
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw dark background
+      ctx.fillStyle = 'rgba(17, 24, 39, 0.5)';
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw each detected hand
+      handData.hands.forEach((hand) => {
+        const landmarks = hand.landmarks;
+        const handColor = hand.handedness === 'Right' ? '#00FFFF' : '#FF00FF';
+
+        // Draw connections (skeleton lines)
+        ctx.strokeStyle = handColor;
+        ctx.lineWidth = 3;
+        ctx.shadowColor = handColor;
+        ctx.shadowBlur = 10;
+
+        HAND_CONNECTIONS.forEach(([start, end]) => {
+          const startLandmark = landmarks[start];
+          const endLandmark = landmarks[end];
+
+          ctx.beginPath();
+          ctx.moveTo(startLandmark.x * width, startLandmark.y * height);
+          ctx.lineTo(endLandmark.x * width, endLandmark.y * height);
+          ctx.stroke();
+        });
+
+        // Reset shadow
+        ctx.shadowBlur = 0;
+
+        // Draw landmarks (key points)
+        ctx.fillStyle = handColor;
+        landmarks.forEach((landmark, index) => {
+          const x = landmark.x * width;
+          const y = landmark.y * height;
+
+          // Larger circle for wrist (index 0)
+          const radius = index === 0 ? 8 : 5;
+
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, 2 * Math.PI);
+          ctx.fill();
+
+          // Draw outline
+          ctx.strokeStyle = '#FFFFFF';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        });
+
+        // Draw hand label
+        if (landmarks[0]) {
+          const wristX = landmarks[0].x * width;
+          const wristY = landmarks[0].y * height;
+
+          ctx.fillStyle = handColor;
+          ctx.font = 'bold 16px Arial';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+          ctx.shadowBlur = 4;
+          ctx.fillText(
+            `${hand.handedness} (${(hand.confidence * 100).toFixed(0)}%)`,
+            wristX + 15,
+            wristY - 15
+          );
+          ctx.shadowBlur = 0;
+        }
+      });
+    }
+
+    // Clear canvas
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(17, 24, 39, 0.5)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Update recording status
+    function updateRecording(isRecording, progress) {
+      recording = isRecording;
+      recordingProgress = progress || 0;
+
+      if (isRecording) {
+        container.classList.add('recording');
+        recordingIndicator.classList.add('visible');
+        recText.textContent = `RECORDING: ${recordingProgress}/60`;
+
+        const progressPercent = (recordingProgress / 60) * 100;
+        recProgressBar.style.width = `${progressPercent}%`;
+      } else {
+        container.classList.remove('recording');
+        recordingIndicator.classList.remove('visible');
+        recProgressBar.style.width = '0%';
+      }
+    }
+
+    // Update gesture match result
+    function updateGestureMatch(data) {
+      if (data.matched) {
+        // Success
+        container.classList.add('matched');
+        container.classList.remove('failed');
+
+        // Show match status banner
+        matchStatusBanner.classList.add('visible');
+        matchStatusBanner.classList.remove('no-match');
+        matchStatusIcon.textContent = '✓';
+        matchStatusText.textContent = `GESTURE MATCHED! ${data.name || ''}`;
+
+        gestureResult.classList.add('visible', 'success');
+        gestureResult.classList.remove('failed');
+
+        gestureIcon.classList.add('success');
+        gestureIcon.classList.remove('failed');
+        gestureIcon.textContent = '✓';
+
+        gestureName.textContent = data.name || 'Gesture Matched';
+        gestureAction.textContent = data.action || 'Action';
+        gestureSimilarity.textContent = `${data.similarity}%`;
+        gestureSimilarity.className = data.similarity >= 75 ? 'stat-value success' : 'stat-value warning';
+        gestureFrames.textContent = data.frames || '60';
+        gestureStatus.textContent = '✓';
+        gestureStatus.className = 'stat-value success';
+
+        // Auto-hide after 3 seconds
+        setTimeout(() => {
+          gestureResult.classList.remove('visible');
+          matchStatusBanner.classList.remove('visible');
+          container.classList.remove('matched');
+        }, 3000);
+      } else {
+        // Failure
+        container.classList.add('failed');
+        container.classList.remove('matched');
+
+        // Show no match status banner
+        matchStatusBanner.classList.add('visible', 'no-match');
+        matchStatusIcon.textContent = '✗';
+        matchStatusText.textContent = 'NO MATCH - TRY AGAIN';
+
+        gestureResult.classList.add('visible', 'failed');
+        gestureResult.classList.remove('success');
+
+        gestureIcon.classList.add('failed');
+        gestureIcon.classList.remove('success');
+        gestureIcon.textContent = '✗';
+
+        gestureName.textContent = 'No Match Found';
+        gestureAction.textContent = 'Try again';
+        gestureSimilarity.textContent = '0%';
+        gestureSimilarity.className = 'stat-value error';
+        gestureFrames.textContent = data.frames || '60';
+        gestureStatus.textContent = '✗';
+        gestureStatus.className = 'stat-value error';
+
+        // Auto-hide after 2 seconds
+        setTimeout(() => {
+          gestureResult.classList.remove('visible');
+          matchStatusBanner.classList.remove('visible', 'no-match');
+          container.classList.remove('failed');
+        }, 2000);
+      }
+    }
+
+    // Match gesture with backend API
+    async function matchGesture(frames) {
+      if (frames.length < 30) {
+        console.warn('Not enough frames to match');
+        return;
+      }
+
+      matchCooldown = true;
+      console.log('🔍 Starting gesture match with', frames.length, 'frames');
+
+      try {
+        // Try to get token from localStorage first
+        let token = localStorage.getItem('token');
+
+        // If not found, try to read from a token file
+        if (!token) {
+          try {
+            const fs = require('fs');
+            const path = require('path');
+            const tokenPath = path.join(require('os').homedir(), '.airclick-token');
+
+            if (fs.existsSync(tokenPath)) {
+              token = fs.readFileSync(tokenPath, 'utf8').trim();
+              console.log('🔑 Token loaded from file');
+            }
+          } catch (err) {
+            console.warn('Failed to read token file:', err.message);
+          }
+        }
+
+        console.log('🔑 Token found:', token ? 'YES' : 'NO');
+
+        if (!token) {
+          console.error('❌ No auth token found - skipping gesture match');
+          console.error('💡 Tip: Please make sure you are logged in');
+          matchCooldown = false;
+
+          // Show error message
+          updateGestureMatch({
+            matched: false,
+            name: 'Login Required',
+            similarity: 0,
+            frames: 60
+          });
+          return;
+        }
+
+        console.log('📡 Sending match request to backend...');
+        const response = await fetch('http://localhost:8000/api/gestures/match', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(frames)
+        });
+
+        console.log('📥 Response status:', response.status);
+        const result = await response.json();
+        console.log('📦 Match result:', result);
+
+        if (result.matched) {
+          // Show matched gesture banner
+          updateGestureMatch({
+            matched: true,
+            name: result.gesture.name,
+            action: result.gesture.action,
+            similarity: Math.round(result.similarity * 100),
+            frames: 60
+          });
+        } else {
+          // Show no match banner
+          updateGestureMatch({
+            matched: false,
+            name: '',
+            similarity: 0,
+            frames: 60
+          });
+        }
+      } catch (error) {
+        console.error('Error matching gesture:', error);
+      } finally {
+        // Release cooldown after 1 second
+        setTimeout(() => {
+          matchCooldown = false;
+        }, 1000);
+      }
+    }
+
+    // Listen for updates from main process or Next.js app
+    ipcRenderer.on('update-overlay', (event, data) => {
+      if (data.recording !== undefined) {
+        updateRecording(data.recording, data.recordingProgress);
+      }
+
+      if (data.gestureMatch !== undefined) {
+        updateGestureMatch(data.gestureMatch);
+      }
+    });
 
     console.log('✅ Overlay UI initialized');
   </script>

@@ -17,6 +17,9 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen } = require('electron');
 const path = require('path');
 
+// Start token helper server
+const tokenHelper = require('./token-helper.js');
+
 let overlayWindow = null;
 let tray = null;
 let overlayEnabled = true;
@@ -26,17 +29,21 @@ let overlayEnabled = true;
 function createOverlay() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
+  // Larger overlay for hand skeleton visualization
+  const overlayWidth = 480;
+  const overlayHeight = 580;
+
   overlayWindow = new BrowserWindow({
-    width: 320,
-    height: 160,
-    x: width - 340, // 20px from right edge
-    y: 20, // 20px from top
+    width: overlayWidth,
+    height: overlayHeight,
+    x: 20, // Top-left corner (20px from left)
+    y: 20, // Top-left corner (20px from top)
     transparent: true,
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
-    focusable: false,
+    focusable: false, // Will be set to true for dragging
     minimizable: false,
     maximizable: false,
     show: false, // Start hidden, show after ready
@@ -47,9 +54,8 @@ function createOverlay() {
     }
   });
 
-  // Make window ignore mouse events (click-through)
-  // But still show visual feedback
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  // DON'T make window ignore mouse events - we need dragging!
+  // overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
   // Load the overlay HTML
   overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
