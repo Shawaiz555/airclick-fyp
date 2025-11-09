@@ -41,7 +41,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   // App settings state
-  const [activeApp, setActiveApp] = useState('POWERPOINT');
+  const [activeApp, setActiveApp] = useState('GLOBAL');
   const [hybridMode, setHybridMode] = useState(true);  // Start with hybrid mode ON by default
 
   // WebSocket state
