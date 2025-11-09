@@ -21,10 +21,98 @@ export default function CustomGestureManagement() {
   // Edit gesture state
   const [editingGesture, setEditingGesture] = useState(null);
 
+  // Hybrid mode state management (for cursor control disable during recording)
+  const [savedHybridMode, setSavedHybridMode] = useState(null);
+
   // Load gestures from database
   useEffect(() => {
     loadGesturesFromDatabase();
   }, []);
+
+  // Disable hybrid mode when recording/editing starts
+  const disableHybridMode = async () => {
+    try {
+      // Get current hybrid mode state from localStorage
+      const currentHybridMode = localStorage.getItem('hybridMode');
+      console.log('💡 Saving hybrid mode state:', currentHybridMode);
+
+      // Save current state
+      setSavedHybridMode(currentHybridMode);
+
+      // Disable hybrid mode in localStorage
+      localStorage.setItem('hybridMode', 'false');
+      console.log('🛑 Hybrid mode disabled for gesture recording');
+
+      // Sync to Electron overlay via token-helper
+      try {
+        await fetch('http://localhost:3001/save-hybrid-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hybridMode: false })
+        });
+        console.log('✅ Hybrid mode synced to Electron overlay');
+      } catch (err) {
+        console.warn('⚠️ Could not sync to Electron (token-helper not running)');
+      }
+
+      // Broadcast change using CustomEvent (works in same window)
+      window.dispatchEvent(new CustomEvent('hybridModeChange', {
+        detail: { hybridMode: false, oldValue: currentHybridMode }
+      }));
+
+      // Also dispatch storage event for other tabs/windows
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'hybridMode',
+        oldValue: currentHybridMode,
+        newValue: 'false',
+        storageArea: localStorage
+      }));
+    } catch (error) {
+      console.error('Error disabling hybrid mode:', error);
+    }
+  };
+
+  // Re-enable hybrid mode after recording/editing completes
+  const restoreHybridMode = async () => {
+    try {
+      // Restore previous state (default to 'true' if it was null/undefined)
+      const restoreValue = savedHybridMode !== null ? savedHybridMode : 'true';
+      console.log('🔄 Restoring hybrid mode to:', restoreValue);
+
+      localStorage.setItem('hybridMode', restoreValue);
+      console.log('✅ Hybrid mode restored');
+
+      // Sync to Electron overlay via token-helper
+      try {
+        await fetch('http://localhost:3001/save-hybrid-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hybridMode: restoreValue === 'true' })
+        });
+        console.log('✅ Hybrid mode synced to Electron overlay');
+      } catch (err) {
+        console.warn('⚠️ Could not sync to Electron (token-helper not running)');
+      }
+
+      // Broadcast change using CustomEvent (works in same window)
+      window.dispatchEvent(new CustomEvent('hybridModeChange', {
+        detail: { hybridMode: restoreValue === 'true', oldValue: 'false' }
+      }));
+
+      // Also dispatch storage event for other tabs/windows
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'hybridMode',
+        oldValue: 'false',
+        newValue: restoreValue,
+        storageArea: localStorage
+      }));
+
+      // Clear saved state
+      setSavedHybridMode(null);
+    } catch (error) {
+      console.error('Error restoring hybrid mode:', error);
+    }
+  };
 
   const loadGesturesFromDatabase = async () => {
     setIsLoading(true);
@@ -52,6 +140,8 @@ export default function CustomGestureManagement() {
   };
 
   const handleSaveGesture = async (gestureData) => {
+    console.log('📝 handleSaveGesture called');
+
     // Gesture is already saved by GestureRecorderReal component
     // Just reload the list and show toast
     await loadGesturesFromDatabase();
@@ -63,10 +153,10 @@ export default function CustomGestureManagement() {
       toast.success('Gesture saved successfully!');
     }
 
-    // Clear editing state if it was an edit
-    if (editingGesture) {
-      setEditingGesture(null);
-    }
+    // Restore hybrid mode after successful save
+    console.log('🔄 About to restore hybrid mode...');
+    await restoreHybridMode();
+    console.log('✅ Hybrid mode restoration complete');
   };
 
   const handleDeleteGesture = async (id) => {
@@ -99,7 +189,25 @@ export default function CustomGestureManagement() {
 
   // Handle edit gesture - open recorder with existing data
   const handleEditGesture = (gesture) => {
+    disableHybridMode();  // Disable hybrid mode before opening editor
     setEditingGesture(gesture);
+  };
+
+  // Handle opening new gesture recorder
+  const handleOpenRecorder = () => {
+    disableHybridMode();  // Disable hybrid mode before opening recorder
+    setIsRecordingModalOpen(true);
+  };
+
+  // Handle closing recorder/editor without saving
+  const handleCloseRecorder = () => {
+    restoreHybridMode();  // Restore hybrid mode when closing without save
+    setIsRecordingModalOpen(false);
+  };
+
+  const handleCloseEditor = () => {
+    restoreHybridMode();  // Restore hybrid mode when closing without save
+    setEditingGesture(null);
   };
 
   // Dynamically get all unique contexts from gestures
@@ -191,7 +299,7 @@ export default function CustomGestureManagement() {
 
                     {/* Record Button */}
                     <button
-                      onClick={() => setIsRecordingModalOpen(true)}
+                      onClick={handleOpenRecorder}
                       className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg font-bold hover:cursor-pointer shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -271,7 +379,7 @@ export default function CustomGestureManagement() {
                     </p>
                     {gestures.length === 0 && (
                       <button
-                        onClick={() => setIsRecordingModalOpen(true)}
+                        onClick={handleOpenRecorder}
                         className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold hover:cursor-pointer shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105"
                       >
                         Record Your First Gesture
@@ -450,11 +558,11 @@ export default function CustomGestureManagement() {
             {/* Recording Modal - For creating new gestures */}
             {isRecordingModalOpen && (
               <GestureRecorderReal
-                onSave={(data) => {
-                  handleSaveGesture(data);
+                onSave={async (data) => {
+                  await handleSaveGesture(data);
                   setIsRecordingModalOpen(false);
                 }}
-                onClose={() => setIsRecordingModalOpen(false)}
+                onClose={handleCloseRecorder}
               />
             )}
 
@@ -462,10 +570,11 @@ export default function CustomGestureManagement() {
             {editingGesture && (
               <GestureRecorderReal
                 editingGesture={editingGesture}
-                onSave={(data) => {
-                  handleSaveGesture(data);
+                onSave={async (data) => {
+                  await handleSaveGesture(data);
+                  setEditingGesture(null);
                 }}
-                onClose={() => setEditingGesture(null)}
+                onClose={handleCloseEditor}
               />
             )}
 

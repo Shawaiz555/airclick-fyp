@@ -636,33 +636,84 @@
     let isAuthenticated = false;  // Track authentication status
     let authChecked = false;       // Track if we've checked auth yet
 
+    // Hybrid mode state - dynamic from localStorage
+    let hybridModeEnabled = true;  // Default to true
+    let ws = null;  // WebSocket connection
+
+    // Require Node.js modules for file operations (declare once at top level)
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+
     // Close button
     closeBtn.addEventListener('click', () => {
       // Send message to main process to hide overlay
       window.close();
     });
 
-    // Determine WebSocket URL
-    // HYBRID MODE ENABLED: Cursor control + clicks active in overlay
-    const hybridModeEnabled = true;  // ON by default - cursor control enabled
-    const wsUrl = hybridModeEnabled
-      ? 'ws://localhost:8000/ws/hand-tracking-hybrid'
-      : 'ws://localhost:8000/ws/hand-tracking';
+    // Initialize hybrid mode from file (source of truth)
+    function initializeHybridMode() {
+      try {
+        const hybridModeFile = path.join(os.homedir(), '.airclick-hybridmode');
 
-    console.log(`🔌 Connecting to: ${wsUrl} (hybrid_mode=${hybridModeEnabled})`);
+        if (fs.existsSync(hybridModeFile)) {
+          const fileContent = fs.readFileSync(hybridModeFile, 'utf8').trim();
+          hybridModeEnabled = fileContent === 'true';
+          console.log(`🔧 Hybrid mode initialized from file: ${hybridModeEnabled}`);
+        } else {
+          // Default to true if file doesn't exist, and create the file
+          hybridModeEnabled = true;
+          try {
+            fs.writeFileSync(hybridModeFile, 'true', 'utf8');
+            console.log('🔧 Hybrid mode file created with default: true');
+          } catch (err) {
+            console.warn('⚠️ Could not create hybrid mode file:', err.message);
+          }
+          console.log('🔧 Hybrid mode file not found, using default: true');
+        }
+      } catch (error) {
+        console.error('Error initializing hybrid mode:', error);
+        hybridModeEnabled = true;  // Default to true on error
+      }
+      return hybridModeEnabled;
+    }
 
-    // Connect to backend WebSocket
-    const ws = new WebSocket(wsUrl);
+    // Connect to WebSocket with current hybrid mode
+    function connectWebSocket() {
+      // Close existing connection if any
+      if (ws) {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          console.log('🔌 Closing existing WebSocket connection for mode switch');
+          ws.close();
+          // Wait for connection to close before reconnecting
+          ws = null;
+          setTimeout(connectWebSocket, 100);
+          return;
+        }
+      }
 
-    ws.onopen = () => {
-      console.log('✅ Overlay connected to backend');
-      statusDot.classList.add('active');
+      // Get current hybrid mode
+      const currentMode = initializeHybridMode();
 
-      // Check authentication status immediately on connection
-      checkAuthentication();
-    };
+      // Determine WebSocket URL based on hybrid mode
+      const wsUrl = currentMode
+        ? 'ws://localhost:8000/ws/hand-tracking-hybrid'
+        : 'ws://localhost:8000/ws/hand-tracking';
 
-    ws.onmessage = (event) => {
+      console.log(`🔌 Connecting to: ${wsUrl} (hybrid_mode=${currentMode})`);
+
+      // Connect to backend WebSocket
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('✅ Overlay connected to backend');
+        statusDot.classList.add('active');
+
+        // Check authentication status immediately on connection
+        checkAuthentication();
+      };
+
+      ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
 
@@ -728,13 +779,92 @@
       }
     };
 
-    ws.onclose = () => {
-      console.log('❌ Overlay disconnected from backend');
-      statusDot.classList.remove('active');
-      setTimeout(() => {
-        location.reload();
-      }, 3000);
-    };
+      ws.onclose = () => {
+        console.log('❌ Overlay disconnected from backend');
+        statusDot.classList.remove('active');
+
+        // Don't reload - just try to reconnect after delay
+        setTimeout(() => {
+          console.log('🔄 Attempting to reconnect...');
+          connectWebSocket();
+        }, 3000);
+      };
+
+      ws.onerror = (error) => {
+        console.error('❌ WebSocket error:', error);
+      };
+    }
+
+    // Listen for hybrid mode changes from localStorage
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'hybridMode' && e.newValue !== null) {
+        const newValue = e.newValue === 'true';
+        console.log(`🔄 Hybrid mode changed (storage event): ${newValue} - Reconnecting WebSocket...`);
+
+        // Update local state
+        hybridModeEnabled = newValue;
+
+        // Reconnect WebSocket with new mode
+        connectWebSocket();
+      }
+    });
+
+    // Poll hybrid mode file for changes (every 500ms)
+    // This detects when web app changes hybrid mode
+    const hybridModeFile = path.join(os.homedir(), '.airclick-hybridmode');
+    let lastHybridMode = hybridModeEnabled;
+
+    setInterval(() => {
+      try {
+        let currentHybridMode = true; // default
+        if (fs.existsSync(hybridModeFile)) {
+          const fileContent = fs.readFileSync(hybridModeFile, 'utf8').trim();
+          currentHybridMode = fileContent === 'true';
+        }
+
+        if (currentHybridMode !== lastHybridMode) {
+          console.log(`🔄 Hybrid mode changed (file polling): ${lastHybridMode} → ${currentHybridMode} - Reconnecting WebSocket...`);
+          hybridModeEnabled = currentHybridMode;
+          lastHybridMode = currentHybridMode;
+          connectWebSocket();
+        }
+      } catch (err) {
+        console.warn('⚠️ Error checking hybrid mode file:', err.message);
+      }
+    }, 500);
+
+    // Poll token file for changes (every 2 seconds)
+    // This detects when user logs out in the web app
+    const tokenPath = path.join(os.homedir(), '.airclick-token');
+
+    let lastTokenFileExists = fs.existsSync(tokenPath);
+    let lastTokenContent = lastTokenFileExists ? fs.readFileSync(tokenPath, 'utf8').trim() : null;
+
+    setInterval(() => {
+      try {
+        const currentFileExists = fs.existsSync(tokenPath);
+        const currentTokenContent = currentFileExists ? fs.readFileSync(tokenPath, 'utf8').trim() : null;
+
+        // Check if file was deleted or token content changed
+        if (currentFileExists !== lastTokenFileExists || currentTokenContent !== lastTokenContent) {
+          console.log(`🔑 Token file changed - Re-checking authentication...`);
+          console.log(`   File exists: ${lastTokenFileExists} → ${currentFileExists}`);
+          if (currentTokenContent !== lastTokenContent) {
+            console.log(`   Token content changed`);
+          }
+
+          lastTokenFileExists = currentFileExists;
+          lastTokenContent = currentTokenContent;
+          authChecked = false;  // Reset flag to force re-check
+          checkAuthentication();
+        }
+      } catch (err) {
+        console.warn('⚠️ Error checking token file:', err.message);
+      }
+    }, 2000);
+
+    // Initial connection
+    connectWebSocket();
 
     // Update hand status
     function updateHandStatus(detected) {
@@ -985,57 +1115,80 @@
     }
 
     // Match gesture with backend API
-    // Check if user is authenticated
-    function checkAuthentication() {
-      if (authChecked) return;  // Only check once
-
+    // Check if user is authenticated by validating token with backend
+    async function checkAuthentication() {
       try {
-        // Try to get token from localStorage first
-        let token = localStorage.getItem('token');
+        // ALWAYS check the token file first (source of truth)
+        let token = null;
+        try {
+          const tokenPath = path.join(os.homedir(), '.airclick-token');
 
-        // If not found, try to read from a token file
-        if (!token) {
-          try {
-            const fs = require('fs');
-            const path = require('path');
-            const tokenPath = path.join(require('os').homedir(), '.airclick-token');
-
-            if (fs.existsSync(tokenPath)) {
-              token = fs.readFileSync(tokenPath, 'utf8').trim();
-              console.log('🔑 Token loaded from file');
-            }
-          } catch (err) {
-            console.warn('⚠️ Failed to read token file:', err.message);
+          if (fs.existsSync(tokenPath)) {
+            token = fs.readFileSync(tokenPath, 'utf8').trim();
+            console.log('🔑 Token found in file');
+            // Sync to localStorage
+            localStorage.setItem('token', token);
+          } else {
+            console.log('📄 Token file does not exist');
+            // Clear localStorage if file doesn't exist
+            localStorage.removeItem('token');
           }
+        } catch (err) {
+          console.warn('⚠️ Failed to read token file:', err.message);
         }
 
-        if (token) {
-          isAuthenticated = true;
-          console.log('✅ User authenticated - Gesture matching ENABLED');
+        // If no token found anywhere, mark as not authenticated
+        if (!token) {
+          isAuthenticated = false;
+          console.log('❌ No auth token found - Gesture matching DISABLED (Cursor control still works)');
+          console.log('💡 To enable gesture matching, please log in through the web app');
+          authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Login Required)</span>';
+          authChecked = true;
+          return;
+        }
 
-          // Update visual indicator - ENABLED
+        // Validate token with backend API
+        console.log('🔍 Validating token with backend...');
+        const response = await fetch('http://localhost:8000/api/auth/me', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          isAuthenticated = true;
+          console.log(`✅ User authenticated: ${userData.email} - Gesture matching ENABLED`);
           authStatus.innerHTML = '<span class="status-badge success">ENABLED</span>';
         } else {
+          // Token is invalid or expired
           isAuthenticated = false;
-          console.log('❌ No auth token - Gesture matching DISABLED (Cursor control still works)');
+          const status = response.status;
+          console.log(`❌ Token validation failed (HTTP ${status}) - Gesture matching DISABLED`);
+          console.log('💡 Please log in again through the web app');
+          authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Invalid Token)</span>';
 
-          // Show info message in console
-          console.log('💡 To enable gesture matching, please log in through the web app');
-
-          // Update visual indicator - DISABLED
-          authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Login Required)</span>';
+          // Clear invalid token from localStorage
+          localStorage.removeItem('token');
+          lastToken = null;  // Update tracking variable
         }
 
         authChecked = true;
       } catch (error) {
-        console.error('Error checking authentication:', error);
+        console.error('⚠️ Error validating authentication:', error.message);
         isAuthenticated = false;
         authChecked = true;
-
-        // Update visual indicator - ERROR
-        authStatus.innerHTML = '<span class="status-badge" style="background: #f59e0b;">ERROR</span>';
+        authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Backend Offline?)</span>';
       }
     }
+
+    // Periodically re-check authentication (every 30 seconds)
+    setInterval(() => {
+      authChecked = false;  // Reset flag to allow re-check
+      checkAuthentication();
+    }, 30000);
 
     async function matchGesture(frames) {
       if (frames.length < 30) {

@@ -30,6 +30,31 @@ export const saveTokenForElectron = async (token) => {
   }
 };
 
+export const clearTokenForElectron = async () => {
+  try {
+    // Clear from localStorage first (for web app)
+    localStorage.removeItem('token');
+
+    // Try to clear the file for Electron overlay
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      // If running in Electron renderer
+      window.electronAPI.send('clear-token');
+    } else {
+      // If running in browser, call a backend endpoint to clear it
+      await fetch('http://localhost:3001/clear-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }).catch(err => {
+        console.warn('Failed to clear token for Electron:', err);
+      });
+    }
+  } catch (error) {
+    console.error('Error clearing token:', error);
+  }
+};
+
 export const getToken = () => {
   return localStorage.getItem('token');
 };

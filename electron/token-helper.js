@@ -9,6 +9,7 @@ const path = require('path');
 const os = require('os');
 
 const TOKEN_FILE = path.join(os.homedir(), '.airclick-token');
+const HYBRID_MODE_FILE = path.join(os.homedir(), '.airclick-hybridmode');
 
 // Simple HTTP server to receive token from browser
 const server = http.createServer((req, res) => {
@@ -51,6 +52,71 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: error.message }));
       }
     });
+  } else if (req.method === 'POST' && req.url === '/clear-token') {
+    try {
+      // Delete token file if it exists
+      if (fs.existsSync(TOKEN_FILE)) {
+        fs.unlinkSync(TOKEN_FILE);
+        console.log('🗑️  Token file deleted successfully');
+      } else {
+        console.log('⚠️  Token file does not exist');
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true }));
+    } catch (error) {
+      console.error('Error clearing token:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
+    }
+  } else if (req.method === 'POST' && req.url === '/save-hybrid-mode') {
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
+    req.on('end', () => {
+      try {
+        const { hybridMode } = JSON.parse(body);
+
+        if (hybridMode !== undefined) {
+          // Save hybrid mode to file
+          fs.writeFileSync(HYBRID_MODE_FILE, hybridMode.toString(), 'utf8');
+          console.log(`💾 Hybrid mode saved: ${hybridMode}`);
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No hybridMode provided' }));
+        }
+      } catch (error) {
+        console.error('Error saving hybrid mode:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error.message }));
+      }
+    });
+  } else if (req.method === 'GET' && req.url === '/get-hybrid-mode') {
+    try {
+      // Read hybrid mode from file
+      if (fs.existsSync(HYBRID_MODE_FILE)) {
+        const hybridMode = fs.readFileSync(HYBRID_MODE_FILE, 'utf8').trim();
+        console.log(`📖 Hybrid mode read: ${hybridMode}`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ hybridMode: hybridMode === 'true' }));
+      } else {
+        // Default to true if file doesn't exist
+        console.log('📄 Hybrid mode file does not exist, returning default: true');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ hybridMode: true }));
+      }
+    } catch (error) {
+      console.error('Error reading hybrid mode:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
+    }
   } else {
     res.writeHead(404);
     res.end();

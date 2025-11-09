@@ -21,6 +21,7 @@ from dotenv import load_dotenv
 # Database and security imports
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token
+from app.core.deps import get_current_user
 
 # Email and OAuth imports
 from app.core.email import send_password_reset_email, send_welcome_email, send_oauth_account_linked_email
@@ -38,6 +39,43 @@ from app.schemas.user import (
 
 load_dotenv()
 router = APIRouter()
+
+
+# ============================================
+# TOKEN VALIDATION
+# ============================================
+
+@router.get("/me", response_model=UserResponse)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """
+    Get current authenticated user information.
+
+    This endpoint validates the JWT token and returns the user's profile.
+    Used by Electron overlay to verify authentication status.
+
+    Args:
+        current_user: Automatically extracted from JWT token
+
+    Returns:
+        UserResponse: User profile information
+
+    Raises:
+        HTTPException 401: Invalid or expired token
+
+    Example:
+        GET /api/auth/me
+        Headers: Authorization: Bearer <jwt_token>
+
+        Response:
+        {
+            "id": 1,
+            "email": "user@example.com",
+            "full_name": "John Doe",
+            "role": "USER",
+            "created_at": "2024-01-01T00:00:00Z"
+        }
+    """
+    return current_user
 
 
 # ============================================

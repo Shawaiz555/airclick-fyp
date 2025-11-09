@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { clearTokenForElectron } from '@/utils/tokenSync';
 
 const AuthContext = createContext();
 
@@ -37,10 +38,13 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
     setUser(null);
     localStorage.removeItem('currentUser');
-    localStorage.removeItem('token');
+
+    // Clear token from both localStorage and Electron overlay
+    await clearTokenForElectron();
+
     router.push('/login');
   };
 

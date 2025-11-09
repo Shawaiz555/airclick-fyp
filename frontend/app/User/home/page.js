@@ -78,6 +78,45 @@ export default function Home() {
   useEffect(() => {
     loadUserGestures();
     syncTokenForElectron();
+
+    // Initialize hybrid mode from localStorage
+    const savedHybridMode = localStorage.getItem('hybridMode');
+    if (savedHybridMode !== null) {
+      setHybridMode(savedHybridMode === 'true');
+      // Sync to Electron overlay
+      syncHybridModeToElectron(savedHybridMode === 'true');
+    } else {
+      // Set default to true if not in localStorage
+      localStorage.setItem('hybridMode', 'true');
+      setHybridMode(true);
+      // Sync to Electron overlay
+      syncHybridModeToElectron(true);
+    }
+
+    // Listen for hybrid mode changes from gesture management page (same window)
+    const handleHybridModeChange = (e) => {
+      const newValue = e.detail.hybridMode;
+      console.log('🔄 Hybrid mode changed (same window):', newValue);
+      setHybridMode(newValue);
+    };
+
+    // Listen for hybrid mode changes from other tabs/windows
+    const handleStorageChange = (e) => {
+      if (e.key === 'hybridMode' && e.newValue !== null) {
+        const newValue = e.newValue === 'true';
+        console.log('🔄 Hybrid mode changed (other tab):', newValue);
+        setHybridMode(newValue);
+      }
+    };
+
+    // Listen to custom events (same window) and storage events (other tabs/windows)
+    window.addEventListener('hybridModeChange', handleHybridModeChange);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('hybridModeChange', handleHybridModeChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   // Sync token to Electron overlay
@@ -96,6 +135,21 @@ export default function Home() {
       }
     } catch (error) {
       console.log('Could not sync token to Electron');
+    }
+  };
+
+  // Sync hybrid mode to Electron overlay
+  const syncHybridModeToElectron = async (hybridMode) => {
+    try {
+      await fetch('http://localhost:3001/save-hybrid-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hybridMode })
+      }).catch(err => {
+        console.log('Token helper not running (this is okay if not using Electron overlay)');
+      });
+    } catch (error) {
+      console.log('Could not sync hybrid mode to Electron');
     }
   };
 
@@ -756,7 +810,22 @@ return (
                     </button>
 
                     <button
-                      onClick={() => setHybridMode(!hybridMode)}
+                      onClick={async () => {
+                        const newValue = !hybridMode;
+                        setHybridMode(newValue);
+                        localStorage.setItem('hybridMode', newValue.toString());
+
+                        // Sync to Electron overlay via token-helper
+                        try {
+                          await fetch('http://localhost:3001/save-hybrid-mode', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ hybridMode: newValue })
+                          });
+                        } catch (err) {
+                          console.warn('Could not sync to Electron');
+                        }
+                      }}
                       className={`py-4 px-6 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 shadow-lg ${
                         hybridMode
                           ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 hover:shadow-purple-500/40'
