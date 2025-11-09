@@ -28,6 +28,9 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 export default function Home() {
   // ==================== STATE MANAGEMENT ====================
 
+  // Logger alias for consistency
+  const logger = console;
+
   // Initial loading state
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,7 +42,7 @@ export default function Home() {
 
   // App settings state
   const [activeApp, setActiveApp] = useState('POWERPOINT');
-  const [hybridMode, setHybridMode] = useState(true);
+  const [hybridMode, setHybridMode] = useState(true);  // Start with hybrid mode ON by default
 
   // WebSocket state
   const [isConnected, setIsConnected] = useState(false);
@@ -138,6 +141,7 @@ export default function Home() {
   /**
    * Connect to Python MediaPipe WebSocket server
    * Receives real-time hand landmark data at 30 FPS
+   * NEW: Supports hybrid mode for cursor control
    */
   const connectWebSocket = () => {
     // Close existing connection if any
@@ -145,8 +149,15 @@ export default function Home() {
       wsRef.current.close();
     }
 
+    // Determine WebSocket URL based on hybrid mode
+    const wsUrl = hybridMode
+      ? 'ws://localhost:8000/ws/hand-tracking-hybrid'  // Hybrid mode: Cursor + Clicks
+      : 'ws://localhost:8000/ws/hand-tracking';        // Gesture-only mode
+
+    logger.info(`Connecting to WebSocket: ${wsUrl} (hybrid_mode=${hybridMode})`);
+
     // Create new WebSocket connection to FastAPI backend
-    const ws = new WebSocket('ws://localhost:8000/ws/hand-tracking');
+    const ws = new WebSocket(wsUrl);
 
     // Connection opened successfully
     ws.onopen = () => {
@@ -543,6 +554,17 @@ export default function Home() {
   };
 
   // ==================== LIFECYCLE ====================
+
+  /**
+   * Reconnect WebSocket when hybrid mode changes (if camera is active)
+   */
+  useEffect(() => {
+    if (isCameraActive && isConnected) {
+      console.log('Hybrid mode changed, reconnecting WebSocket...');
+      connectWebSocket();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hybridMode]);  // Reconnect when hybrid mode changes
 
   /**
    * Cleanup on component unmount

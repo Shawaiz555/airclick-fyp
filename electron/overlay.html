@@ -528,6 +528,9 @@
         <span class="match-status-icon" id="matchStatusIcon">✓</span>
         <span class="match-status-text" id="matchStatusText">GESTURE MATCHED!</span>
       </div>
+
+      <!-- NEW: Cursor Position Indicator (for Hybrid Mode) -->
+      <div id="cursorIndicator" style="position: absolute; width: 20px; height: 20px; border: 3px solid #00FF00; border-radius: 50%; pointer-events: none; display: none; z-index: 30; box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);"></div>
     </div>
 
     <!-- Info Panel -->
@@ -536,6 +539,13 @@
         <span class="status-label">Hand Detection</span>
         <span class="status-value" id="handStatus">
           <span class="status-badge error">NO HAND</span>
+        </span>
+      </div>
+
+      <div class="status-row">
+        <span class="status-label">Gesture Matching</span>
+        <span class="status-value" id="authStatus">
+          <span class="status-badge" style="background: #6b7280;">CHECKING...</span>
         </span>
       </div>
 
@@ -578,6 +588,7 @@
     const container = document.getElementById('overlay-container');
     const statusDot = document.getElementById('statusDot');
     const handStatus = document.getElementById('handStatus');
+    const authStatus = document.getElementById('authStatus');
     const performanceStatus = document.getElementById('performanceStatus');
     const noHandOverlay = document.getElementById('noHandOverlay');
     const recordingIndicator = document.getElementById('recordingIndicator');
@@ -594,6 +605,7 @@
     const matchStatusBanner = document.getElementById('matchStatusBanner');
     const matchStatusIcon = document.getElementById('matchStatusIcon');
     const matchStatusText = document.getElementById('matchStatusText');
+    const cursorIndicator = document.getElementById('cursorIndicator');
 
     // Canvas
     const canvas = document.getElementById('handCanvas');
@@ -621,6 +633,8 @@
     let recordingProgress = 0;
     let recognitionFrames = [];
     let matchCooldown = false;
+    let isAuthenticated = false;  // Track authentication status
+    let authChecked = false;       // Track if we've checked auth yet
 
     // Close button
     closeBtn.addEventListener('click', () => {
@@ -628,12 +642,24 @@
       window.close();
     });
 
+    // Determine WebSocket URL
+    // HYBRID MODE ENABLED: Cursor control + clicks active in overlay
+    const hybridModeEnabled = true;  // ON by default - cursor control enabled
+    const wsUrl = hybridModeEnabled
+      ? 'ws://localhost:8000/ws/hand-tracking-hybrid'
+      : 'ws://localhost:8000/ws/hand-tracking';
+
+    console.log(`🔌 Connecting to: ${wsUrl} (hybrid_mode=${hybridModeEnabled})`);
+
     // Connect to backend WebSocket
-    const ws = new WebSocket('ws://localhost:8000/ws/hand-tracking');
+    const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
       console.log('✅ Overlay connected to backend');
       statusDot.classList.add('active');
+
+      // Check authentication status immediately on connection
+      checkAuthentication();
     };
 
     ws.onmessage = (event) => {
@@ -649,34 +675,47 @@
           drawHand(data);
           noHandOverlay.classList.add('hidden');
 
-          // Collect frames for gesture recognition
-          const frame = {
-            timestamp: Date.now(),
-            landmarks: data.hands[0].landmarks,
-            handedness: data.hands[0].handedness,
-            confidence: data.hands[0].confidence
-          };
+          // ONLY collect frames and match gestures if user is authenticated
+          if (isAuthenticated) {
+            // Collect frames for gesture recognition
+            const frame = {
+              timestamp: Date.now(),
+              landmarks: data.hands[0].landmarks,
+              handedness: data.hands[0].handedness,
+              confidence: data.hands[0].confidence
+            };
 
-          recognitionFrames.push(frame);
+            recognitionFrames.push(frame);
 
-          // Keep only last 60 frames (2 seconds at 30fps)
-          if (recognitionFrames.length > 60) {
-            recognitionFrames = recognitionFrames.slice(-60);
-          }
+            // Keep only last 60 frames (2 seconds at 30fps)
+            if (recognitionFrames.length > 60) {
+              recognitionFrames = recognitionFrames.slice(-60);
+            }
 
-          // Update recording indicator
-          updateRecording(recognitionFrames.length > 0, recognitionFrames.length);
+            // Update recording indicator
+            updateRecording(recognitionFrames.length > 0, recognitionFrames.length);
 
-          // Auto-match when we have 60 frames and not in cooldown
-          if (recognitionFrames.length === 60 && !matchCooldown) {
-            matchGesture(recognitionFrames);
-            recognitionFrames = []; // Clear after matching
+            // Auto-match when we have 60 frames and not in cooldown
+            if (recognitionFrames.length === 60 && !matchCooldown) {
+              matchGesture(recognitionFrames);
+              recognitionFrames = []; // Clear after matching
+            }
+          } else {
+            // User not authenticated - skip gesture matching
+            // But still update recording indicator to show "disabled" state
+            updateRecording(false, 0);
           }
         } else {
           clearCanvas();
           noHandOverlay.classList.remove('hidden');
           recognitionFrames = []; // Clear frames when hand is lost
           updateRecording(false, 0);
+        }
+
+        // NEW: Process hybrid mode data (cursor + clicks)
+        if (data.hybrid && data.hybrid.cursor_enabled) {
+          updateCursorIndicator(data.hybrid);
+          updateClickFeedback(data.hybrid.clicks);
         }
 
         // Update performance
@@ -825,6 +864,58 @@
       }
     }
 
+    // NEW: Update cursor indicator position (for hybrid mode)
+    function updateCursorIndicator(hybridData) {
+      if (!hybridData.cursor || !hybridData.cursor.success) {
+        cursorIndicator.style.display = 'none';
+        return;
+      }
+
+      const handPos = hybridData.cursor.hand_position;
+      if (!handPos || !handPos.filtered) {
+        return;
+      }
+
+      // Map hand position to canvas coordinates
+      const canvasWidth = canvas.width;
+      const canvasHeight = canvas.height;
+
+      const x = handPos.filtered.x * canvasWidth;
+      const y = handPos.filtered.y * canvasHeight;
+
+      // Update cursor indicator position
+      cursorIndicator.style.left = `${x - 10}px`;
+      cursorIndicator.style.top = `${y - 10}px`;
+      cursorIndicator.style.display = 'block';
+
+      // Change color based on click detection
+      const clicks = hybridData.clicks;
+      if (clicks && clicks.click_type !== 'none') {
+        cursorIndicator.style.borderColor = '#FF0000';
+        cursorIndicator.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
+      } else {
+        cursorIndicator.style.borderColor = '#00FF00';
+        cursorIndicator.style.boxShadow = '0 0 15px rgba(0, 255, 0, 0.6)';
+      }
+    }
+
+    // NEW: Show visual feedback for clicks
+    function updateClickFeedback(clickData) {
+      if (!clickData || clickData.click_type === 'none') {
+        return;
+      }
+
+      // Flash the cursor indicator
+      cursorIndicator.style.transform = 'scale(1.5)';
+      setTimeout(() => {
+        cursorIndicator.style.transform = 'scale(1)';
+      }, 150);
+
+      // Log click
+      const clickType = clickData.click_type === 'left_click' ? 'LEFT CLICK' : 'RIGHT CLICK';
+      console.log(`🖱️ ${clickType} detected!`);
+    }
+
     // Update gesture match result
     function updateGestureMatch(data) {
       if (data.matched) {
@@ -894,6 +985,58 @@
     }
 
     // Match gesture with backend API
+    // Check if user is authenticated
+    function checkAuthentication() {
+      if (authChecked) return;  // Only check once
+
+      try {
+        // Try to get token from localStorage first
+        let token = localStorage.getItem('token');
+
+        // If not found, try to read from a token file
+        if (!token) {
+          try {
+            const fs = require('fs');
+            const path = require('path');
+            const tokenPath = path.join(require('os').homedir(), '.airclick-token');
+
+            if (fs.existsSync(tokenPath)) {
+              token = fs.readFileSync(tokenPath, 'utf8').trim();
+              console.log('🔑 Token loaded from file');
+            }
+          } catch (err) {
+            console.warn('⚠️ Failed to read token file:', err.message);
+          }
+        }
+
+        if (token) {
+          isAuthenticated = true;
+          console.log('✅ User authenticated - Gesture matching ENABLED');
+
+          // Update visual indicator - ENABLED
+          authStatus.innerHTML = '<span class="status-badge success">ENABLED</span>';
+        } else {
+          isAuthenticated = false;
+          console.log('❌ No auth token - Gesture matching DISABLED (Cursor control still works)');
+
+          // Show info message in console
+          console.log('💡 To enable gesture matching, please log in through the web app');
+
+          // Update visual indicator - DISABLED
+          authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Login Required)</span>';
+        }
+
+        authChecked = true;
+      } catch (error) {
+        console.error('Error checking authentication:', error);
+        isAuthenticated = false;
+        authChecked = true;
+
+        // Update visual indicator - ERROR
+        authStatus.innerHTML = '<span class="status-badge" style="background: #f59e0b;">ERROR</span>';
+      }
+    }
+
     async function matchGesture(frames) {
       if (frames.length < 30) {
         console.warn('Not enough frames to match');

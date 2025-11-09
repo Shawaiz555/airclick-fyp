@@ -169,7 +169,7 @@ class HandTrackingService:
         }
 
 
-    async def handle_client(self, websocket: WebSocket):
+    async def handle_client(self, websocket: WebSocket, hybrid_mode: bool = False):
         """
         Handle a new FastAPI WebSocket client connection.
 
@@ -178,9 +178,11 @@ class HandTrackingService:
         2. Registers the new client
         3. Sends hand tracking data continuously
         4. Handles disconnection gracefully
+        5. NEW: Supports hybrid mode for cursor control
 
         Args:
             websocket: FastAPI WebSocket connection object
+            hybrid_mode: Enable hybrid mode (cursor + clicks + gestures)
         """
         # Accept the WebSocket connection
         await websocket.accept()
@@ -188,8 +190,20 @@ class HandTrackingService:
         # Register new client
         self.clients.add(websocket)
         client_id = id(websocket)
-        logger.info(f"✓ New client connected: {client_id}")
+        logger.info(f"✓ New client connected: {client_id} (hybrid_mode={hybrid_mode})")
         logger.info(f"✓ Total clients: {len(self.clients)}")
+
+        # Initialize hybrid mode controller if enabled
+        hybrid_controller = None
+        if hybrid_mode:
+            try:
+                from app.services.hybrid_mode_controller import get_hybrid_mode_controller
+                hybrid_controller = get_hybrid_mode_controller()
+                hybrid_controller.enable_hybrid_mode()
+                logger.info(f"✅ Hybrid mode ENABLED for client {client_id}")
+            except Exception as e:
+                logger.error(f"Failed to initialize hybrid mode: {e}")
+                hybrid_mode = False
 
         try:
             # Keep connection alive and send data
@@ -198,6 +212,14 @@ class HandTrackingService:
                 hand_data = self.process_frame()
 
                 if hand_data:
+                    # Process with hybrid mode if enabled
+                    if hybrid_mode and hybrid_controller:
+                        try:
+                            hybrid_result = hybrid_controller.process_frame(hand_data)
+                            hand_data['hybrid'] = hybrid_result
+                        except Exception as e:
+                            logger.error(f"Hybrid mode processing error: {e}")
+
                     # Convert to JSON and send to client
                     json_data = json.dumps(hand_data)
                     await websocket.send_text(json_data)
@@ -210,6 +232,11 @@ class HandTrackingService:
         except Exception as e:
             logger.error(f"✗ Error handling client {client_id}: {e}")
         finally:
+            # Disable hybrid mode on disconnect
+            if hybrid_mode and hybrid_controller:
+                hybrid_controller.disable_hybrid_mode()
+                logger.info(f"❌ Hybrid mode DISABLED for client {client_id}")
+
             # Remove client from set
             self.clients.discard(websocket)
             logger.info(f"✓ Total clients: {len(self.clients)}")

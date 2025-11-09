@@ -95,9 +95,9 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
-          <div className="text-center my-8">
+          <div className="text-center my-8 mt-12">
           <h1 className="text-3xl lg:text-[42px] font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 mb-2">
-            Create an Account
+            Register an Account
           </h1>
           <p className="text-purple-200">Join AirClick and start controlling your devices with gestures</p>
         </div>
