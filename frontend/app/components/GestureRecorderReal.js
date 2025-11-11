@@ -76,6 +76,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   const intervalRef = useRef(null);              // Recording timer
   const reconnectTimerRef = useRef(null);        // Auto-reconnect timer
   const isMountedRef = useRef(true);             // Track if component is mounted
+  const isRecordingRef = useRef(false);          // Ref for recording state (fixes closure issue)
 
   // ==================== API FUNCTIONS ====================
 
@@ -127,6 +128,11 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   useEffect(() => {
     fetchActionsForContext(selectedContext);
   }, [selectedContext]);
+
+  // Sync isRecording state with ref (ensures ref always has current value)
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
 
   // ==================== DRAWING FUNCTIONS ====================
 
@@ -253,8 +259,8 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
               // Draw hand skeleton
               drawHand(data);
 
-              // Record frame if recording is active
-              if (isRecording) {
+              // Record frame if recording is active (use ref to avoid stale closure)
+              if (isRecordingRef.current) {
                 const frame = {
                   timestamp: Date.now(),
                   landmarks: data.hands[0].landmarks,
@@ -387,6 +393,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
       return;
     }
     setIsRecording(true);
+    isRecordingRef.current = true;  // Update ref immediately for WebSocket callback
     setValidationMessage('');
     setRecordedFrames([]);
   };
@@ -396,6 +403,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
    */
   const stopRecording = () => {
     setIsRecording(false);
+    isRecordingRef.current = false;  // Update ref immediately for WebSocket callback
   };
 
   /**

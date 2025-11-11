@@ -1,1295 +1,1618 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AirClick Overlay</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-      background: transparent;
-      overflow: hidden;
-      user-select: none;
-      display: flex;
-      align-items: flex-start;
-      justify-content: flex-start;
-      width: 100vw;
-      height: 100vh;
-      padding: 0;
-      margin: 0;
-    }
-
-    #overlay-container {
-      width: 480px;
-      background: rgba(17, 24, 39, 0.98);
-      backdrop-filter: blur(20px);
-      border: 3px solid rgba(6, 182, 212, 0.6);
-      border-radius: 24px;
-      overflow: hidden;
-      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
-                  0 0 50px rgba(6, 182, 212, 0.3);
-      transition: all 0.3s ease;
-    }
-
-    #overlay-container.recording {
-      border-color: rgba(239, 68, 68, 0.9);
-      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
-                  0 0 60px rgba(239, 68, 68, 0.5);
-      animation: pulse-border 1.5s infinite;
-    }
-
-    @keyframes pulse-border {
-      0%, 100% { border-color: rgba(239, 68, 68, 0.9); }
-      50% { border-color: rgba(239, 68, 68, 0.5); }
-    }
-
-    #overlay-container.matched {
-      border-color: rgba(34, 197, 94, 0.9);
-      box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
-                  0 0 60px rgba(34, 197, 94, 0.5);
-    }
-
-    /* Header */
-    .header {
-      background: rgba(6, 182, 212, 0.15);
-      padding: 12px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 2px solid rgba(6, 182, 212, 0.3);
-      cursor: move;
-      -webkit-app-region: drag; /* Make header draggable */
-    }
-
-    .header-title {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .status-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #6b7280;
-      transition: all 0.3s ease;
-    }
-
-    .status-dot.active {
-      background: #22c55e;
-      box-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
-      animation: pulse-dot 2s infinite;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.6; transform: scale(1.2); }
-    }
-
-    .header h3 {
-      color: rgba(6, 182, 212, 1);
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .drag-icon {
-      width: 20px;
-      height: 20px;
-      opacity: 0.5;
-      flex-shrink: 0;
-    }
-
-    .close-btn {
-      background: rgba(239, 68, 68, 0.2);
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      color: #ef4444;
-      border-radius: 8px;
-      padding: 4px 12px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      pointer-events: auto;
-      -webkit-app-region: no-drag; /* Make button clickable (not draggable) */
-    }
-
-    .close-btn:hover {
-      background: rgba(239, 68, 68, 0.3);
-      transform: scale(1.05);
-    }
-
-    /* Canvas Container */
-    .canvas-container {
-      position: relative;
-      width: 100%;
-      height: 360px;
-      background: linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(31, 41, 55, 0.95));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-    }
-
-    #handCanvas {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-
-    /* No hand detected overlay */
-    .no-hand-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: rgba(17, 24, 39, 0.8);
-      backdrop-filter: blur(10px);
-      transition: opacity 0.3s;
-    }
-
-    .no-hand-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .hand-icon {
-      width: 80px;
-      height: 80px;
-      margin-bottom: 16px;
-      opacity: 0.5;
-      animation: float 3s ease-in-out infinite;
-    }
-
-    @keyframes float {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-10px); }
-    }
-
-    .no-hand-text {
-      color: rgba(156, 163, 175, 1);
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    /* Recording indicator */
-    .recording-indicator {
-      position: absolute;
-      top: 16px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(239, 68, 68, 0.95);
-      backdrop-filter: blur(10px);
-      padding: 10px 20px;
-      border-radius: 20px;
-      display: none;
-      align-items: center;
-      gap: 12px;
-      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
-      animation: slideDown 0.3s ease;
-      z-index: 10;
-    }
-
-    @keyframes slideDown {
-      from {
-        transform: translateX(-50%) translateY(-20px);
-        opacity: 0;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AirClick Overlay</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      to {
-        transform: translateX(-50%) translateY(0);
-        opacity: 1;
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+          "Oxygen", "Ubuntu", "Cantarell", sans-serif;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        width: 100vw;
+        height: 100vh;
+        padding: 0;
+        margin: 0;
       }
-    }
 
-    .recording-indicator.visible {
-      display: flex;
-    }
-
-    .rec-pulse {
-      width: 10px;
-      height: 10px;
-      background: white;
-      border-radius: 50%;
-      animation: pulse-rec 1s infinite;
-    }
-
-    @keyframes pulse-rec {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.3; transform: scale(0.8); }
-    }
-
-    .rec-text {
-      color: white;
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
-
-    .rec-progress {
-      width: 60px;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .rec-progress-bar {
-      height: 100%;
-      background: white;
-      border-radius: 2px;
-      transition: width 0.2s ease;
-    }
-
-    /* Info Panel */
-    .info-panel {
-      padding: 16px 20px;
-      background: rgba(31, 41, 55, 0.5);
-    }
-
-    .status-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(75, 85, 99, 0.3);
-    }
-
-    .status-row:last-child {
-      border-bottom: none;
-    }
-
-    .status-label {
-      color: rgba(156, 163, 175, 1);
-      font-size: 12px;
-      font-weight: 500;
-    }
-
-    .status-value {
-      color: white;
-      font-size: 13px;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .status-value.success {
-      color: #22c55e;
-    }
-
-    .status-value.warning {
-      color: #f59e0b;
-    }
-
-    .status-value.error {
-      color: #ef4444;
-    }
-
-    .status-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 8px;
-      font-size: 10px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .status-badge.success {
-      background: rgba(34, 197, 94, 0.2);
-      border: 1px solid rgba(34, 197, 94, 0.4);
-      color: #22c55e;
-    }
-
-    .status-badge.error {
-      background: rgba(239, 68, 68, 0.2);
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      color: #ef4444;
-    }
-
-    /* Gesture Result */
-    .gesture-result {
-      margin-top: 12px;
-      padding: 16px;
-      border-radius: 16px;
-      display: none;
-      animation: slideUp 0.3s ease;
-    }
-
-    @keyframes slideUp {
-      from {
-        transform: translateY(10px);
-        opacity: 0;
+      #overlay-container {
+        width: 480px;
+        background: rgba(17, 24, 39, 0.98);
+        backdrop-filter: blur(20px);
+        border: 3px solid rgba(6, 182, 212, 0.6);
+        border-radius: 24px;
+        overflow: hidden;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+          0 0 50px rgba(6, 182, 212, 0.3);
+        transition: all 0.3s ease;
       }
-      to {
-        transform: translateY(0);
-        opacity: 1;
+
+      #overlay-container.recording {
+        border-color: rgba(239, 68, 68, 0.9);
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+          0 0 60px rgba(239, 68, 68, 0.5);
+        animation: pulse-border 1.5s infinite;
       }
-    }
 
-    @keyframes scaleIn {
-      from {
-        transform: translate(-50%, -50%) scale(0.8);
-        opacity: 0;
-      }
-      to {
-        transform: translate(-50%, -50%) scale(1);
-        opacity: 1;
-      }
-    }
-
-    .gesture-result.visible {
-      display: block;
-    }
-
-    .gesture-result.success {
-      background: rgba(34, 197, 94, 0.15);
-      border: 2px solid rgba(34, 197, 94, 0.4);
-    }
-
-    .gesture-result.failed {
-      background: rgba(239, 68, 68, 0.15);
-      border: 2px solid rgba(239, 68, 68, 0.4);
-    }
-
-    .gesture-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .gesture-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      flex-shrink: 0;
-    }
-
-    .gesture-icon.success {
-      background: rgba(34, 197, 94, 0.25);
-      color: #22c55e;
-    }
-
-    .gesture-icon.failed {
-      background: rgba(239, 68, 68, 0.25);
-      color: #ef4444;
-    }
-
-    .gesture-info {
-      flex: 1;
-    }
-
-    .gesture-name {
-      color: white;
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .gesture-action {
-      color: rgba(156, 163, 175, 1);
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .gesture-stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-    }
-
-    .stat-item {
-      text-align: center;
-      padding: 8px;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 8px;
-    }
-
-    .stat-label {
-      font-size: 10px;
-      color: rgba(156, 163, 175, 1);
-      margin-bottom: 4px;
-      text-transform: uppercase;
-    }
-
-    .stat-value {
-      font-size: 16px;
-      font-weight: 700;
-    }
-
-    .stat-value.success {
-      color: #22c55e;
-    }
-
-    .stat-value.warning {
-      color: #f59e0b;
-    }
-
-    /* Match Status Banner */
-    .match-status-banner {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(34, 197, 94, 0.95);
-      backdrop-filter: blur(10px);
-      padding: 16px 32px;
-      border-radius: 20px;
-      display: none;
-      align-items: center;
-      gap: 12px;
-      box-shadow: 0 4px 30px rgba(34, 197, 94, 0.6);
-      animation: scaleIn 0.3s ease;
-      z-index: 20;
-      min-width: 250px;
-      justify-content: center;
-    }
-
-    .match-status-banner.visible {
-      display: flex;
-    }
-
-    .match-status-banner.no-match {
-      background: rgba(239, 68, 68, 0.95);
-      box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
-    }
-
-    .match-status-icon {
-      width: 32px;
-      height: 32px;
-      font-size: 24px;
-      flex-shrink: 0;
-    }
-
-    .match-status-text {
-      color: white;
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      text-align: center;
-    }
-  </style>
-</head>
-<body>
-  <div id="overlay-container">
-    <!-- Header -->
-    <div class="header">
-      <div class="header-title">
-        <div class="status-dot" id="statusDot"></div>
-        <h3>
-          <svg class="drag-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-          </svg>
-          AirClick Gesture Control
-        </h3>
-      </div>
-      <button class="close-btn" id="closeBtn">Hide</button>
-    </div>
-
-    <!-- Canvas Container -->
-    <div class="canvas-container">
-      <canvas id="handCanvas" width="640" height="480"></canvas>
-
-      <!-- No Hand Overlay -->
-      <div class="no-hand-overlay" id="noHandOverlay">
-        <svg class="hand-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
-        </svg>
-        <p class="no-hand-text">Show your hand to the camera</p>
-      </div>
-
-      <!-- Recording Indicator -->
-      <div class="recording-indicator" id="recordingIndicator">
-        <div class="rec-pulse"></div>
-        <span class="rec-text" id="recText">RECORDING</span>
-        <div class="rec-progress">
-          <div class="rec-progress-bar" id="recProgressBar"></div>
-        </div>
-      </div>
-
-      <!-- Match Status Banner -->
-      <div class="match-status-banner" id="matchStatusBanner">
-        <span class="match-status-icon" id="matchStatusIcon">✓</span>
-        <span class="match-status-text" id="matchStatusText">GESTURE MATCHED!</span>
-      </div>
-
-      <!-- NEW: Cursor Position Indicator (for Hybrid Mode) -->
-      <div id="cursorIndicator" style="position: absolute; width: 20px; height: 20px; border: 3px solid #00FF00; border-radius: 50%; pointer-events: none; display: none; z-index: 30; box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);"></div>
-    </div>
-
-    <!-- Info Panel -->
-    <div class="info-panel">
-      <div class="status-row">
-        <span class="status-label">Hand Detection</span>
-        <span class="status-value" id="handStatus">
-          <span class="status-badge error">NO HAND</span>
-        </span>
-      </div>
-
-      <div class="status-row">
-        <span class="status-label">Gesture Matching</span>
-        <span class="status-value" id="authStatus">
-          <span class="status-badge" style="background: #6b7280;">CHECKING...</span>
-        </span>
-      </div>
-
-      <div class="status-row">
-        <span class="status-label">Performance</span>
-        <span class="status-value" id="performanceStatus">N/A</span>
-      </div>
-
-      <!-- Gesture Result -->
-      <div class="gesture-result" id="gestureResult">
-        <div class="gesture-header">
-          <div class="gesture-icon" id="gestureIcon">✓</div>
-          <div class="gesture-info">
-            <div class="gesture-name" id="gestureName">Gesture Name</div>
-            <div class="gesture-action" id="gestureAction">Action</div>
-          </div>
-        </div>
-        <div class="gesture-stats">
-          <div class="stat-item">
-            <div class="stat-label">Similarity</div>
-            <div class="stat-value success" id="gestureSimilarity">0%</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Frames</div>
-            <div class="stat-value" id="gestureFrames" style="color: white;">0</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-label">Status</div>
-            <div class="stat-value success" id="gestureStatus">✓</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const { ipcRenderer } = require('electron');
-
-    // DOM elements
-    const container = document.getElementById('overlay-container');
-    const statusDot = document.getElementById('statusDot');
-    const handStatus = document.getElementById('handStatus');
-    const authStatus = document.getElementById('authStatus');
-    const performanceStatus = document.getElementById('performanceStatus');
-    const noHandOverlay = document.getElementById('noHandOverlay');
-    const recordingIndicator = document.getElementById('recordingIndicator');
-    const recText = document.getElementById('recText');
-    const recProgressBar = document.getElementById('recProgressBar');
-    const gestureResult = document.getElementById('gestureResult');
-    const gestureIcon = document.getElementById('gestureIcon');
-    const gestureName = document.getElementById('gestureName');
-    const gestureAction = document.getElementById('gestureAction');
-    const gestureSimilarity = document.getElementById('gestureSimilarity');
-    const gestureFrames = document.getElementById('gestureFrames');
-    const gestureStatus = document.getElementById('gestureStatus');
-    const closeBtn = document.getElementById('closeBtn');
-    const matchStatusBanner = document.getElementById('matchStatusBanner');
-    const matchStatusIcon = document.getElementById('matchStatusIcon');
-    const matchStatusText = document.getElementById('matchStatusText');
-    const cursorIndicator = document.getElementById('cursorIndicator');
-
-    // Canvas
-    const canvas = document.getElementById('handCanvas');
-    const ctx = canvas.getContext('2d');
-
-    // Hand skeleton connections (21 landmarks)
-    const HAND_CONNECTIONS = [
-      // Thumb
-      [0, 1], [1, 2], [2, 3], [3, 4],
-      // Index finger
-      [0, 5], [5, 6], [6, 7], [7, 8],
-      // Middle finger
-      [0, 9], [9, 10], [10, 11], [11, 12],
-      // Ring finger
-      [0, 13], [13, 14], [14, 15], [15, 16],
-      // Pinky
-      [0, 17], [17, 18], [18, 19], [19, 20],
-      // Palm
-      [5, 9], [9, 13], [13, 17]
-    ];
-
-    // State
-    let handDetected = false;
-    let recording = false;
-    let recordingProgress = 0;
-    let recognitionFrames = [];
-    let matchCooldown = false;
-    let isAuthenticated = false;  // Track authentication status
-    let authChecked = false;       // Track if we've checked auth yet
-
-    // Hybrid mode state - dynamic from localStorage
-    let hybridModeEnabled = true;  // Default to true
-    let ws = null;  // WebSocket connection
-
-    // Require Node.js modules for file operations (declare once at top level)
-    const fs = require('fs');
-    const path = require('path');
-    const os = require('os');
-
-    // Close button
-    closeBtn.addEventListener('click', () => {
-      // Send message to main process to hide overlay
-      window.close();
-    });
-
-    // Initialize hybrid mode from file (source of truth)
-    function initializeHybridMode() {
-      try {
-        const hybridModeFile = path.join(os.homedir(), '.airclick-hybridmode');
-
-        if (fs.existsSync(hybridModeFile)) {
-          const fileContent = fs.readFileSync(hybridModeFile, 'utf8').trim();
-          hybridModeEnabled = fileContent === 'true';
-          console.log(`🔧 Hybrid mode initialized from file: ${hybridModeEnabled}`);
-        } else {
-          // Default to true if file doesn't exist, and create the file
-          hybridModeEnabled = true;
-          try {
-            fs.writeFileSync(hybridModeFile, 'true', 'utf8');
-            console.log('🔧 Hybrid mode file created with default: true');
-          } catch (err) {
-            console.warn('⚠️ Could not create hybrid mode file:', err.message);
-          }
-          console.log('🔧 Hybrid mode file not found, using default: true');
+      @keyframes pulse-border {
+        0%,
+        100% {
+          border-color: rgba(239, 68, 68, 0.9);
         }
-      } catch (error) {
-        console.error('Error initializing hybrid mode:', error);
-        hybridModeEnabled = true;  // Default to true on error
+        50% {
+          border-color: rgba(239, 68, 68, 0.5);
+        }
       }
-      return hybridModeEnabled;
-    }
 
-    // Connect to WebSocket with current hybrid mode
-    function connectWebSocket() {
-      // Close existing connection if any
-      if (ws) {
-        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-          console.log('🔌 Closing existing WebSocket connection for mode switch');
-          ws.close();
-          // Wait for connection to close before reconnecting
-          ws = null;
-          setTimeout(connectWebSocket, 100);
+      #overlay-container.matched {
+        border-color: rgba(34, 197, 94, 0.9);
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+          0 0 60px rgba(34, 197, 94, 0.5);
+      }
+
+      /* Header */
+      .header {
+        background: rgba(6, 182, 212, 0.15);
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 2px solid rgba(6, 182, 212, 0.3);
+        cursor: move;
+        -webkit-app-region: drag; /* Make header draggable */
+      }
+
+      .header-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #6b7280;
+        transition: all 0.3s ease;
+      }
+
+      .status-dot.active {
+        background: #22c55e;
+        box-shadow: 0 0 15px rgba(34, 197, 94, 0.8);
+        animation: pulse-dot 2s infinite;
+      }
+
+      @keyframes pulse-dot {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.6;
+          transform: scale(1.2);
+        }
+      }
+
+      .header h3 {
+        color: rgba(6, 182, 212, 1);
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .drag-icon {
+        width: 20px;
+        height: 20px;
+        opacity: 0.5;
+        flex-shrink: 0;
+      }
+
+      .close-btn {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #ef4444;
+        border-radius: 8px;
+        padding: 4px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        pointer-events: auto;
+        -webkit-app-region: no-drag; /* Make button clickable (not draggable) */
+      }
+
+      .close-btn:hover {
+        background: rgba(239, 68, 68, 0.3);
+        transform: scale(1.05);
+      }
+
+      /* Canvas Container */
+      .canvas-container {
+        position: relative;
+        width: 100%;
+        height: 360px;
+        background: linear-gradient(
+          135deg,
+          rgba(17, 24, 39, 0.95),
+          rgba(31, 41, 55, 0.95)
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+      }
+
+      #handCanvas {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+
+      /* No hand detected overlay */
+      .no-hand-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(17, 24, 39, 0.8);
+        backdrop-filter: blur(10px);
+        transition: opacity 0.3s;
+      }
+
+      .no-hand-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .hand-icon {
+        width: 80px;
+        height: 80px;
+        margin-bottom: 16px;
+        opacity: 0.5;
+        animation: float 3s ease-in-out infinite;
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0px);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+
+      .no-hand-text {
+        color: rgba(156, 163, 175, 1);
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      /* Recording indicator */
+      .recording-indicator {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(239, 68, 68, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 10px 20px;
+        border-radius: 20px;
+        display: none;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+        animation: slideDown 0.3s ease;
+        z-index: 10;
+      }
+
+      @keyframes slideDown {
+        from {
+          transform: translateX(-50%) translateY(-20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(-50%) translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .recording-indicator.visible {
+        display: flex;
+      }
+
+      .rec-pulse {
+        width: 10px;
+        height: 10px;
+        background: white;
+        border-radius: 50%;
+        animation: pulse-rec 1s infinite;
+      }
+
+      @keyframes pulse-rec {
+        0%,
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.3;
+          transform: scale(0.8);
+        }
+      }
+
+      .rec-text {
+        color: white;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+      }
+
+      .rec-progress {
+        width: 60px;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        overflow: hidden;
+      }
+
+      .rec-progress-bar {
+        height: 100%;
+        background: white;
+        border-radius: 2px;
+        transition: width 0.2s ease;
+      }
+
+      /* Info Panel */
+      .info-panel {
+        padding: 16px 20px;
+        background: rgba(31, 41, 55, 0.5);
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+      }
+
+      .status-row:last-child {
+        border-bottom: none;
+      }
+
+      .status-label {
+        color: rgba(156, 163, 175, 1);
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-value {
+        color: white;
+        font-size: 13px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .status-value.success {
+        color: #22c55e;
+      }
+
+      .status-value.warning {
+        color: #f59e0b;
+      }
+
+      .status-value.error {
+        color: #ef4444;
+      }
+
+      .status-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 8px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .status-badge.success {
+        background: rgba(34, 197, 94, 0.2);
+        border: 1px solid rgba(34, 197, 94, 0.4);
+        color: #22c55e;
+      }
+
+      .status-badge.error {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid rgba(239, 68, 68, 0.4);
+        color: #ef4444;
+      }
+
+      /* Gesture Result */
+      .gesture-result {
+        margin-top: 12px;
+        padding: 16px;
+        border-radius: 16px;
+        display: none;
+        animation: slideUp 0.3s ease;
+      }
+
+      @keyframes slideUp {
+        from {
+          transform: translateY(10px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes scaleIn {
+        from {
+          transform: translate(-50%, -50%) scale(0.8);
+          opacity: 0;
+        }
+        to {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 1;
+        }
+      }
+
+      .gesture-result.visible {
+        display: block;
+      }
+
+      .gesture-result.success {
+        background: rgba(34, 197, 94, 0.15);
+        border: 2px solid rgba(34, 197, 94, 0.4);
+      }
+
+      .gesture-result.failed {
+        background: rgba(239, 68, 68, 0.15);
+        border: 2px solid rgba(239, 68, 68, 0.4);
+      }
+
+      .gesture-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .gesture-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        flex-shrink: 0;
+      }
+
+      .gesture-icon.success {
+        background: rgba(34, 197, 94, 0.25);
+        color: #22c55e;
+      }
+
+      .gesture-icon.failed {
+        background: rgba(239, 68, 68, 0.25);
+        color: #ef4444;
+      }
+
+      .gesture-info {
+        flex: 1;
+      }
+
+      .gesture-name {
+        color: white;
+        font-size: 16px;
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+
+      .gesture-action {
+        color: rgba(156, 163, 175, 1);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .gesture-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+
+      .stat-item {
+        text-align: center;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+      }
+
+      .stat-label {
+        font-size: 10px;
+        color: rgba(156, 163, 175, 1);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }
+
+      .stat-value {
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .stat-value.success {
+        color: #22c55e;
+      }
+
+      .stat-value.warning {
+        color: #f59e0b;
+      }
+
+      /* State Machine Indicator (PHASE 3 & 4) */
+      .state-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+      }
+
+      .state-indicator.cursor_only {
+        background: rgba(6, 182, 212, 0.2);
+        border: 1px solid rgba(6, 182, 212, 0.4);
+        color: #06b6d4;
+      }
+
+      .state-indicator.collecting {
+        background: rgba(251, 191, 36, 0.2);
+        border: 1px solid rgba(251, 191, 36, 0.4);
+        color: #fbbf24;
+        animation: pulse-state 1.5s infinite;
+      }
+
+      .state-indicator.matching {
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid rgba(139, 92, 246, 0.4);
+        color: #8b5cf6;
+        animation: pulse-state 1s infinite;
+      }
+
+      .state-indicator.idle {
+        background: rgba(34, 197, 94, 0.2);
+        border: 1px solid rgba(34, 197, 94, 0.4);
+        color: #22c55e;
+      }
+
+      .state-indicator.disabled {
+        background: rgba(107, 114, 128, 0.2);
+        border: 1px solid rgba(107, 114, 128, 0.4);
+        color: #6b7280;
+      }
+
+      @keyframes pulse-state {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .state-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      /* Match Status Banner */
+      .match-status-banner {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(34, 197, 94, 0.95);
+        backdrop-filter: blur(10px);
+        padding: 16px 32px;
+        border-radius: 20px;
+        display: none;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 4px 30px rgba(34, 197, 94, 0.6);
+        animation: scaleIn 0.3s ease;
+        z-index: 20;
+        min-width: 250px;
+        justify-content: center;
+      }
+
+      .match-status-banner.visible {
+        display: flex;
+      }
+
+      .match-status-banner.no-match {
+        background: rgba(239, 68, 68, 0.95);
+        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+      }
+
+      .match-status-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 24px;
+        flex-shrink: 0;
+      }
+
+      .match-status-text {
+        color: white;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="overlay-container">
+      <!-- Header -->
+      <div class="header">
+        <div class="header-title">
+          <div class="status-dot" id="statusDot"></div>
+          <h3>
+            <svg
+              class="drag-icon"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+              />
+            </svg>
+            AirClick Gesture Control
+          </h3>
+        </div>
+        <button class="close-btn" id="closeBtn">Hide</button>
+      </div>
+
+      <!-- Canvas Container -->
+      <div class="canvas-container">
+        <canvas id="handCanvas" width="640" height="480"></canvas>
+
+        <!-- No Hand Overlay -->
+        <div class="no-hand-overlay" id="noHandOverlay">
+          <svg
+            class="hand-icon"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"
+            />
+          </svg>
+          <p class="no-hand-text">Show your hand to the camera</p>
+        </div>
+
+        <!-- Recording Indicator -->
+        <div class="recording-indicator" id="recordingIndicator">
+          <div class="rec-pulse"></div>
+          <span class="rec-text" id="recText">RECORDING</span>
+          <div class="rec-progress">
+            <div class="rec-progress-bar" id="recProgressBar"></div>
+          </div>
+        </div>
+
+        <!-- Match Status Banner -->
+        <div class="match-status-banner" id="matchStatusBanner">
+          <span class="match-status-icon" id="matchStatusIcon">✓</span>
+          <span class="match-status-text" id="matchStatusText"
+            >GESTURE MATCHED!</span
+          >
+        </div>
+
+        <!-- NEW: Cursor Position Indicator (for Hybrid Mode) -->
+        <div
+          id="cursorIndicator"
+          style="
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #00ff00;
+            border-radius: 50%;
+            pointer-events: none;
+            display: none;
+            z-index: 30;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.6);
+          "
+        ></div>
+      </div>
+
+      <!-- Info Panel -->
+      <div class="info-panel">
+        <div class="status-row">
+          <span class="status-label">Hand Detection</span>
+          <span class="status-value" id="handStatus">
+            <span class="status-badge error">NO HAND</span>
+          </span>
+        </div>
+
+        <div class="status-row">
+          <span class="status-label">Gesture Matching</span>
+          <span class="status-value" id="authStatus">
+            <span class="status-badge" style="background: #6b7280"
+              >CHECKING...</span
+            >
+          </span>
+        </div>
+
+        <div class="status-row">
+          <span class="status-label">Performance</span>
+          <span class="status-value" id="performanceStatus">N/A</span>
+        </div>
+
+        <!-- PHASE 3 & 4: State Machine Status -->
+        <div class="status-row" id="stateMachineRow" style="display: none;">
+          <span class="status-label">State Machine</span>
+          <span class="status-value" id="stateMachineStatus">
+            <span class="state-indicator disabled">
+              <span class="state-dot"></span>
+              <span>DISABLED</span>
+            </span>
+          </span>
+        </div>
+
+        <!-- Gesture Result -->
+        <div class="gesture-result" id="gestureResult">
+          <div class="gesture-header">
+            <div class="gesture-icon" id="gestureIcon">✓</div>
+            <div class="gesture-info">
+              <div class="gesture-name" id="gestureName">Gesture Name</div>
+              <div class="gesture-action" id="gestureAction">Action</div>
+            </div>
+          </div>
+          <div class="gesture-stats">
+            <div class="stat-item">
+              <div class="stat-label">Similarity</div>
+              <div class="stat-value success" id="gestureSimilarity">0%</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Frames</div>
+              <div class="stat-value" id="gestureFrames" style="color: white">
+                0
+              </div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Status</div>
+              <div class="stat-value success" id="gestureStatus">✓</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { ipcRenderer } = require("electron");
+
+      // DOM elements
+      const container = document.getElementById("overlay-container");
+      const statusDot = document.getElementById("statusDot");
+      const handStatus = document.getElementById("handStatus");
+      const authStatus = document.getElementById("authStatus");
+      const performanceStatus = document.getElementById("performanceStatus");
+      const noHandOverlay = document.getElementById("noHandOverlay");
+      const recordingIndicator = document.getElementById("recordingIndicator");
+      const recText = document.getElementById("recText");
+      const recProgressBar = document.getElementById("recProgressBar");
+      const gestureResult = document.getElementById("gestureResult");
+      const gestureIcon = document.getElementById("gestureIcon");
+      const gestureName = document.getElementById("gestureName");
+      const gestureAction = document.getElementById("gestureAction");
+      const gestureSimilarity = document.getElementById("gestureSimilarity");
+      const gestureFrames = document.getElementById("gestureFrames");
+      const gestureStatus = document.getElementById("gestureStatus");
+      const closeBtn = document.getElementById("closeBtn");
+      const matchStatusBanner = document.getElementById("matchStatusBanner");
+      const matchStatusIcon = document.getElementById("matchStatusIcon");
+      const matchStatusText = document.getElementById("matchStatusText");
+      const cursorIndicator = document.getElementById("cursorIndicator");
+      const stateMachineRow = document.getElementById("stateMachineRow");
+      const stateMachineStatus = document.getElementById("stateMachineStatus");
+
+      // Canvas
+      const canvas = document.getElementById("handCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Hand skeleton connections (21 landmarks)
+      const HAND_CONNECTIONS = [
+        // Thumb
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 4],
+        // Index finger
+        [0, 5],
+        [5, 6],
+        [6, 7],
+        [7, 8],
+        // Middle finger
+        [0, 9],
+        [9, 10],
+        [10, 11],
+        [11, 12],
+        // Ring finger
+        [0, 13],
+        [13, 14],
+        [14, 15],
+        [15, 16],
+        // Pinky
+        [0, 17],
+        [17, 18],
+        [18, 19],
+        [19, 20],
+        // Palm
+        [5, 9],
+        [9, 13],
+        [13, 17],
+      ];
+
+      // State
+      let handDetected = false;
+      let recording = false;
+      let recordingProgress = 0;
+      let recognitionFrames = [];
+      let matchCooldown = false;
+      let isAuthenticated = false; // Track authentication status
+      let authChecked = false; // Track if we've checked auth yet
+
+      // Hybrid mode state - dynamic from localStorage
+      let hybridModeEnabled = true; // Default to true
+      let ws = null; // WebSocket connection
+
+      // Require Node.js modules for file operations (declare once at top level)
+      const fs = require("fs");
+      const path = require("path");
+      const os = require("os");
+
+      // Close button
+      closeBtn.addEventListener("click", () => {
+        // Send message to main process to hide overlay
+        window.close();
+      });
+
+      // Initialize hybrid mode from file (source of truth)
+      function initializeHybridMode() {
+        try {
+          const hybridModeFile = path.join(
+            os.homedir(),
+            ".airclick-hybridmode"
+          );
+
+          if (fs.existsSync(hybridModeFile)) {
+            const fileContent = fs.readFileSync(hybridModeFile, "utf8").trim();
+            hybridModeEnabled = fileContent === "true";
+            console.log(
+              `🔧 Hybrid mode initialized from file: ${hybridModeEnabled}`
+            );
+          } else {
+            // Default to true if file doesn't exist, and create the file
+            hybridModeEnabled = true;
+            try {
+              fs.writeFileSync(hybridModeFile, "true", "utf8");
+              console.log("🔧 Hybrid mode file created with default: true");
+            } catch (err) {
+              console.warn(
+                "⚠️ Could not create hybrid mode file:",
+                err.message
+              );
+            }
+            console.log("🔧 Hybrid mode file not found, using default: true");
+          }
+        } catch (error) {
+          console.error("Error initializing hybrid mode:", error);
+          hybridModeEnabled = true; // Default to true on error
+        }
+        return hybridModeEnabled;
+      }
+
+      // Connect to WebSocket with current hybrid mode
+      function connectWebSocket() {
+        // Close existing connection if any
+        if (ws) {
+          if (
+            ws.readyState === WebSocket.OPEN ||
+            ws.readyState === WebSocket.CONNECTING
+          ) {
+            console.log(
+              "🔌 Closing existing WebSocket connection for mode switch"
+            );
+            ws.close();
+            // Wait for connection to close before reconnecting
+            ws = null;
+            setTimeout(connectWebSocket, 100);
+            return;
+          }
+        }
+
+        // Get current hybrid mode
+        const currentMode = initializeHybridMode();
+
+        // Determine WebSocket URL based on hybrid mode
+        const wsUrl = currentMode
+          ? "ws://localhost:8000/ws/hand-tracking-hybrid"
+          : "ws://localhost:8000/ws/hand-tracking";
+
+        console.log(`🔌 Connecting to: ${wsUrl} (hybrid_mode=${currentMode})`);
+
+        // Connect to backend WebSocket
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log("✅ Overlay connected to backend");
+          statusDot.classList.add("active");
+
+          // Check authentication status immediately on connection
+          checkAuthentication();
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            // Update hand detection
+            const handsDetected = data.hand_count > 0;
+            updateHandStatus(handsDetected);
+
+            // Draw hand skeleton
+            if (handsDetected && data.hands && data.hands.length > 0) {
+              drawHand(data);
+              noHandOverlay.classList.add("hidden");
+
+              // ONLY collect frames and match gestures if user is authenticated
+              if (isAuthenticated) {
+                // Collect frames for gesture recognition
+                const frame = {
+                  timestamp: Date.now(),
+                  landmarks: data.hands[0].landmarks,
+                  handedness: data.hands[0].handedness,
+                  confidence: data.hands[0].confidence,
+                };
+
+                recognitionFrames.push(frame);
+
+                // Keep only last 60 frames (2 seconds at 30fps)
+                if (recognitionFrames.length > 60) {
+                  recognitionFrames = recognitionFrames.slice(-60);
+                }
+
+                // Update recording indicator
+                updateRecording(
+                  recognitionFrames.length > 0,
+                  recognitionFrames.length
+                );
+
+                // Auto-match when we have 60 frames and not in cooldown
+                if (recognitionFrames.length === 60 && !matchCooldown) {
+                  matchGesture(recognitionFrames);
+                  recognitionFrames = []; // Clear after matching
+                }
+              } else {
+                // User not authenticated - skip gesture matching
+                // But still update recording indicator to show "disabled" state
+                updateRecording(false, 0);
+              }
+            } else {
+              clearCanvas();
+              noHandOverlay.classList.remove("hidden");
+              recognitionFrames = []; // Clear frames when hand is lost
+              updateRecording(false, 0);
+            }
+
+            // NEW: Process hybrid mode data (cursor + clicks + state machine)
+            if (data.hybrid) {
+              // PHASE 3 & 4: Update state machine visualization
+              updateStateMachine(data.hybrid);
+
+              // Update cursor and click feedback
+              if (data.hybrid.cursor_enabled) {
+                updateCursorIndicator(data.hybrid);
+                updateClickFeedback(data.hybrid.clicks);
+              } else {
+                cursorIndicator.style.display = "none";
+              }
+            }
+
+            // Update performance
+            if (data.fps || data.latency) {
+              updatePerformance(data.fps, data.latency);
+            }
+          } catch (error) {
+            console.error("Error parsing WebSocket data:", error);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log("❌ Overlay disconnected from backend");
+          statusDot.classList.remove("active");
+
+          // Don't reload - just try to reconnect after delay
+          setTimeout(() => {
+            console.log("🔄 Attempting to reconnect...");
+            connectWebSocket();
+          }, 3000);
+        };
+
+        ws.onerror = (error) => {
+          console.error("❌ WebSocket error:", error);
+        };
+      }
+
+      // Listen for hybrid mode changes from localStorage
+      window.addEventListener("storage", (e) => {
+        if (e.key === "hybridMode" && e.newValue !== null) {
+          const newValue = e.newValue === "true";
+          console.log(
+            `🔄 Hybrid mode changed (storage event): ${newValue} - Reconnecting WebSocket...`
+          );
+
+          // Update local state
+          hybridModeEnabled = newValue;
+
+          // Reconnect WebSocket with new mode
+          connectWebSocket();
+        }
+      });
+
+      // Poll hybrid mode file for changes (every 500ms)
+      // This detects when web app changes hybrid mode
+      const hybridModeFile = path.join(os.homedir(), ".airclick-hybridmode");
+      let lastHybridMode = hybridModeEnabled;
+
+      setInterval(() => {
+        try {
+          let currentHybridMode = true; // default
+          if (fs.existsSync(hybridModeFile)) {
+            const fileContent = fs.readFileSync(hybridModeFile, "utf8").trim();
+            currentHybridMode = fileContent === "true";
+          }
+
+          if (currentHybridMode !== lastHybridMode) {
+            console.log(
+              `🔄 Hybrid mode changed (file polling): ${lastHybridMode} → ${currentHybridMode} - Reconnecting WebSocket...`
+            );
+            hybridModeEnabled = currentHybridMode;
+            lastHybridMode = currentHybridMode;
+            connectWebSocket();
+          }
+        } catch (err) {
+          console.warn("⚠️ Error checking hybrid mode file:", err.message);
+        }
+      }, 500);
+
+      // Poll token file for changes (every 2 seconds)
+      // This detects when user logs out in the web app
+      const tokenPath = path.join(os.homedir(), ".airclick-token");
+
+      let lastTokenFileExists = fs.existsSync(tokenPath);
+      let lastTokenContent = lastTokenFileExists
+        ? fs.readFileSync(tokenPath, "utf8").trim()
+        : null;
+
+      setInterval(() => {
+        try {
+          const currentFileExists = fs.existsSync(tokenPath);
+          const currentTokenContent = currentFileExists
+            ? fs.readFileSync(tokenPath, "utf8").trim()
+            : null;
+
+          // Check if file was deleted or token content changed
+          if (
+            currentFileExists !== lastTokenFileExists ||
+            currentTokenContent !== lastTokenContent
+          ) {
+            console.log(
+              `🔑 Token file changed - Re-checking authentication...`
+            );
+            console.log(
+              `   File exists: ${lastTokenFileExists} → ${currentFileExists}`
+            );
+            if (currentTokenContent !== lastTokenContent) {
+              console.log(`   Token content changed`);
+            }
+
+            lastTokenFileExists = currentFileExists;
+            lastTokenContent = currentTokenContent;
+            authChecked = false; // Reset flag to force re-check
+            checkAuthentication();
+          }
+        } catch (err) {
+          console.warn("⚠️ Error checking token file:", err.message);
+        }
+      }, 2000);
+
+      // Initial connection
+      connectWebSocket();
+
+      // Update hand status
+      function updateHandStatus(detected) {
+        handDetected = detected;
+
+        if (detected) {
+          handStatus.innerHTML =
+            '<span class="status-badge success">HAND DETECTED</span>';
+        } else {
+          handStatus.innerHTML =
+            '<span class="status-badge error">NO HAND</span>';
+        }
+      }
+
+      // Update performance
+      function updatePerformance(fps, latency) {
+        const fpsText = fps > 0 ? `${fps} FPS` : "N/A";
+        const latencyText = latency > 0 ? `${latency}ms` : "";
+
+        performanceStatus.textContent = latencyText
+          ? `${latencyText} | ${fpsText}`
+          : fpsText;
+
+        // Color code
+        if (fps >= 25 && latency < 50) {
+          performanceStatus.className = "status-value success";
+        } else if (fps >= 15 || latency < 100) {
+          performanceStatus.className = "status-value warning";
+        } else {
+          performanceStatus.className = "status-value error";
+        }
+      }
+
+      // Draw hand skeleton
+      function drawHand(handData) {
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, width, height);
+
+        // Draw dark background
+        ctx.fillStyle = "rgba(17, 24, 39, 0.5)";
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw each detected hand
+        handData.hands.forEach((hand) => {
+          const landmarks = hand.landmarks;
+          const handColor = hand.handedness === "Right" ? "#00FFFF" : "#FF00FF";
+
+          // Draw connections (skeleton lines)
+          ctx.strokeStyle = handColor;
+          ctx.lineWidth = 3;
+          ctx.shadowColor = handColor;
+          ctx.shadowBlur = 10;
+
+          HAND_CONNECTIONS.forEach(([start, end]) => {
+            const startLandmark = landmarks[start];
+            const endLandmark = landmarks[end];
+
+            ctx.beginPath();
+            ctx.moveTo(startLandmark.x * width, startLandmark.y * height);
+            ctx.lineTo(endLandmark.x * width, endLandmark.y * height);
+            ctx.stroke();
+          });
+
+          // Reset shadow
+          ctx.shadowBlur = 0;
+
+          // Draw landmarks (key points)
+          ctx.fillStyle = handColor;
+          landmarks.forEach((landmark, index) => {
+            const x = landmark.x * width;
+            const y = landmark.y * height;
+
+            // Larger circle for wrist (index 0)
+            const radius = index === 0 ? 8 : 5;
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Draw outline
+            ctx.strokeStyle = "#FFFFFF";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          });
+
+          // Draw hand label
+          if (landmarks[0]) {
+            const wristX = landmarks[0].x * width;
+            const wristY = landmarks[0].y * height;
+
+            ctx.fillStyle = handColor;
+            ctx.font = "bold 16px Arial";
+            ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+            ctx.shadowBlur = 4;
+            ctx.fillText(
+              `${hand.handedness} (${(hand.confidence * 100).toFixed(0)}%)`,
+              wristX + 15,
+              wristY - 15
+            );
+            ctx.shadowBlur = 0;
+          }
+        });
+      }
+
+      // Clear canvas
+      function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "rgba(17, 24, 39, 0.5)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Update recording status
+      function updateRecording(isRecording, progress) {
+        recording = isRecording;
+        recordingProgress = progress || 0;
+
+        if (isRecording) {
+          container.classList.add("recording");
+          recordingIndicator.classList.add("visible");
+          recText.textContent = `RECORDING: ${recordingProgress}/60`;
+
+          const progressPercent = (recordingProgress / 60) * 100;
+          recProgressBar.style.width = `${progressPercent}%`;
+        } else {
+          container.classList.remove("recording");
+          recordingIndicator.classList.remove("visible");
+          recProgressBar.style.width = "0%";
+        }
+      }
+
+      // NEW: Update cursor indicator position (for hybrid mode)
+      function updateCursorIndicator(hybridData) {
+        if (!hybridData.cursor || !hybridData.cursor.success) {
+          cursorIndicator.style.display = "none";
           return;
         }
+
+        const handPos = hybridData.cursor.hand_position;
+        if (!handPos || !handPos.filtered) {
+          return;
+        }
+
+        // Map hand position to canvas coordinates
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+
+        const x = handPos.filtered.x * canvasWidth;
+        const y = handPos.filtered.y * canvasHeight;
+
+        // Update cursor indicator position
+        cursorIndicator.style.left = `${x - 10}px`;
+        cursorIndicator.style.top = `${y - 10}px`;
+        cursorIndicator.style.display = "block";
+
+        // Change color based on click detection
+        const clicks = hybridData.clicks;
+        if (clicks && clicks.click_type !== "none") {
+          cursorIndicator.style.borderColor = "#FF0000";
+          cursorIndicator.style.boxShadow = "0 0 20px rgba(255, 0, 0, 0.8)";
+        } else {
+          cursorIndicator.style.borderColor = "#00FF00";
+          cursorIndicator.style.boxShadow = "0 0 15px rgba(0, 255, 0, 0.6)";
+        }
       }
 
-      // Get current hybrid mode
-      const currentMode = initializeHybridMode();
+      // PHASE 3 & 4: Update state machine visualization
+      function updateStateMachine(hybridData) {
+        if (!hybridData || !hybridData.state_machine) {
+          stateMachineRow.style.display = "none";
+          return;
+        }
 
-      // Determine WebSocket URL based on hybrid mode
-      const wsUrl = currentMode
-        ? 'ws://localhost:8000/ws/hand-tracking-hybrid'
-        : 'ws://localhost:8000/ws/hand-tracking';
+        const stateMachine = hybridData.state_machine;
+        const state = stateMachine.state;
 
-      console.log(`🔌 Connecting to: ${wsUrl} (hybrid_mode=${currentMode})`);
+        // Show state machine row
+        stateMachineRow.style.display = "flex";
 
-      // Connect to backend WebSocket
-      ws = new WebSocket(wsUrl);
+        // State name mapping
+        const stateNames = {
+          cursor_only: "Cursor Control",
+          collecting: "Collecting Frames",
+          matching: "Matching Gesture",
+          idle: "Cooldown",
+          disabled: "Disabled"
+        };
 
-      ws.onopen = () => {
-        console.log('✅ Overlay connected to backend');
-        statusDot.classList.add('active');
+        // Update state indicator
+        const stateName = stateNames[state] || state.toUpperCase();
+        const stateClass = state;
 
-        // Check authentication status immediately on connection
-        checkAuthentication();
-      };
+        stateMachineStatus.innerHTML = `
+          <span class="state-indicator ${stateClass}">
+            <span class="state-dot"></span>
+            <span>${stateName}</span>
+          </span>
+        `;
 
-      ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        // Update hand detection
-        const handsDetected = data.hand_count > 0;
-        updateHandStatus(handsDetected);
-
-        // Draw hand skeleton
-        if (handsDetected && data.hands && data.hands.length > 0) {
-          drawHand(data);
-          noHandOverlay.classList.add('hidden');
-
-          // ONLY collect frames and match gestures if user is authenticated
-          if (isAuthenticated) {
-            // Collect frames for gesture recognition
-            const frame = {
-              timestamp: Date.now(),
-              landmarks: data.hands[0].landmarks,
-              handedness: data.hands[0].handedness,
-              confidence: data.hands[0].confidence
-            };
-
-            recognitionFrames.push(frame);
-
-            // Keep only last 60 frames (2 seconds at 30fps)
-            if (recognitionFrames.length > 60) {
-              recognitionFrames = recognitionFrames.slice(-60);
-            }
-
-            // Update recording indicator
-            updateRecording(recognitionFrames.length > 0, recognitionFrames.length);
-
-            // Auto-match when we have 60 frames and not in cooldown
-            if (recognitionFrames.length === 60 && !matchCooldown) {
-              matchGesture(recognitionFrames);
-              recognitionFrames = []; // Clear after matching
-            }
-          } else {
-            // User not authenticated - skip gesture matching
-            // But still update recording indicator to show "disabled" state
-            updateRecording(false, 0);
-          }
+        // Update recording indicator based on state
+        if (state === "collecting") {
+          const progress = (stateMachine.collected_count / stateMachine.target_frames) * 100;
+          updateRecording(true, stateMachine.collected_count);
+          recText.textContent = `COLLECTING (${stateMachine.collected_count}/${stateMachine.target_frames})`;
+        } else if (state === "matching") {
+          updateRecording(true, 60);
+          recText.textContent = "MATCHING...";
         } else {
-          clearCanvas();
-          noHandOverlay.classList.remove('hidden');
-          recognitionFrames = []; // Clear frames when hand is lost
           updateRecording(false, 0);
         }
 
-        // NEW: Process hybrid mode data (cursor + clicks)
-        if (data.hybrid && data.hybrid.cursor_enabled) {
-          updateCursorIndicator(data.hybrid);
-          updateClickFeedback(data.hybrid.clicks);
-        }
+        // Show match result if in IDLE state (FIXED - proper display)
+        if (state === "idle" && stateMachine.match_result) {
+          const matchResult = stateMachine.match_result;
 
-        // Update performance
-        if (data.fps || data.latency) {
-          updatePerformance(data.fps, data.latency);
-        }
+          if (matchResult.matched) {
+            // Matched gesture - show success banner
+            container.classList.add("matched");
+            matchStatusBanner.classList.add("visible");
+            matchStatusBanner.classList.remove("no-match");
+            matchStatusIcon.textContent = "✓";
+            matchStatusText.textContent = `MATCHED: ${matchResult.gesture_name}`;
 
-      } catch (error) {
-        console.error('Error parsing WebSocket data:', error);
-      }
-    };
+            console.log(`✅ Gesture matched: ${matchResult.gesture_name} (${(matchResult.similarity * 100).toFixed(1)}%)`);
 
-      ws.onclose = () => {
-        console.log('❌ Overlay disconnected from backend');
-        statusDot.classList.remove('active');
+            // Auto-hide after 2 seconds (FASTER feedback)
+            setTimeout(() => {
+              matchStatusBanner.classList.remove("visible");
+              container.classList.remove("matched");
+            }, 2000);
 
-        // Don't reload - just try to reconnect after delay
-        setTimeout(() => {
-          console.log('🔄 Attempting to reconnect...');
-          connectWebSocket();
-        }, 3000);
-      };
+          } else if (matchResult.authenticated === false) {
+            // Not authenticated - show login required
+            matchStatusBanner.classList.add("visible", "no-match");
+            matchStatusIcon.textContent = "🔒";
+            matchStatusText.textContent = "LOGIN REQUIRED";
 
-      ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
-      };
-    }
+            console.log("❌ Not authenticated - login required");
 
-    // Listen for hybrid mode changes from localStorage
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'hybridMode' && e.newValue !== null) {
-        const newValue = e.newValue === 'true';
-        console.log(`🔄 Hybrid mode changed (storage event): ${newValue} - Reconnecting WebSocket...`);
+            setTimeout(() => {
+              matchStatusBanner.classList.remove("visible", "no-match");
+            }, 2000);
 
-        // Update local state
-        hybridModeEnabled = newValue;
-
-        // Reconnect WebSocket with new mode
-        connectWebSocket();
-      }
-    });
-
-    // Poll hybrid mode file for changes (every 500ms)
-    // This detects when web app changes hybrid mode
-    const hybridModeFile = path.join(os.homedir(), '.airclick-hybridmode');
-    let lastHybridMode = hybridModeEnabled;
-
-    setInterval(() => {
-      try {
-        let currentHybridMode = true; // default
-        if (fs.existsSync(hybridModeFile)) {
-          const fileContent = fs.readFileSync(hybridModeFile, 'utf8').trim();
-          currentHybridMode = fileContent === 'true';
-        }
-
-        if (currentHybridMode !== lastHybridMode) {
-          console.log(`🔄 Hybrid mode changed (file polling): ${lastHybridMode} → ${currentHybridMode} - Reconnecting WebSocket...`);
-          hybridModeEnabled = currentHybridMode;
-          lastHybridMode = currentHybridMode;
-          connectWebSocket();
-        }
-      } catch (err) {
-        console.warn('⚠️ Error checking hybrid mode file:', err.message);
-      }
-    }, 500);
-
-    // Poll token file for changes (every 2 seconds)
-    // This detects when user logs out in the web app
-    const tokenPath = path.join(os.homedir(), '.airclick-token');
-
-    let lastTokenFileExists = fs.existsSync(tokenPath);
-    let lastTokenContent = lastTokenFileExists ? fs.readFileSync(tokenPath, 'utf8').trim() : null;
-
-    setInterval(() => {
-      try {
-        const currentFileExists = fs.existsSync(tokenPath);
-        const currentTokenContent = currentFileExists ? fs.readFileSync(tokenPath, 'utf8').trim() : null;
-
-        // Check if file was deleted or token content changed
-        if (currentFileExists !== lastTokenFileExists || currentTokenContent !== lastTokenContent) {
-          console.log(`🔑 Token file changed - Re-checking authentication...`);
-          console.log(`   File exists: ${lastTokenFileExists} → ${currentFileExists}`);
-          if (currentTokenContent !== lastTokenContent) {
-            console.log(`   Token content changed`);
-          }
-
-          lastTokenFileExists = currentFileExists;
-          lastTokenContent = currentTokenContent;
-          authChecked = false;  // Reset flag to force re-check
-          checkAuthentication();
-        }
-      } catch (err) {
-        console.warn('⚠️ Error checking token file:', err.message);
-      }
-    }, 2000);
-
-    // Initial connection
-    connectWebSocket();
-
-    // Update hand status
-    function updateHandStatus(detected) {
-      handDetected = detected;
-
-      if (detected) {
-        handStatus.innerHTML = '<span class="status-badge success">HAND DETECTED</span>';
-      } else {
-        handStatus.innerHTML = '<span class="status-badge error">NO HAND</span>';
-      }
-    }
-
-    // Update performance
-    function updatePerformance(fps, latency) {
-      const fpsText = fps > 0 ? `${fps} FPS` : 'N/A';
-      const latencyText = latency > 0 ? `${latency}ms` : '';
-
-      performanceStatus.textContent = latencyText ? `${latencyText} | ${fpsText}` : fpsText;
-
-      // Color code
-      if (fps >= 25 && latency < 50) {
-        performanceStatus.className = 'status-value success';
-      } else if (fps >= 15 || latency < 100) {
-        performanceStatus.className = 'status-value warning';
-      } else {
-        performanceStatus.className = 'status-value error';
-      }
-    }
-
-    // Draw hand skeleton
-    function drawHand(handData) {
-      const width = canvas.width;
-      const height = canvas.height;
-
-      // Clear canvas
-      ctx.clearRect(0, 0, width, height);
-
-      // Draw dark background
-      ctx.fillStyle = 'rgba(17, 24, 39, 0.5)';
-      ctx.fillRect(0, 0, width, height);
-
-      // Draw each detected hand
-      handData.hands.forEach((hand) => {
-        const landmarks = hand.landmarks;
-        const handColor = hand.handedness === 'Right' ? '#00FFFF' : '#FF00FF';
-
-        // Draw connections (skeleton lines)
-        ctx.strokeStyle = handColor;
-        ctx.lineWidth = 3;
-        ctx.shadowColor = handColor;
-        ctx.shadowBlur = 10;
-
-        HAND_CONNECTIONS.forEach(([start, end]) => {
-          const startLandmark = landmarks[start];
-          const endLandmark = landmarks[end];
-
-          ctx.beginPath();
-          ctx.moveTo(startLandmark.x * width, startLandmark.y * height);
-          ctx.lineTo(endLandmark.x * width, endLandmark.y * height);
-          ctx.stroke();
-        });
-
-        // Reset shadow
-        ctx.shadowBlur = 0;
-
-        // Draw landmarks (key points)
-        ctx.fillStyle = handColor;
-        landmarks.forEach((landmark, index) => {
-          const x = landmark.x * width;
-          const y = landmark.y * height;
-
-          // Larger circle for wrist (index 0)
-          const radius = index === 0 ? 8 : 5;
-
-          ctx.beginPath();
-          ctx.arc(x, y, radius, 0, 2 * Math.PI);
-          ctx.fill();
-
-          // Draw outline
-          ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        });
-
-        // Draw hand label
-        if (landmarks[0]) {
-          const wristX = landmarks[0].x * width;
-          const wristY = landmarks[0].y * height;
-
-          ctx.fillStyle = handColor;
-          ctx.font = 'bold 16px Arial';
-          ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-          ctx.shadowBlur = 4;
-          ctx.fillText(
-            `${hand.handedness} (${(hand.confidence * 100).toFixed(0)}%)`,
-            wristX + 15,
-            wristY - 15
-          );
-          ctx.shadowBlur = 0;
-        }
-      });
-    }
-
-    // Clear canvas
-    function clearCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(17, 24, 39, 0.5)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-
-    // Update recording status
-    function updateRecording(isRecording, progress) {
-      recording = isRecording;
-      recordingProgress = progress || 0;
-
-      if (isRecording) {
-        container.classList.add('recording');
-        recordingIndicator.classList.add('visible');
-        recText.textContent = `RECORDING: ${recordingProgress}/60`;
-
-        const progressPercent = (recordingProgress / 60) * 100;
-        recProgressBar.style.width = `${progressPercent}%`;
-      } else {
-        container.classList.remove('recording');
-        recordingIndicator.classList.remove('visible');
-        recProgressBar.style.width = '0%';
-      }
-    }
-
-    // NEW: Update cursor indicator position (for hybrid mode)
-    function updateCursorIndicator(hybridData) {
-      if (!hybridData.cursor || !hybridData.cursor.success) {
-        cursorIndicator.style.display = 'none';
-        return;
-      }
-
-      const handPos = hybridData.cursor.hand_position;
-      if (!handPos || !handPos.filtered) {
-        return;
-      }
-
-      // Map hand position to canvas coordinates
-      const canvasWidth = canvas.width;
-      const canvasHeight = canvas.height;
-
-      const x = handPos.filtered.x * canvasWidth;
-      const y = handPos.filtered.y * canvasHeight;
-
-      // Update cursor indicator position
-      cursorIndicator.style.left = `${x - 10}px`;
-      cursorIndicator.style.top = `${y - 10}px`;
-      cursorIndicator.style.display = 'block';
-
-      // Change color based on click detection
-      const clicks = hybridData.clicks;
-      if (clicks && clicks.click_type !== 'none') {
-        cursorIndicator.style.borderColor = '#FF0000';
-        cursorIndicator.style.boxShadow = '0 0 20px rgba(255, 0, 0, 0.8)';
-      } else {
-        cursorIndicator.style.borderColor = '#00FF00';
-        cursorIndicator.style.boxShadow = '0 0 15px rgba(0, 255, 0, 0.6)';
-      }
-    }
-
-    // NEW: Show visual feedback for clicks
-    function updateClickFeedback(clickData) {
-      if (!clickData || clickData.click_type === 'none') {
-        return;
-      }
-
-      // Flash the cursor indicator
-      cursorIndicator.style.transform = 'scale(1.5)';
-      setTimeout(() => {
-        cursorIndicator.style.transform = 'scale(1)';
-      }, 150);
-
-      // Log click
-      const clickType = clickData.click_type === 'left_click' ? 'LEFT CLICK' : 'RIGHT CLICK';
-      console.log(`🖱️ ${clickType} detected!`);
-    }
-
-    // Update gesture match result
-    function updateGestureMatch(data) {
-      if (data.matched) {
-        // Success
-        container.classList.add('matched');
-        container.classList.remove('failed');
-
-        // Show match status banner
-        matchStatusBanner.classList.add('visible');
-        matchStatusBanner.classList.remove('no-match');
-        matchStatusIcon.textContent = '✓';
-        matchStatusText.textContent = `GESTURE MATCHED! ${data.name || ''}`;
-
-        gestureResult.classList.add('visible', 'success');
-        gestureResult.classList.remove('failed');
-
-        gestureIcon.classList.add('success');
-        gestureIcon.classList.remove('failed');
-        gestureIcon.textContent = '✓';
-
-        gestureName.textContent = data.name || 'Gesture Matched';
-        gestureAction.textContent = data.action || 'Action';
-        gestureSimilarity.textContent = `${data.similarity}%`;
-        gestureSimilarity.className = data.similarity >= 75 ? 'stat-value success' : 'stat-value warning';
-        gestureFrames.textContent = data.frames || '60';
-        gestureStatus.textContent = '✓';
-        gestureStatus.className = 'stat-value success';
-
-        // Auto-hide after 3 seconds
-        setTimeout(() => {
-          gestureResult.classList.remove('visible');
-          matchStatusBanner.classList.remove('visible');
-          container.classList.remove('matched');
-        }, 3000);
-      } else {
-        // Failure
-        container.classList.add('failed');
-        container.classList.remove('matched');
-
-        // Show no match status banner
-        matchStatusBanner.classList.add('visible', 'no-match');
-        matchStatusIcon.textContent = '✗';
-        matchStatusText.textContent = 'NO MATCH - TRY AGAIN';
-
-        gestureResult.classList.add('visible', 'failed');
-        gestureResult.classList.remove('success');
-
-        gestureIcon.classList.add('failed');
-        gestureIcon.classList.remove('success');
-        gestureIcon.textContent = '✗';
-
-        gestureName.textContent = 'No Match Found';
-        gestureAction.textContent = 'Try again';
-        gestureSimilarity.textContent = '0%';
-        gestureSimilarity.className = 'stat-value error';
-        gestureFrames.textContent = data.frames || '60';
-        gestureStatus.textContent = '✗';
-        gestureStatus.className = 'stat-value error';
-
-        // Auto-hide after 2 seconds
-        setTimeout(() => {
-          gestureResult.classList.remove('visible');
-          matchStatusBanner.classList.remove('visible', 'no-match');
-          container.classList.remove('failed');
-        }, 2000);
-      }
-    }
-
-    // Match gesture with backend API
-    // Check if user is authenticated by validating token with backend
-    async function checkAuthentication() {
-      try {
-        // ALWAYS check the token file first (source of truth)
-        let token = null;
-        try {
-          const tokenPath = path.join(os.homedir(), '.airclick-token');
-
-          if (fs.existsSync(tokenPath)) {
-            token = fs.readFileSync(tokenPath, 'utf8').trim();
-            console.log('🔑 Token found in file');
-            // Sync to localStorage
-            localStorage.setItem('token', token);
           } else {
-            console.log('📄 Token file does not exist');
-            // Clear localStorage if file doesn't exist
-            localStorage.removeItem('token');
+            // No match found
+            matchStatusBanner.classList.add("visible", "no-match");
+            matchStatusIcon.textContent = "✗";
+            matchStatusText.textContent = "NO MATCH";
+
+            console.log("❌ No gesture match found");
+
+            setTimeout(() => {
+              matchStatusBanner.classList.remove("visible", "no-match");
+            }, 1500);
           }
-        } catch (err) {
-          console.warn('⚠️ Failed to read token file:', err.message);
         }
 
-        // If no token found anywhere, mark as not authenticated
-        if (!token) {
-          isAuthenticated = false;
-          console.log('❌ No auth token found - Gesture matching DISABLED (Cursor control still works)');
-          console.log('💡 To enable gesture matching, please log in through the web app');
-          authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Login Required)</span>';
-          authChecked = true;
+        // Log state changes
+        if (window.lastStateMachineState !== state) {
+          console.log(`🔄 State Machine: ${window.lastStateMachineState || "N/A"} → ${state}`);
+          window.lastStateMachineState = state;
+        }
+      }
+
+      // NEW: Show visual feedback for clicks
+      function updateClickFeedback(clickData) {
+        if (!clickData || clickData.click_type === "none") {
           return;
         }
 
-        // Validate token with backend API
-        console.log('🔍 Validating token with backend...');
-        const response = await fetch('http://localhost:8000/api/auth/me', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
+        // Flash the cursor indicator
+        cursorIndicator.style.transform = "scale(1.5)";
+        setTimeout(() => {
+          cursorIndicator.style.transform = "scale(1)";
+        }, 150);
 
-        if (response.ok) {
-          const userData = await response.json();
-          isAuthenticated = true;
-          console.log(`✅ User authenticated: ${userData.email} - Gesture matching ENABLED`);
-          authStatus.innerHTML = '<span class="status-badge success">ENABLED</span>';
+        // Log click
+        const clickType =
+          clickData.click_type === "left_click" ? "LEFT CLICK" : "RIGHT CLICK";
+        console.log(`🖱️ ${clickType} detected!`);
+      }
+
+      // Update gesture match result
+      function updateGestureMatch(data) {
+        if (data.matched) {
+          // Success
+          container.classList.add("matched");
+          container.classList.remove("failed");
+
+          // Show match status banner
+          matchStatusBanner.classList.add("visible");
+          matchStatusBanner.classList.remove("no-match");
+          matchStatusIcon.textContent = "✓";
+          matchStatusText.textContent = `GESTURE MATCHED! ${data.name || ""}`;
+
+          gestureResult.classList.add("visible", "success");
+          gestureResult.classList.remove("failed");
+
+          gestureIcon.classList.add("success");
+          gestureIcon.classList.remove("failed");
+          gestureIcon.textContent = "✓";
+
+          gestureName.textContent = data.name || "Gesture Matched";
+          gestureAction.textContent = data.action || "Action";
+          gestureSimilarity.textContent = `${data.similarity}%`;
+          gestureSimilarity.className =
+            data.similarity >= 75 ? "stat-value success" : "stat-value warning";
+          gestureFrames.textContent = data.frames || "60";
+          gestureStatus.textContent = "✓";
+          gestureStatus.className = "stat-value success";
+
+          // Auto-hide after 3 seconds
+          setTimeout(() => {
+            gestureResult.classList.remove("visible");
+            matchStatusBanner.classList.remove("visible");
+            container.classList.remove("matched");
+          }, 3000);
         } else {
-          // Token is invalid or expired
-          isAuthenticated = false;
-          const status = response.status;
-          console.log(`❌ Token validation failed (HTTP ${status}) - Gesture matching DISABLED`);
-          console.log('💡 Please log in again through the web app');
-          authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Invalid Token)</span>';
+          // Failure
+          container.classList.add("failed");
+          container.classList.remove("matched");
 
-          // Clear invalid token from localStorage
-          localStorage.removeItem('token');
-          lastToken = null;  // Update tracking variable
+          // Show no match status banner
+          matchStatusBanner.classList.add("visible", "no-match");
+          matchStatusIcon.textContent = "✗";
+          matchStatusText.textContent = "NO MATCH - TRY AGAIN";
+
+          gestureResult.classList.add("visible", "failed");
+          gestureResult.classList.remove("success");
+
+          gestureIcon.classList.add("failed");
+          gestureIcon.classList.remove("success");
+          gestureIcon.textContent = "✗";
+
+          gestureName.textContent = "No Match Found";
+          gestureAction.textContent = "Try again";
+          gestureSimilarity.textContent = "0%";
+          gestureSimilarity.className = "stat-value error";
+          gestureFrames.textContent = data.frames || "60";
+          gestureStatus.textContent = "✗";
+          gestureStatus.className = "stat-value error";
+
+          // Auto-hide after 2 seconds
+          setTimeout(() => {
+            gestureResult.classList.remove("visible");
+            matchStatusBanner.classList.remove("visible", "no-match");
+            container.classList.remove("failed");
+          }, 2000);
         }
-
-        authChecked = true;
-      } catch (error) {
-        console.error('⚠️ Error validating authentication:', error.message);
-        isAuthenticated = false;
-        authChecked = true;
-        authStatus.innerHTML = '<span class="status-badge" style="background: #dc2626;">DISABLED (Backend Offline?)</span>';
-      }
-    }
-
-    // Periodically re-check authentication (every 30 seconds)
-    setInterval(() => {
-      authChecked = false;  // Reset flag to allow re-check
-      checkAuthentication();
-    }, 30000);
-
-    async function matchGesture(frames) {
-      if (frames.length < 30) {
-        console.warn('Not enough frames to match');
-        return;
       }
 
-      matchCooldown = true;
-      console.log('🔍 Starting gesture match with', frames.length, 'frames');
-
-      try {
-        // Try to get token from localStorage first
-        let token = localStorage.getItem('token');
-
-        // If not found, try to read from a token file
-        if (!token) {
+      // Match gesture with backend API
+      // Check if user is authenticated by validating token with backend
+      async function checkAuthentication() {
+        try {
+          // ALWAYS check the token file first (source of truth)
+          let token = null;
           try {
-            const fs = require('fs');
-            const path = require('path');
-            const tokenPath = path.join(require('os').homedir(), '.airclick-token');
+            const tokenPath = path.join(os.homedir(), ".airclick-token");
 
             if (fs.existsSync(tokenPath)) {
-              token = fs.readFileSync(tokenPath, 'utf8').trim();
-              console.log('🔑 Token loaded from file');
+              token = fs.readFileSync(tokenPath, "utf8").trim();
+              console.log("🔑 Token found in file");
+              // Sync to localStorage
+              localStorage.setItem("token", token);
+            } else {
+              console.log("📄 Token file does not exist");
+              // Clear localStorage if file doesn't exist
+              localStorage.removeItem("token");
             }
           } catch (err) {
-            console.warn('Failed to read token file:', err.message);
+            console.warn("⚠️ Failed to read token file:", err.message);
           }
-        }
 
-        console.log('🔑 Token found:', token ? 'YES' : 'NO');
+          // If no token found anywhere, mark as not authenticated
+          if (!token) {
+            isAuthenticated = false;
+            console.log(
+              "❌ No auth token found - Gesture matching DISABLED (Cursor control still works)"
+            );
+            console.log(
+              "💡 To enable gesture matching, please log in through the web app"
+            );
+            authStatus.innerHTML =
+              '<span class="status-badge" style="background: #dc2626;">DISABLED (Login Required)</span>';
+            authChecked = true;
+            return;
+          }
 
-        if (!token) {
-          console.error('❌ No auth token found - skipping gesture match');
-          console.error('💡 Tip: Please make sure you are logged in');
-          matchCooldown = false;
-
-          // Show error message
-          updateGestureMatch({
-            matched: false,
-            name: 'Login Required',
-            similarity: 0,
-            frames: 60
+          // Validate token with backend API
+          console.log("🔍 Validating token with backend...");
+          const response = await fetch("http://localhost:8000/api/auth/me", {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
           });
+
+          if (response.ok) {
+            const userData = await response.json();
+            isAuthenticated = true;
+            console.log(
+              `✅ User authenticated: ${userData.email} - Gesture matching ENABLED`
+            );
+            authStatus.innerHTML =
+              '<span class="status-badge success">ENABLED</span>';
+          } else {
+            // Token is invalid or expired
+            isAuthenticated = false;
+            const status = response.status;
+            console.log(
+              `❌ Token validation failed (HTTP ${status}) - Gesture matching DISABLED`
+            );
+            console.log("💡 Please log in again through the web app");
+            authStatus.innerHTML =
+              '<span class="status-badge" style="background: #dc2626;">DISABLED (Invalid Token)</span>';
+
+            // Clear invalid token from localStorage
+            localStorage.removeItem("token");
+            lastToken = null; // Update tracking variable
+          }
+
+          authChecked = true;
+        } catch (error) {
+          console.error("⚠️ Error validating authentication:", error.message);
+          isAuthenticated = false;
+          authChecked = true;
+          authStatus.innerHTML =
+            '<span class="status-badge" style="background: #dc2626;">DISABLED (Backend Offline?)</span>';
+        }
+      }
+
+      // Periodically re-check authentication (every 30 seconds)
+      setInterval(() => {
+        authChecked = false; // Reset flag to allow re-check
+        checkAuthentication();
+      }, 30000);
+
+      async function matchGesture(frames) {
+        if (frames.length < 30) {
+          console.warn("Not enough frames to match");
           return;
         }
 
-        console.log('📡 Sending match request to backend...');
-        const response = await fetch('http://localhost:8000/api/gestures/match', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(frames)
-        });
+        matchCooldown = true;
+        console.log("🔍 Starting gesture match with", frames.length, "frames");
 
-        console.log('📥 Response status:', response.status);
-        const result = await response.json();
-        console.log('📦 Match result:', result);
+        try {
+          // Try to get token from localStorage first
+          let token = localStorage.getItem("token");
 
-        if (result.matched) {
-          // Show matched gesture banner
-          updateGestureMatch({
-            matched: true,
-            name: result.gesture.name,
-            action: result.gesture.action,
-            similarity: Math.round(result.similarity * 100),
-            frames: 60
-          });
-        } else {
-          // Show no match banner
-          updateGestureMatch({
-            matched: false,
-            name: '',
-            similarity: 0,
-            frames: 60
-          });
+          // If not found, try to read from a token file
+          if (!token) {
+            try {
+              const fs = require("fs");
+              const path = require("path");
+              const tokenPath = path.join(
+                require("os").homedir(),
+                ".airclick-token"
+              );
+
+              if (fs.existsSync(tokenPath)) {
+                token = fs.readFileSync(tokenPath, "utf8").trim();
+                console.log("🔑 Token loaded from file");
+              }
+            } catch (err) {
+              console.warn("Failed to read token file:", err.message);
+            }
+          }
+
+          console.log("🔑 Token found:", token ? "YES" : "NO");
+
+          if (!token) {
+            console.error("❌ No auth token found - skipping gesture match");
+            console.error("💡 Tip: Please make sure you are logged in");
+            matchCooldown = false;
+
+            // Show error message
+            updateGestureMatch({
+              matched: false,
+              name: "Login Required",
+              similarity: 0,
+              frames: 60,
+            });
+            return;
+          }
+
+          console.log("📡 Sending match request to backend...");
+          const response = await fetch(
+            "http://localhost:8000/api/gestures/match",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(frames),
+            }
+          );
+
+          console.log("📥 Response status:", response.status);
+          const result = await response.json();
+          console.log("📦 Match result:", result);
+
+          if (result.matched) {
+            // Show matched gesture banner
+            updateGestureMatch({
+              matched: true,
+              name: result.gesture.name,
+              action: result.gesture.action,
+              similarity: Math.round(result.similarity * 100),
+              frames: 60,
+            });
+          } else {
+            // Show no match banner
+            updateGestureMatch({
+              matched: false,
+              name: "",
+              similarity: 0,
+              frames: 60,
+            });
+          }
+        } catch (error) {
+          console.error("Error matching gesture:", error);
+        } finally {
+          // Release cooldown after 1 second
+          setTimeout(() => {
+            matchCooldown = false;
+          }, 1000);
         }
-      } catch (error) {
-        console.error('Error matching gesture:', error);
-      } finally {
-        // Release cooldown after 1 second
-        setTimeout(() => {
-          matchCooldown = false;
-        }, 1000);
-      }
-    }
-
-    // Listen for updates from main process or Next.js app
-    ipcRenderer.on('update-overlay', (event, data) => {
-      if (data.recording !== undefined) {
-        updateRecording(data.recording, data.recordingProgress);
       }
 
-      if (data.gestureMatch !== undefined) {
-        updateGestureMatch(data.gestureMatch);
-      }
-    });
+      // Listen for updates from main process or Next.js app
+      ipcRenderer.on("update-overlay", (event, data) => {
+        if (data.recording !== undefined) {
+          updateRecording(data.recording, data.recordingProgress);
+        }
 
-    console.log('✅ Overlay UI initialized');
-  </script>
-</body>
+        if (data.gestureMatch !== undefined) {
+          updateGestureMatch(data.gestureMatch);
+        }
+      });
+
+      console.log("✅ Overlay UI initialized");
+    </script>
+  </body>
 </html>

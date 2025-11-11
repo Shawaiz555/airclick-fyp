@@ -27,7 +27,19 @@ def record_gesture(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Record a new gesture with landmark data."""
+    """
+    Record a new gesture with landmark data.
+
+    PHASE 1 & 2 FIX: Now uses standardized preprocessing with:
+    - Frame resampling to exactly 60 frames
+    - Stateless preprocessing (reset filters for consistent recording)
+    """
+    from app.services.frame_resampler import resample_frames_linear, get_frame_statistics
+
+    logger.info(f"\n{'='*60}")
+    logger.info(f"GESTURE RECORDING - User: {current_user.email}")
+    logger.info(f"{'='*60}")
+
     # Validate frames have 21 landmarks each
     for frame in gesture_data.frames:
         if len(frame.landmarks) != 21:
@@ -36,23 +48,41 @@ def record_gesture(
                 detail="Each frame must have exactly 21 landmarks"
             )
 
-    # Convert frames to storable format
+    # Convert to dict format for processing
+    frames_dict = [
+        {
+            "timestamp": frame.timestamp,
+            "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
+            "handedness": frame.handedness,
+            "confidence": frame.confidence
+        }
+        for frame in gesture_data.frames
+    ]
+
+    # Log original frame statistics
+    original_stats = get_frame_statistics(frames_dict)
+    logger.info(f"Original frames: {original_stats['frame_count']} | "
+               f"Duration: {original_stats['duration_ms']}ms | "
+               f"Avg FPS: {original_stats['avg_fps']} | "
+               f"Avg Confidence: {original_stats['avg_confidence']}")
+
+    # PHASE 1 FIX: Resample to exactly 60 frames
+    if len(frames_dict) != 60:
+        logger.info(f"📐 Resampling: {len(frames_dict)} frames → 60 frames (PHASE 1 FIX)")
+        frames_dict = resample_frames_linear(frames_dict, target_frames=60)
+    else:
+        logger.info(f"✓ Frame count already at target: 60 frames")
+
+    # Convert to storable format
     landmark_data = {
-        "frames": [
-            {
-                "timestamp": frame.timestamp,
-                "landmarks": [
-                    {"x": lm.x, "y": lm.y, "z": lm.z}
-                    for lm in frame.landmarks
-                ],
-                "handedness": frame.handedness,
-                "confidence": frame.confidence
-            }
-            for frame in gesture_data.frames
-        ],
+        "frames": frames_dict,
         "metadata": {
-            "total_frames": len(gesture_data.frames),
-            "duration": (gesture_data.frames[-1].timestamp - gesture_data.frames[0].timestamp) / 1000.0 if len(gesture_data.frames) > 1 else 0
+            "total_frames": len(frames_dict),
+            "duration": original_stats['duration_ms'] / 1000.0,
+            "original_frame_count": original_stats['frame_count'],
+            "resampled": original_stats['frame_count'] != 60,
+            "avg_confidence": original_stats['avg_confidence'],
+            "handedness": original_stats['handedness']
         }
     }
 
@@ -76,7 +106,8 @@ def record_gesture(
     # Phase 3: Invalidate user's cache since gestures changed
     invalidate_user_cache(current_user.id)
 
-    logger.info(f"Gesture recorded: {new_gesture.name} | Index marked for rebuild")
+    logger.info(f"✅ Gesture recorded: '{new_gesture.name}' | 60 frames | Index marked for rebuild")
+    logger.info(f"{'='*60}\n")
 
     return new_gesture
 
@@ -201,13 +232,26 @@ def match_gesture(
     """
     Match input gesture frames against stored gestures.
 
+    PHASE 1 & 2 FIX: Now uses standardized preprocessing with:
+    - Frame resampling to exactly 60 frames
+    - Stateful preprocessing (preserves filter state for smooth matching)
+
     Returns the best matching gesture with similarity score.
     """
+    from app.services.frame_resampler import get_frame_statistics
+
     logger.info(f"\n{'='*60}")
     logger.info(f"GESTURE MATCHING STARTED")
     logger.info(f"{'='*60}")
     logger.info(f"User: {current_user.email} (ID: {current_user.id})")
     logger.info(f"Input frames received: {len(frames)}")
+
+    # Log frame statistics
+    frame_stats = get_frame_statistics(frames)
+    logger.info(f"Frame stats: {frame_stats['frame_count']} frames | "
+               f"Duration: {frame_stats['duration_ms']}ms | "
+               f"Avg FPS: {frame_stats['avg_fps']} | "
+               f"Confidence: {frame_stats['avg_confidence']}")
 
     if not frames or len(frames) < 5:
         logger.warning(f"⚠ Too few frames: {len(frames)} (minimum 5 required)")

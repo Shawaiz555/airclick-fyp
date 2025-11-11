@@ -145,7 +145,12 @@ class GesturePreprocessor:
             ])
 
             landmarks_list.append(frame_landmarks)
-            confidences.append(confidence)
+            # Ensure confidence is float (not string from database)
+            try:
+                confidences.append(float(confidence))
+            except (TypeError, ValueError):
+                logger.warning(f"Invalid confidence value: {confidence}, using 1.0")
+                confidences.append(1.0)
 
         return np.array(landmarks_list), np.array(confidences)
 
@@ -393,3 +398,137 @@ def get_gesture_preprocessor() -> GesturePreprocessor:
         _preprocessor_instance = GesturePreprocessor(confidence_threshold=0.7)
 
     return _preprocessor_instance
+
+
+def preprocess_for_recording(
+    frames: List[Dict],
+    target_frames: int = 60,
+    apply_smoothing: bool = True,
+    apply_procrustes: bool = True,
+    apply_bone_normalization: bool = True
+) -> np.ndarray:
+    """
+    Preprocess frames for RECORDING (stateless, consistent).
+
+    This function ensures consistent preprocessing for recorded gestures by:
+    1. Resetting temporal filters (clean state)
+    2. Resampling to fixed frame count
+    3. Applying preprocessing pipeline
+
+    Use this when:
+    - User records a new gesture
+    - Updating an existing gesture
+    - Any operation that will SAVE gesture to database
+
+    Args:
+        frames: List of frame dictionaries from MediaPipe
+        target_frames: Target frame count (default: 60)
+        apply_smoothing: Enable temporal smoothing with reset filters
+        apply_procrustes: Enable Procrustes normalization
+        apply_bone_normalization: Enable bone-length normalization
+
+    Returns:
+        Feature array (target_frames, 63) ready for storage
+    """
+    from app.services.frame_resampler import resample_frames_linear
+    from app.services.temporal_smoothing import reset_temporal_filters, smooth_gesture_frames
+
+    logger.info(f"🔧 Preprocessing for RECORDING (stateless): {len(frames)} frames → {target_frames}")
+
+    # Step 1: Resample to fixed frame count
+    if len(frames) != target_frames:
+        frames = resample_frames_linear(frames, target_frames=target_frames)
+        logger.info(f"  ✓ Resampled to {target_frames} frames")
+
+    # Step 2: Reset temporal filters for clean state
+    if apply_smoothing:
+        reset_temporal_filters()
+        frames = smooth_gesture_frames(
+            frames,
+            method='one_euro',
+            min_cutoff=1.0,
+            beta=0.007
+        )
+        logger.info(f"  ✓ Temporal smoothing applied (filters reset)")
+
+    # Step 3: Apply preprocessing
+    preprocessor = get_gesture_preprocessor()
+    normalized_landmarks, metadata = preprocessor.preprocess_frames(
+        frames,
+        apply_procrustes=apply_procrustes,
+        apply_bone_normalization=apply_bone_normalization,
+        remove_outliers=True
+    )
+
+    # Step 4: Flatten to features
+    features = preprocessor.flatten_landmarks(normalized_landmarks)
+
+    logger.info(f"  ✓ Preprocessing complete: {features.shape} | Outliers: {metadata['outliers_removed']}")
+
+    return features
+
+
+def preprocess_for_matching(
+    frames: List[Dict],
+    target_frames: int = 60,
+    apply_smoothing: bool = True,
+    apply_procrustes: bool = True,
+    apply_bone_normalization: bool = True
+) -> np.ndarray:
+    """
+    Preprocess frames for MATCHING (stateful, preserves filter state).
+
+    This function preserves temporal filter state for smooth live matching:
+    1. Does NOT reset temporal filters (continuous tracking)
+    2. Resamples to fixed frame count
+    3. Applies preprocessing pipeline
+
+    Use this when:
+    - Matching gesture in real-time (Electron overlay)
+    - Testing gesture match (home page)
+    - Any operation that COMPARES against stored gestures
+
+    Args:
+        frames: List of frame dictionaries from MediaPipe
+        target_frames: Target frame count (default: 60)
+        apply_smoothing: Enable temporal smoothing (preserves filter state)
+        apply_procrustes: Enable Procrustes normalization
+        apply_bone_normalization: Enable bone-length normalization
+
+    Returns:
+        Feature array (target_frames, 63) ready for DTW matching
+    """
+    from app.services.frame_resampler import resample_frames_linear
+    from app.services.temporal_smoothing import ensure_smoother_initialized, smooth_gesture_frames
+
+    logger.debug(f"🎯 Preprocessing for MATCHING (stateful): {len(frames)} frames → {target_frames}")
+
+    # Step 1: Resample to fixed frame count
+    if len(frames) != target_frames:
+        frames = resample_frames_linear(frames, target_frames=target_frames)
+
+    # Step 2: Apply temporal smoothing (preserves filter state)
+    if apply_smoothing:
+        ensure_smoother_initialized()  # Don't reset filters!
+        frames = smooth_gesture_frames(
+            frames,
+            method='one_euro',
+            min_cutoff=1.0,
+            beta=0.007
+        )
+
+    # Step 3: Apply preprocessing
+    preprocessor = get_gesture_preprocessor()
+    normalized_landmarks, metadata = preprocessor.preprocess_frames(
+        frames,
+        apply_procrustes=apply_procrustes,
+        apply_bone_normalization=apply_bone_normalization,
+        remove_outliers=True
+    )
+
+    # Step 4: Flatten to features
+    features = preprocessor.flatten_landmarks(normalized_landmarks)
+
+    logger.debug(f"  ✓ Matching preprocessing complete: {features.shape}")
+
+    return features

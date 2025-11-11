@@ -2,11 +2,20 @@
  * AirClick - User Home Page with Real-time Hand Tracking
  * ========================================================
  *
+ * PHASE 4: GESTURE-ONLY MODE (Context-Aware Design)
+ * --------------------------------------------------
+ * This page is designed for GESTURE RECOGNITION ONLY.
+ * No cursor control is active on this page - it's purely for testing
+ * and demonstrating gesture matching functionality.
+ *
+ * For FULL HYBRID MODE (cursor control + gesture recognition), use:
+ * - Electron Overlay (d:\Fyp_Project\airclick-fyp\electron\overlay.html)
+ *
  * This is the main dashboard where users can:
  * 1. Start/stop camera for hand tracking via WebSocket
  * 2. See real-time hand landmark detection
  * 3. View detected gestures in real-time
- * 4. Control hybrid mode and application context
+ * 4. Manage application context (GLOBAL/POWERPOINT/WORD)
  *
  * Flow:
  * - Connect to FastAPI MediaPipe backend (ws://localhost:8000/ws/hand-tracking)
@@ -203,12 +212,11 @@ export default function Home() {
       wsRef.current.close();
     }
 
-    // Determine WebSocket URL based on hybrid mode
-    const wsUrl = hybridMode
-      ? 'ws://localhost:8000/ws/hand-tracking-hybrid'  // Hybrid mode: Cursor + Clicks
-      : 'ws://localhost:8000/ws/hand-tracking';        // Gesture-only mode
+    // PHASE 4: Home page ALWAYS uses gesture-only mode (no cursor control)
+    // For hybrid mode with cursor control, use Electron overlay instead
+    const wsUrl = 'ws://localhost:8000/ws/hand-tracking';  // Gesture-only mode
 
-    logger.info(`Connecting to WebSocket: ${wsUrl} (hybrid_mode=${hybridMode})`);
+    logger.info(`Connecting to WebSocket: ${wsUrl} (GESTURE-ONLY MODE - Phase 4)`);
 
     // Create new WebSocket connection to FastAPI backend
     const ws = new WebSocket(wsUrl);

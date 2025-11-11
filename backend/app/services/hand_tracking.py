@@ -198,9 +198,140 @@ class HandTrackingService:
         if hybrid_mode:
             try:
                 from app.services.hybrid_mode_controller import get_hybrid_mode_controller
+                from app.services.gesture_matcher import get_gesture_matcher
+                from sqlalchemy.orm import Session
+                from app.core.database import SessionLocal
+
                 hybrid_controller = get_hybrid_mode_controller()
+
+                # Register authentication check callback (SECURITY FIX)
+                def auth_check_callback():
+                    """
+                    Check if user is authenticated.
+                    Called by state machine BEFORE starting frame collection.
+                    """
+                    import os
+                    token_path = os.path.join(os.path.expanduser("~"), ".airclick-token")
+
+                    if not os.path.exists(token_path):
+                        return False
+
+                    try:
+                        with open(token_path, 'r') as f:
+                            token = f.read().strip()
+
+                        if not token:
+                            return False
+
+                        # Quick validation - just check if token exists and is not empty
+                        # Full validation happens in gesture_match_callback
+                        return True
+
+                    except Exception as e:
+                        logger.error(f"Auth check error: {e}")
+                        return False
+
+                # Register the auth check callback
+                hybrid_controller.state_machine.set_auth_check_callback(auth_check_callback)
+
+                # Register gesture matching callback (PHASE 3 FIX)
+                def gesture_match_callback(frames):
+                    """
+                    Callback for gesture matching during hybrid mode.
+                    Called by state machine when 60 frames are collected.
+
+                    SECURITY: Requires user authentication via token file.
+                    """
+                    try:
+                        # Read token from file (same method as Electron overlay)
+                        import os
+                        token_path = os.path.join(os.path.expanduser("~"), ".airclick-token")
+
+                        if not os.path.exists(token_path):
+                            logger.warning("❌ No auth token found - gesture matching disabled")
+                            return {"matched": False, "reason": "Authentication required", "authenticated": False}
+
+                        try:
+                            with open(token_path, 'r') as f:
+                                token = f.read().strip()
+                        except Exception as e:
+                            logger.error(f"Failed to read token file: {e}")
+                            return {"matched": False, "reason": "Authentication error", "authenticated": False}
+
+                        if not token:
+                            logger.warning("❌ Empty token - gesture matching disabled")
+                            return {"matched": False, "reason": "Invalid token", "authenticated": False}
+
+                        # Validate token and get user
+                        from app.core.security import verify_token
+                        from app.models.user import User
+
+                        try:
+                            payload = verify_token(token)
+                            user_id = payload.get("user_id")
+
+                            if not user_id:
+                                logger.warning("❌ Invalid token payload - no user_id")
+                                return {"matched": False, "reason": "Invalid token", "authenticated": False}
+
+                        except Exception as e:
+                            logger.warning(f"❌ Token validation failed: {e}")
+                            return {"matched": False, "reason": "Invalid or expired token", "authenticated": False}
+
+                        logger.info(f"✅ User authenticated: user_id={user_id}")
+
+                        db = SessionLocal()
+                        try:
+                            # Import here to avoid circular dependency
+                            from app.models.gesture import Gesture
+
+                            # Get ONLY the authenticated user's gestures (SECURITY FIX)
+                            gestures = db.query(Gesture).filter(Gesture.user_id == user_id).all()
+
+                            if not gestures:
+                                logger.warning("No gestures found for matching")
+                                return {"matched": False, "reason": "No gestures in database"}
+
+                            # Convert to list format for matcher
+                            gestures_list = []
+                            for g in gestures:
+                                gesture_dict = {
+                                    'id': g.id,
+                                    'name': g.name,
+                                    'landmark_data': g.landmark_data  # Should contain 'frames' key
+                                }
+                                gestures_list.append(gesture_dict)
+
+                            # Match gesture
+                            matcher = get_gesture_matcher()
+                            result = matcher.match_gesture(frames, gestures_list)
+
+                            # Result is Optional[Tuple[Dict, float]]
+                            if result:
+                                matched_gesture, similarity = result
+                                logger.info(f"✅ Gesture matched: {matched_gesture['name']} (similarity: {similarity:.1%})")
+                                return {
+                                    "matched": True,
+                                    "gesture_name": matched_gesture['name'],
+                                    "gesture_id": matched_gesture.get('id'),
+                                    "similarity": similarity
+                                }
+                            else:
+                                logger.debug("No gesture match found")
+                                return {"matched": False, "similarity": 0.0}
+
+                        finally:
+                            db.close()
+
+                    except Exception as e:
+                        logger.error(f"Gesture match callback error: {e}")
+                        return {"matched": False, "error": str(e)}
+
+                # Register the callback
+                hybrid_controller.set_gesture_match_callback(gesture_match_callback)
                 hybrid_controller.enable_hybrid_mode()
-                logger.info(f"✅ Hybrid mode ENABLED for client {client_id}")
+                logger.info(f"✅ Hybrid mode ENABLED for client {client_id} with gesture matching")
+
             except Exception as e:
                 logger.error(f"Failed to initialize hybrid mode: {e}")
                 hybrid_mode = False

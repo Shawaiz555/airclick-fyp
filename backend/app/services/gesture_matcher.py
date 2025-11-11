@@ -169,57 +169,56 @@ class GestureMatcher:
 
         return max_dist
 
-    def extract_features(self, frames: List[Dict]) -> np.ndarray:
+    def extract_features(self, frames: List[Dict], for_matching: bool = True) -> np.ndarray:
         """
-        Extract feature vectors from gesture frames with Phase 1 preprocessing.
+        Extract feature vectors from gesture frames with Phase 1 & 2 preprocessing.
+
+        CRITICAL FIX: Now uses standardized preprocessing with frame resampling.
 
         Pipeline:
-        1. Optional: Apply temporal smoothing (One Euro Filter)
-        2. Optional: Apply Procrustes + bone-length normalization
-        3. Flatten landmarks to feature vectors (21 × 3 = 63 features)
-        4. Apply z-score normalization
+        1. Resample to EXACTLY 60 frames (Phase 1 fix)
+        2. Apply stateful/stateless smoothing (Phase 2 fix)
+        3. Apply Procrustes + bone-length normalization
+        4. Flatten to feature vectors (21 × 3 = 63 features)
 
         Args:
             frames: List of frame dictionaries with landmarks
+            for_matching: If True, use stateful preprocessing (matching mode)
+                         If False, use stateless preprocessing (recording mode)
 
         Returns:
-            numpy array of shape (num_frames, 63) - 21 landmarks * 3 coordinates
+            numpy array of shape (60, 63) - FIXED frame count for DTW
         """
-        # Step 1: Apply temporal smoothing if enabled
-        if self.enable_smoothing:
-            frames = smooth_gesture_frames(
-                frames,
-                method='one_euro',
-                min_cutoff=1.0,
-                beta=0.007
-            )
+        from app.services.gesture_preprocessing import preprocess_for_matching, preprocess_for_recording
 
-        # Step 2: Apply advanced preprocessing if enabled
-        if self.enable_preprocessing:
-            try:
-                # Preprocess frames: Procrustes + bone-length normalization
-                normalized_landmarks, metadata = self.preprocessor.preprocess_frames(
+        # PHASE 1 & 2 FIX: Use new preprocessing wrappers
+        try:
+            if for_matching:
+                # Matching mode: Preserve filter state for smooth tracking
+                features = preprocess_for_matching(
                     frames,
-                    apply_procrustes=True,
-                    apply_bone_normalization=True,
-                    remove_outliers=True
+                    target_frames=60,
+                    apply_smoothing=self.enable_smoothing,
+                    apply_procrustes=self.enable_preprocessing,
+                    apply_bone_normalization=self.enable_preprocessing
+                )
+            else:
+                # Recording mode: Reset filters for consistent recording
+                features = preprocess_for_recording(
+                    frames,
+                    target_frames=60,
+                    apply_smoothing=self.enable_smoothing,
+                    apply_procrustes=self.enable_preprocessing,
+                    apply_bone_normalization=self.enable_preprocessing
                 )
 
-                # Flatten to feature vectors
-                features = self.preprocessor.flatten_landmarks(normalized_landmarks)
+            logger.debug(f"✅ Feature extraction complete: {features.shape} (fixed 60 frames)")
+            return features
 
-                logger.debug(f"Preprocessing: {metadata['original_frames']} → {metadata['final_frames']} frames, "
-                           f"{metadata['outliers_removed']} outliers removed")
-
-            except Exception as e:
-                logger.warning(f"Preprocessing failed: {e}, falling back to basic extraction")
-                # Fallback to basic extraction
-                features = self._extract_features_basic(frames)
-        else:
-            # Use basic extraction (original method)
-            features = self._extract_features_basic(frames)
-
-        return features
+        except Exception as e:
+            logger.error(f"❌ New preprocessing failed: {e}, falling back to basic extraction")
+            # Fallback to old method
+            return self._extract_features_basic_with_resampling(frames)
 
     def _extract_features_basic(self, frames: List[Dict]) -> np.ndarray:
         """
@@ -244,6 +243,26 @@ class GestureMatcher:
             features.append(frame_features)
 
         return np.array(features)
+
+    def _extract_features_basic_with_resampling(self, frames: List[Dict]) -> np.ndarray:
+        """
+        Basic feature extraction with resampling fallback.
+
+        Args:
+            frames: List of frame dictionaries with landmarks
+
+        Returns:
+            numpy array of shape (60, 63) - resampled to fixed count
+        """
+        from app.services.frame_resampler import resample_frames_linear
+
+        # Resample to 60 frames
+        if len(frames) != 60:
+            frames = resample_frames_linear(frames, target_frames=60)
+            logger.info(f"Fallback resampling: {len(frames)} → 60 frames")
+
+        # Basic extraction
+        return self._extract_features_basic(frames)
 
     def normalize_sequence(self, sequence: np.ndarray) -> np.ndarray:
         """

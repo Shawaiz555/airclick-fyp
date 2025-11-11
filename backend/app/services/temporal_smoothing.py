@@ -424,3 +424,32 @@ def get_landmark_smoother() -> LandmarkSmoother:
         )
 
     return _smoother_instance
+
+
+def reset_temporal_filters():
+    """
+    Reset all temporal filters to clean state.
+
+    CRITICAL for consistent preprocessing:
+    - Call this BEFORE recording a new gesture (stateless recording)
+    - Do NOT call during live matching (preserve filter state)
+
+    This ensures recorded gestures have consistent preprocessing,
+    regardless of what was happening before the recording started.
+    """
+    global _smoother_instance
+
+    if _smoother_instance is not None:
+        _smoother_instance.reset()
+        logger.info("✅ Temporal filters reset (clean state for recording)")
+    else:
+        logger.debug("No smoother instance to reset")
+
+
+def ensure_smoother_initialized():
+    """
+    Ensure the global smoother exists without resetting it.
+
+    Use this for live matching to preserve filter state.
+    """
+    return get_landmark_smoother()
