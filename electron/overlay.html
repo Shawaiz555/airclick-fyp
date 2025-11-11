@@ -798,6 +798,7 @@
       let matchCooldown = false;
       let isAuthenticated = false; // Track authentication status
       let authChecked = false; // Track if we've checked auth yet
+      let backendStatusReceived = false; // Track if backend sent status message
 
       // Hybrid mode state - dynamic from localStorage
       let hybridModeEnabled = true; // Default to true
@@ -885,13 +886,22 @@
           console.log("✅ Overlay connected to backend");
           statusDot.classList.add("active");
 
-          // Check authentication status immediately on connection
-          checkAuthentication();
+          // Reset flag to allow new backend status
+          backendStatusReceived = false;
+
+          // Don't check authentication here - wait for backend status message
+          // The backend will send a status message immediately after connection
         };
 
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
+
+            // Handle status messages from backend (authentication/gesture count check)
+            if (data.status) {
+              handleStatusMessage(data);
+              return; // Don't process as hand data
+            }
 
             // Update hand detection
             const handsDetected = data.hand_count > 0;
@@ -1024,15 +1034,16 @@
       }, 500);
 
       // Poll token file for changes (every 2 seconds)
-      // This detects when user logs out in the web app
+      // This detects when user logs in/out or gesture count changes
       const tokenPath = path.join(os.homedir(), ".airclick-token");
 
       let lastTokenFileExists = fs.existsSync(tokenPath);
       let lastTokenContent = lastTokenFileExists
         ? fs.readFileSync(tokenPath, "utf8").trim()
         : null;
+      let lastGestureCount = null;
 
-      setInterval(() => {
+      setInterval(async () => {
         try {
           const currentFileExists = fs.existsSync(tokenPath);
           const currentTokenContent = currentFileExists
@@ -1040,12 +1051,12 @@
             : null;
 
           // Check if file was deleted or token content changed
-          if (
-            currentFileExists !== lastTokenFileExists ||
-            currentTokenContent !== lastTokenContent
-          ) {
+          const tokenChanged = currentFileExists !== lastTokenFileExists ||
+                              currentTokenContent !== lastTokenContent;
+
+          if (tokenChanged) {
             console.log(
-              `🔑 Token file changed - Re-checking authentication...`
+              `🔑 Token file changed - Reconnecting WebSocket...`
             );
             console.log(
               `   File exists: ${lastTokenFileExists} → ${currentFileExists}`
@@ -1056,8 +1067,42 @@
 
             lastTokenFileExists = currentFileExists;
             lastTokenContent = currentTokenContent;
-            authChecked = false; // Reset flag to force re-check
-            checkAuthentication();
+
+            // Reconnect WebSocket to trigger backend status check
+            connectWebSocket();
+            return;
+          }
+
+          // If token exists, check gesture count changes
+          if (currentFileExists && currentTokenContent) {
+            try {
+              const response = await fetch('http://localhost:8000/api/gestures/', {
+                headers: {
+                  'Authorization': `Bearer ${currentTokenContent}`
+                }
+              });
+
+              if (response.ok) {
+                const gestures = await response.json();
+                const currentGestureCount = gestures.length;
+
+                if (lastGestureCount !== null && currentGestureCount !== lastGestureCount) {
+                  console.log(
+                    `📊 Gesture count changed: ${lastGestureCount} → ${currentGestureCount} - Reconnecting...`
+                  );
+
+                  // Reconnect to get updated status
+                  connectWebSocket();
+                }
+
+                lastGestureCount = currentGestureCount;
+              }
+            } catch (err) {
+              // Silently ignore gesture count check errors
+              console.debug('Could not check gesture count:', err.message);
+            }
+          } else {
+            lastGestureCount = null;
           }
         } catch (err) {
           console.warn("⚠️ Error checking token file:", err.message);
@@ -1419,9 +1464,64 @@
         }
       }
 
+      // Handle status messages from backend (auth/gesture count)
+      function handleStatusMessage(data) {
+        console.log(`📊 Status message received:`, data);
+        backendStatusReceived = true; // Mark that backend sent us status
+
+        if (data.status === "disabled") {
+          // Hybrid mode disabled - update UI based on reason
+          isAuthenticated = false;
+
+          // Update auth status badge with specific reason
+          let badgeText = "DISABLED";
+          let tooltipText = data.message || "Unknown reason";
+
+          switch (data.reason) {
+            case "no_gestures":
+              badgeText = "DISABLED (No Gestures)";
+              tooltipText = "Record gestures in the web app to enable matching";
+              console.log(`⚠️ Gesture matching disabled: No gestures recorded (count: ${data.gesture_count || 0})`);
+              break;
+            case "not_authenticated":
+              badgeText = "DISABLED (Login Required)";
+              tooltipText = "Log in through the web app to enable gesture matching";
+              console.log("⚠️ Gesture matching disabled: Not authenticated");
+              break;
+            case "invalid_token":
+              badgeText = "DISABLED (Invalid Token)";
+              tooltipText = "Please log in again";
+              console.log("⚠️ Gesture matching disabled: Invalid or expired token");
+              break;
+            case "error":
+              badgeText = "DISABLED (Error)";
+              tooltipText = data.message;
+              console.log(`⚠️ Gesture matching disabled: ${data.message}`);
+              break;
+          }
+
+          // Update UI
+          authStatus.innerHTML = `<span class="status-badge error" title="${tooltipText}">${badgeText}</span>`;
+
+        } else if (data.status === "enabled") {
+          // Hybrid mode enabled successfully
+          isAuthenticated = true;
+          const gestureCount = data.gesture_count || "?";
+          console.log(`✅ Gesture matching enabled with ${gestureCount} gesture(s)`);
+
+          authStatus.innerHTML = `<span class="status-badge success" title="${gestureCount} gesture(s) available">ENABLED</span>`;
+        }
+      }
+
       // Match gesture with backend API
       // Check if user is authenticated by validating token with backend
       async function checkAuthentication() {
+        // If backend already sent status, don't overwrite it with local check
+        if (backendStatusReceived) {
+          console.log("⏭️ Skipping local auth check - using backend status");
+          return;
+        }
+
         try {
           // ALWAYS check the token file first (source of truth)
           let token = null;

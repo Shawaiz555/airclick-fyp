@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { clearTokenForElectron } from '@/utils/tokenSync';
+import { clearTokenForElectron, saveTokenForElectron } from '@/utils/tokenSync';
 
 const AuthContext = createContext();
 
@@ -21,14 +21,33 @@ export function AuthProvider({ children }) {
     const savedToken = localStorage.getItem('token');
     if (savedUser && savedToken) {
       setUser(JSON.parse(savedUser));
+
+      // Sync token to file system for Electron overlay
+      console.log('🔄 Syncing token to file system...');
+      saveTokenForElectron(savedToken)
+        .then(() => console.log('✅ Token synced successfully'))
+        .catch(err => {
+          console.error('❌ Failed to sync token on startup:', err);
+          console.error('Error details:', err.message, err.stack);
+        });
     }
     setLoading(false);
   }, []);
 
-  const login = (userData, token) => {
+  const login = async (userData, token) => {
     setUser(userData);
     localStorage.setItem('currentUser', JSON.stringify(userData));
     localStorage.setItem('token', token);
+
+    // Save token for Electron overlay
+    console.log('🔄 Saving token for Electron overlay...');
+    try {
+      await saveTokenForElectron(token);
+      console.log('✅ Token saved for Electron overlay');
+    } catch (err) {
+      console.error('❌ Failed to save token for Electron:', err);
+      console.error('Error details:', err.message, err.stack);
+    }
 
     // Redirect based on role
     if (userData.role === 'ADMIN') {

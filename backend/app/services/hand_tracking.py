@@ -202,34 +202,114 @@ class HandTrackingService:
                 from sqlalchemy.orm import Session
                 from app.core.database import SessionLocal
 
-                hybrid_controller = get_hybrid_mode_controller()
+                # CHECK 1: Verify user is authenticated and has gestures
+                # NOTE: Cursor control always works in hybrid mode
+                # Only gesture matching is disabled without authentication
+                import os
+                token_path = os.path.join(os.path.expanduser("~"), ".airclick-token")
 
-                # Register authentication check callback (SECURITY FIX)
-                def auth_check_callback():
-                    """
-                    Check if user is authenticated.
-                    Called by state machine BEFORE starting frame collection.
-                    """
-                    import os
-                    token_path = os.path.join(os.path.expanduser("~"), ".airclick-token")
+                gesture_matching_enabled = False  # Track if gesture matching should work
 
-                    if not os.path.exists(token_path):
-                        return False
-
+                if not os.path.exists(token_path):
+                    # No token file - cursor works, but no gesture matching
+                    logger.warning("⚠️ No authentication token found - gesture matching disabled (cursor still works)")
+                    await websocket.send_text(json.dumps({
+                        "status": "disabled",
+                        "reason": "not_authenticated",
+                        "message": "Authentication required"
+                    }))
+                    gesture_matching_enabled = False
+                else:
+                    # Token exists - check if user has gestures
                     try:
                         with open(token_path, 'r') as f:
                             token = f.read().strip()
 
                         if not token:
-                            return False
+                            logger.warning("⚠️ Empty token - gesture matching disabled (cursor still works)")
+                            await websocket.send_text(json.dumps({
+                                "status": "disabled",
+                                "reason": "not_authenticated",
+                                "message": "Authentication required"
+                            }))
+                            gesture_matching_enabled = False
+                        else:
+                            # Validate token and check gesture count
+                            from app.core.security import decode_access_token
+                            from app.models.gesture import Gesture
 
-                        # Quick validation - just check if token exists and is not empty
-                        # Full validation happens in gesture_match_callback
-                        return True
+                            payload = decode_access_token(token)
+                            if not payload:
+                                logger.warning("⚠️ Invalid token - gesture matching disabled (cursor still works)")
+                                await websocket.send_text(json.dumps({
+                                    "status": "disabled",
+                                    "reason": "invalid_token",
+                                    "message": "Invalid or expired token"
+                                }))
+                                gesture_matching_enabled = False
+                            else:
+                                # JWT tokens use "sub" for user ID, not "user_id"
+                                user_id = payload.get("sub") or payload.get("user_id")
+                                if not user_id:
+                                    logger.warning("⚠️ No user_id in token - gesture matching disabled (cursor still works)")
+                                    await websocket.send_text(json.dumps({
+                                        "status": "disabled",
+                                        "reason": "invalid_token",
+                                        "message": "Invalid token"
+                                    }))
+                                    gesture_matching_enabled = False
+                                else:
+                                    # Check gesture count
+                                    db = SessionLocal()
+                                    try:
+                                        gesture_count = db.query(Gesture).filter(Gesture.user_id == user_id).count()
+
+                                        if gesture_count == 0:
+                                            # No gestures - cursor works but no gesture matching
+                                            logger.warning(f"⚠️ User {user_id} has no gestures - gesture matching disabled (cursor still works)")
+                                            await websocket.send_text(json.dumps({
+                                                "status": "disabled",
+                                                "reason": "no_gestures",
+                                                "message": "No gestures recorded",
+                                                "gesture_count": 0
+                                            }))
+                                            gesture_matching_enabled = False
+                                        else:
+                                            # User has gestures - enable gesture matching
+                                            logger.info(f"✅ User {user_id} has {gesture_count} gesture(s) - enabling gesture matching")
+                                            await websocket.send_text(json.dumps({
+                                                "status": "enabled",
+                                                "reason": "ready",
+                                                "message": "Gesture matching enabled",
+                                                "gesture_count": gesture_count
+                                            }))
+                                            gesture_matching_enabled = True
+                                    finally:
+                                        db.close()
 
                     except Exception as e:
-                        logger.error(f"Auth check error: {e}")
-                        return False
+                        logger.error(f"Error checking authentication: {e}")
+                        await websocket.send_text(json.dumps({
+                            "status": "disabled",
+                            "reason": "error",
+                            "message": f"Authentication check failed: {str(e)}"
+                        }))
+                        gesture_matching_enabled = False
+
+                # ALWAYS initialize hybrid controller (for cursor control)
+                # Gesture matching will be conditionally enabled based on authentication
+                hybrid_controller = get_hybrid_mode_controller()
+
+                # Register authentication check callback (SECURITY FIX)
+                # Use closure to capture gesture_matching_enabled value
+                def auth_check_callback():
+                    """
+                    Check if user is authenticated AND has gestures to match.
+                    Called by state machine BEFORE starting frame collection.
+
+                    Returns the gesture_matching_enabled flag determined at connection time.
+                    """
+                    return gesture_matching_enabled
 
                 # Register the auth check callback
                 hybrid_controller.state_machine.set_auth_check_callback(auth_check_callback)
@@ -263,13 +343,17 @@ class HandTrackingService:
                             return {"matched": False, "reason": "Invalid token", "authenticated": False}
 
                         # Validate token and get user
-                        from app.core.security import verify_token
+                        from app.core.security import decode_access_token
                         from app.models.user import User
 
                         try:
-                            payload = verify_token(token)
-                            user_id = payload.get("user_id")
+                            payload = decode_access_token(token)
+                            if not payload:
+                                logger.warning("❌ Invalid or expired token")
+                                return {"matched": False, "reason": "Invalid token", "authenticated": False}
 
+                            # JWT tokens use "sub" for user ID
+                            user_id = payload.get("sub") or payload.get("user_id")
                             if not user_id:
                                 logger.warning("❌ Invalid token payload - no user_id")
                                 return {"matched": False, "reason": "Invalid token", "authenticated": False}

@@ -41,7 +41,7 @@ export const clearTokenForElectron = async () => {
       window.electronAPI.send('clear-token');
     } else {
       // If running in browser, call a backend endpoint to clear it
-      await fetch('http://localhost:3001/clear-token', {
+      await fetch('http://localhost:8000/api/auth/clear-token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

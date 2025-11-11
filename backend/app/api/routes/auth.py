@@ -36,6 +36,7 @@ from app.schemas.user import (
     ResetPasswordRequest, ResetPasswordResponse,
     VerifyResetTokenRequest, VerifyResetTokenResponse
 )
+from pydantic import BaseModel
 
 load_dotenv()
 router = APIRouter()
@@ -647,3 +648,116 @@ def verify_reset_token(
         valid=True,
         message="Token is valid"
     )
+
+
+# ============================================
+# ELECTRON OVERLAY TOKEN MANAGEMENT
+# ============================================
+
+class SaveTokenRequest(BaseModel):
+    """Request schema for saving token to file"""
+    token: str
+
+
+@router.post("/save-token")
+async def save_token_for_electron(
+    request: SaveTokenRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Save authentication token to file for Electron overlay access.
+
+    This endpoint writes the JWT token to ~/.airclick-token so that the
+    Electron overlay can authenticate WebSocket connections and match gestures.
+
+    Security:
+        - Requires valid JWT token (user must be authenticated)
+        - Token file is created with user-only permissions (0600)
+        - Only the current user's token can be saved
+
+    Args:
+        request: Contains token to save
+        current_user: Authenticated user from JWT
+
+    Returns:
+        Success message
+
+    Example:
+        POST /api/auth/save-token
+        Headers: Authorization: Bearer <jwt_token>
+        {
+            "token": "eyJhbGci..."
+        }
+    """
+    try:
+        # Get home directory path
+        token_path = os.path.join(os.path.expanduser("~"), ".airclick-token")
+
+        # Write token to file
+        with open(token_path, 'w') as f:
+            f.write(request.token)
+
+        # Set file permissions to user-only (Unix-like systems)
+        try:
+            os.chmod(token_path, 0o600)  # rw-------
+        except Exception:
+            # Windows doesn't support chmod, ignore
+            pass
+
+        return {
+            "success": True,
+            "message": "Token saved successfully for Electron overlay",
+            "path": token_path
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save token: {str(e)}"
+        )
+
+
+@router.post("/clear-token")
+async def clear_token_for_electron():
+    """
+    Clear authentication token file for Electron overlay.
+
+    This endpoint deletes the ~/.airclick-token file when user logs out,
+    ensuring the Electron overlay stops gesture matching.
+
+    Security:
+        - No authentication required (logout should always work)
+        - Only deletes the token file (no other files affected)
+        - Silent failure if file doesn't exist (idempotent)
+
+    Returns:
+        Success message
+
+    Example:
+        POST /api/auth/clear-token
+    """
+    try:
+        # Get home directory path
+        token_path = os.path.join(os.path.expanduser("~"), ".airclick-token")
+
+        # Delete token file if it exists
+        if os.path.exists(token_path):
+            os.remove(token_path)
+            return {
+                "success": True,
+                "message": "Token cleared successfully",
+                "path": token_path
+            }
+        else:
+            # File doesn't exist - that's fine (already logged out)
+            return {
+                "success": True,
+                "message": "Token file already cleared",
+                "path": token_path
+            }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to clear token: {str(e)}"
+        )
