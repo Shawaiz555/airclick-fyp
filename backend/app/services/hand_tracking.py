@@ -604,12 +604,14 @@ class HandTrackingService:
 
             # Remove client from set
             self.clients.discard(websocket)
-            logger.info(f"✓ Total clients: {len(self.clients)}")
+            logger.info(f"✓ Client disconnected - remaining clients: {len(self.clients)}")
 
-            # Close camera if this was the last client
+            # IMPORTANT: Keep camera open even when all clients disconnect
+            # Camera will only close on backend shutdown or explicit cleanup
+            # This prevents reopening delays when switching between home page and Electron overlay
             if len(self.clients) == 0:
-                self._close_camera()
-                logger.info("📹 All clients disconnected - camera released")
+                logger.info("📹 All clients disconnected - keeping camera open for quick reconnection")
+                logger.info("💡 Camera will remain open until backend shutdown")
 
 
     def cleanup(self):

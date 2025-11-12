@@ -213,11 +213,11 @@ export default function Home() {
       wsRef.current.close();
     }
 
-    // PHASE 4: Home page ALWAYS uses gesture-only mode (no cursor control)
-    // For hybrid mode with cursor control, use Electron overlay instead
-    const wsUrl = 'ws://localhost:8000/ws/hand-tracking';  // Gesture-only mode
+    // Use hybrid mode endpoint to share camera with Electron overlay
+    // This prevents camera closing/reopening delays when switching between home page and overlay
+    const wsUrl = 'ws://localhost:8000/ws/hand-tracking-hybrid';  // Hybrid mode (shares camera)
 
-    logger.info(`Connecting to WebSocket: ${wsUrl} (GESTURE-ONLY MODE - Phase 4)`);
+    logger.info(`Connecting to WebSocket: ${wsUrl} (HYBRID MODE - Shares camera with overlay)`);
 
     // Create new WebSocket connection to FastAPI backend
     const ws = new WebSocket(wsUrl);
