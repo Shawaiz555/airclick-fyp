@@ -81,20 +81,40 @@ def resample_frames_linear(frames: List[Dict], target_frames: int = 60) -> List[
             logger.error(f"Invalid landmark count: {len(landmarks_i)}, {len(landmarks_j)}")
             continue
 
-        for lm_i, lm_j in zip(landmarks_i, landmarks_j):
+        for idx, (lm_i, lm_j) in enumerate(zip(landmarks_i, landmarks_j)):
             # Linear interpolation: value = (1 - weight) * value_i + weight * value_j
-            # Convert to float to handle both numeric and string values
+            # Handle both dict format {'x': ..., 'y': ..., 'z': ...} and list format [x, y, z]
+            if isinstance(lm_i, dict):
+                x_i, y_i, z_i = float(lm_i['x']), float(lm_i['y']), float(lm_i['z'])
+            else:
+                x_i, y_i, z_i = float(lm_i[0]), float(lm_i[1]), float(lm_i[2])
+            if isinstance(lm_j, dict):
+                x_j, y_j, z_j = float(lm_j['x']), float(lm_j['y']), float(lm_j['z'])
+            else:
+                x_j, y_j, z_j = float(lm_j[0]), float(lm_j[1]), float(lm_j[2])
+
             interpolated_landmarks.append({
-                'x': float((1 - weight) * float(lm_i['x']) + weight * float(lm_j['x'])),
-                'y': float((1 - weight) * float(lm_i['y']) + weight * float(lm_j['y'])),
-                'z': float((1 - weight) * float(lm_i['z']) + weight * float(lm_j['z']))
+                'x': float((1 - weight) * x_i + weight * x_j),
+                'y': float((1 - weight) * y_i + weight * y_j),
+                'z': float((1 - weight) * z_i + weight * z_j)
             })
 
-        # Interpolate other fields
-        interpolated_timestamp = int((1 - weight) * frame_i.get('timestamp', 0) +
-                                     weight * frame_j.get('timestamp', 0))
-        interpolated_confidence = float((1 - weight) * frame_i.get('confidence', 1.0) +
-                                       weight * frame_j.get('confidence', 1.0))
+        # Interpolate other fields - handle both numeric and string timestamps
+        try:
+            timestamp_i = int(frame_i.get('timestamp', 0)) if frame_i.get('timestamp') else 0
+            timestamp_j = int(frame_j.get('timestamp', 0)) if frame_j.get('timestamp') else 0
+            interpolated_timestamp = int((1 - weight) * timestamp_i + weight * timestamp_j)
+        except (TypeError, ValueError) as e:
+            # If timestamp conversion fails, use current time
+            import time
+            interpolated_timestamp = int(time.time() * 1000)
+
+        try:
+            confidence_i = float(frame_i.get('confidence', 1.0))
+            confidence_j = float(frame_j.get('confidence', 1.0))
+            interpolated_confidence = float((1 - weight) * confidence_i + weight * confidence_j)
+        except (TypeError, ValueError):
+            interpolated_confidence = 1.0
 
         # Create interpolated frame
         resampled_frame = {

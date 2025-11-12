@@ -365,11 +365,17 @@ class HybridStateMachine:
 
                 # Trigger match callback if provided
                 if match_callback:
+                    logger.info(f"🎯 Calling gesture match callback with {len(self.collected_frames)} frames...")
                     try:
                         self.last_match_result = match_callback(self.collected_frames)
+                        logger.info(f"✅ Match callback returned: {self.last_match_result}")
                     except Exception as e:
-                        logger.error(f"Match callback error: {e}")
+                        logger.error(f"❌ Match callback error: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
                         self.last_match_result = {"error": str(e)}
+                else:
+                    logger.warning("⚠️ No match callback provided! Gesture matching skipped.")
 
             # Check if MAX frames collected (timeout)
             elif len(self.collected_frames) >= self.collection_frame_count:
@@ -380,11 +386,17 @@ class HybridStateMachine:
 
                 # Trigger match callback if provided
                 if match_callback:
+                    logger.info(f"🎯 Calling gesture match callback with {len(self.collected_frames)} frames...")
                     try:
                         self.last_match_result = match_callback(self.collected_frames)
+                        logger.info(f"✅ Match callback returned: {self.last_match_result}")
                     except Exception as e:
-                        logger.error(f"Match callback error: {e}")
+                        logger.error(f"❌ Match callback error: {e}")
+                        import traceback
+                        logger.error(traceback.format_exc())
                         self.last_match_result = {"error": str(e)}
+                else:
+                    logger.warning("⚠️ No match callback provided! Gesture matching skipped.")
 
         elif self.state == HybridState.MATCHING:
             # Matching is handled by callback, transition immediately to IDLE
@@ -463,6 +475,59 @@ class HybridStateMachine:
         """
         self.auth_check_callback = callback
         logger.info("Authentication check callback registered")
+
+    def handle_no_hand_detected(self, match_callback: Optional[callable] = None) -> Dict:
+        """
+        Handle the case when no hand is detected in the frame.
+
+        If currently COLLECTING frames, this triggers the gesture matching immediately
+        (as long as minimum frames have been collected).
+
+        This allows instant gesture matching when user moves hand away from camera
+        instead of waiting for hand to reappear.
+
+        Args:
+            match_callback: Optional callback function to execute matching
+
+        Returns:
+            Dictionary with state machine metadata including match result if triggered
+        """
+        current_time = time.time()
+
+        # If we're collecting and have minimum frames, trigger matching NOW
+        if self.state == HybridState.COLLECTING and len(self.collected_frames) >= self.min_collection_frames:
+            logger.info(f"👋 Hand moved away from camera - triggering gesture match with {len(self.collected_frames)} frames")
+
+            # Transition to MATCHING state
+            self.state = HybridState.MATCHING
+            self.matching_start_time = current_time
+
+            # Execute the match callback if provided
+            if match_callback:
+                logger.info(f"🎯 Calling gesture match callback with {len(self.collected_frames)} frames (hand removed)...")
+                try:
+                    self.last_match_result = match_callback(self.collected_frames)
+                    logger.info(f"✅ Gesture matching complete: {self.last_match_result}")
+                except Exception as e:
+                    logger.error(f"❌ Match callback error: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    self.last_match_result = {"error": str(e)}
+            else:
+                logger.warning("⚠️ No match callback provided for hand removal trigger!")
+
+            # Return metadata showing we're now matching with result
+            return {
+                'state': self.state.value,
+                'cursor_enabled': False,
+                'collected_count': len(self.collected_frames),
+                'trigger': 'hand_removed',
+                'match_result': self.last_match_result,
+                'message': f'Gesture matching triggered (hand removed with {len(self.collected_frames)} frames)'
+            }
+
+        # If in other states, just return current state info
+        return self.get_state_info()
 
     def force_cursor_mode(self):
         """Force transition back to CURSOR_ONLY mode (emergency reset)."""

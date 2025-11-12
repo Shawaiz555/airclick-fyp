@@ -163,7 +163,8 @@ export default function CustomGestureManagement() {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/gestures/', {
+      // Optimize: Don't load landmark data for list view (reduces payload by ~90%)
+      const response = await fetch('http://localhost:8000/api/gestures/?include_landmarks=false', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

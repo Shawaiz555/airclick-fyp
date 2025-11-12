@@ -114,10 +114,32 @@ def record_gesture(
 @router.get("/", response_model=List[GestureResponse])
 def get_user_gestures(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    include_landmarks: bool = True
 ):
-    """Get all gestures for the current user."""
-    gestures = db.query(Gesture).filter(Gesture.user_id == current_user.id).order_by(Gesture.created_at.desc()).all()
+    """
+    Get all gestures for the current user.
+
+    Args:
+        include_landmarks: If False, excludes landmark data for faster response
+    """
+    # Use query optimization: only load what's needed
+    query = db.query(Gesture).filter(
+        Gesture.user_id == current_user.id
+    ).order_by(Gesture.created_at.desc())
+
+    gestures = query.all()
+
+    # If landmarks not needed, remove them from response to reduce payload size
+    if not include_landmarks:
+        for gesture in gestures:
+            # Keep metadata but remove the large frames array
+            if gesture.landmark_data and 'frames' in gesture.landmark_data:
+                gesture.landmark_data = {
+                    'metadata': gesture.landmark_data.get('metadata', {}),
+                    'frames': []  # Empty array to reduce response size
+                }
+
     return gestures
 
 @router.put("/{gesture_id}", response_model=GestureResponse)

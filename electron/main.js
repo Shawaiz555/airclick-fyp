@@ -72,7 +72,7 @@ function createOverlay() {
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   // Optional: Open DevTools for debugging
-  // overlayWindow.webContents.openDevTools({ mode: 'detach' });
+  overlayWindow.webContents.openDevTools({ mode: 'detach' });
 
   console.log('✅ Overlay window created');
 }

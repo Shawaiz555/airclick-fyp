@@ -165,7 +165,8 @@ export default function Home() {
   const loadUserGestures = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/api/gestures/', {
+      // Optimize: Load with landmarks for gesture matching
+      const response = await fetch('http://localhost:8000/api/gestures/?include_landmarks=true', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

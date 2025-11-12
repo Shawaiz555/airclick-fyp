@@ -21,6 +21,7 @@ import logging
 from datetime import datetime
 from typing import Optional, Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
+from app.services.hybrid_state_machine import HybridState
 
 # Configure logging for debugging and monitoring
 logger = logging.getLogger(__name__)
@@ -49,7 +50,8 @@ class HandTrackingService:
         """
         logger.info("Initializing Hand Tracking Service...")
 
-        # Initialize MediaPipe Hands
+        # Initialize MediaPipe immediately at startup
+        logger.info("🔧 Loading MediaPipe Hands model...")
         self.mp_hands = mp.solutions.hands
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_drawing_styles = mp.solutions.drawing_styles
@@ -61,9 +63,27 @@ class HandTrackingService:
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5
         )
+        logger.info("✅ MediaPipe Hands loaded successfully")
 
-        # Initialize camera capture
-        self.cap = cv2.VideoCapture(camera_index)
+        # Store camera index for lazy initialization
+        self.camera_index = camera_index
+        self.cap = None  # Will be initialized when first client connects
+
+        # Store connected WebSocket clients
+        self.clients: Set[WebSocket] = set()
+
+        # Service running flag
+        self.is_running = False
+
+        logger.info("✓ Hand Tracking Service initialized")
+
+    def _open_camera(self):
+        """Open the camera if not already open."""
+        if self.cap is not None and self.cap.isOpened():
+            return  # Camera already open
+
+        logger.info(f"📹 Opening camera {self.camera_index}...")
+        self.cap = cv2.VideoCapture(self.camera_index)
 
         # Set camera properties for optimal performance
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -72,16 +92,20 @@ class HandTrackingService:
 
         # Check if camera opened successfully
         if not self.cap.isOpened():
-            logger.error("Failed to open camera!")
+            logger.error("❌ Failed to open camera!")
+            self.cap = None
             raise RuntimeError("Camera not accessible")
 
-        logger.info("✓ Camera initialized successfully")
+        logger.info("✅ Camera opened successfully")
 
-        # Store connected WebSocket clients
-        self.clients: Set[WebSocket] = set()
 
-        # Service running flag
-        self.is_running = False
+    def _close_camera(self):
+        """Close the camera if open."""
+        if self.cap is not None:
+            logger.info("📹 Closing camera...")
+            self.cap.release()
+            self.cap = None
+            logger.info("✅ Camera closed")
 
 
     def process_frame(self) -> Optional[Dict]:
@@ -97,6 +121,11 @@ class HandTrackingService:
         Returns:
             Dictionary containing hand landmarks data, or None if no hands detected
         """
+        # Check if camera is open
+        if self.cap is None or not self.cap.isOpened():
+            logger.warning("Camera not open - cannot process frame")
+            return None
+
         # Read frame from camera
         ret, frame = self.cap.read()
 
@@ -184,14 +213,31 @@ class HandTrackingService:
             websocket: FastAPI WebSocket connection object
             hybrid_mode: Enable hybrid mode (cursor + clicks + gestures)
         """
+        logger.info("="*80)
+        logger.info("🎬 handle_client() CALLED")
+        logger.info(f"   hybrid_mode={hybrid_mode}")
+        logger.info("="*80)
+
         # Accept the WebSocket connection
+        logger.info("📞 About to call websocket.accept()...")
         await websocket.accept()
+        logger.info("✅ websocket.accept() completed")
 
         # Register new client
         self.clients.add(websocket)
         client_id = id(websocket)
         logger.info(f"✓ New client connected: {client_id} (hybrid_mode={hybrid_mode})")
         logger.info(f"✓ Total clients: {len(self.clients)}")
+
+        # Open camera if this is the first client
+        if len(self.clients) == 1:
+            try:
+                self._open_camera()
+            except Exception as e:
+                logger.error(f"Failed to open camera: {e}")
+                self.clients.discard(websocket)
+                await websocket.close(code=1011, reason="Camera initialization failed")
+                return
 
         # Initialize hybrid mode controller if enabled
         hybrid_controller = None
@@ -323,6 +369,8 @@ class HandTrackingService:
 
                 # Register authentication check callback (SECURITY FIX + RECORDING STATE FIX)
                 # Use closure to capture gesture_matching_enabled value
+                auth_block_logged = False  # Track if we've already logged the block reason
+
                 def auth_check_callback():
                     """
                     Check if user is authenticated AND has gestures to match AND not recording.
@@ -333,6 +381,8 @@ class HandTrackingService:
                     - User has no gestures
                     - User is currently recording/updating a gesture (to avoid interference)
                     """
+                    nonlocal auth_block_logged
+
                     # CRITICAL: Check if user is recording a gesture FIRST
                     import os
                     recording_state_path = os.path.join(os.path.expanduser("~"), ".airclick-recording")
@@ -343,17 +393,25 @@ class HandTrackingService:
                                 is_recording = f.read().strip() == "true"
 
                             if is_recording:
-                                logger.warning("⚠️ BLOCKING gesture matching - User is recording/updating a gesture")
+                                if not auth_block_logged:
+                                    logger.warning("⚠️ BLOCKING gesture matching - User is recording/updating a gesture")
+                                    auth_block_logged = True
                                 return False
                     except Exception as e:
                         logger.error(f"Failed to check recording state: {e}")
 
                     # Then check authentication
                     if not gesture_matching_enabled:
-                        logger.warning(f"⚠️ BLOCKING gesture matching - gesture_matching_enabled={gesture_matching_enabled}")
+                        if not auth_block_logged:
+                            logger.warning(f"⚠️ BLOCKING gesture matching - gesture_matching_enabled={gesture_matching_enabled}")
+                            logger.info("💡 TIP: Log in to the web app to enable gesture matching")
+                            auth_block_logged = True
                         return False
 
-                    logger.info("✅ Gesture matching ALLOWED - Starting frame collection")
+                    # Reset flag when authentication succeeds
+                    if auth_block_logged:
+                        logger.info("✅ Gesture matching ALLOWED - Starting frame collection")
+                        auth_block_logged = False
                     return True
 
                 # Register the auth check callback
@@ -488,6 +546,48 @@ class HandTrackingService:
                         logger.error(f"Failed to send frame data to client {client_id}: {send_error}")
                         # Break the loop to exit gracefully if we can't send
                         break
+                else:
+                    # No hands detected - IMPORTANT: Notify state machine to trigger matching if collecting
+                    if hybrid_mode and hybrid_controller:
+                        try:
+                            # LOG: Track no-hand detection during collection
+                            current_state = hybrid_controller.state_machine.state
+                            if current_state == HybridState.COLLECTING:
+                                logger.info(f"🚫 NO HAND detected while COLLECTING ({len(hybrid_controller.state_machine.collected_frames)} frames collected)")
+
+                            # Process "no hand" frame to allow state machine to finish collection
+                            no_hand_result = hybrid_controller.state_machine.handle_no_hand_detected(
+                                match_callback=hybrid_controller.gesture_match_callback
+                            )
+
+                            # If match was triggered, transition to IDLE
+                            if no_hand_result.get('trigger') == 'hand_removed':
+                                # Transition state machine to IDLE after matching
+                                hybrid_controller.state_machine.state = HybridState.IDLE
+                                hybrid_controller.state_machine.idle_start_time = datetime.now().timestamp()
+                                logger.info(f"🎯 Gesture match result: {no_hand_result.get('match_result')}")
+
+                            # Send no hand status to client with match result if available
+                            no_hand_data = {
+                                'timestamp': datetime.now().isoformat(),
+                                'hands': [],
+                                'hand_count': 0,
+                                'frame_size': {'width': 640, 'height': 480},
+                                'hybrid': {
+                                    'success': False,
+                                    'error': 'No hands detected',
+                                    'state_machine': no_hand_result
+                                }
+                            }
+
+                            json_data = json.dumps(no_hand_data)
+                            try:
+                                await websocket.send_text(json_data)
+                            except Exception as send_error:
+                                logger.error(f"Failed to send no-hand frame to client {client_id}: {send_error}")
+                                break
+                        except Exception as e:
+                            logger.error(f"Error handling no hand detection: {e}")
 
                 # Small delay to control frame rate (~30 FPS)
                 await asyncio.sleep(0.033)
@@ -506,6 +606,11 @@ class HandTrackingService:
             self.clients.discard(websocket)
             logger.info(f"✓ Total clients: {len(self.clients)}")
 
+            # Close camera if this was the last client
+            if len(self.clients) == 0:
+                self._close_camera()
+                logger.info("📹 All clients disconnected - camera released")
+
 
     def cleanup(self):
         """
@@ -513,19 +618,17 @@ class HandTrackingService:
 
         This method releases the camera and closes MediaPipe resources.
         """
-        logger.info("Cleaning up Hand Tracking Service resources...")
+        logger.info("🧹 Cleaning up Hand Tracking Service resources...")
 
-        # Release camera
-        if self.cap:
-            self.cap.release()
-            logger.info("✓ Camera released")
+        # Close camera using helper method
+        self._close_camera()
 
         # Close MediaPipe hands
         if self.hands:
             self.hands.close()
-            logger.info("✓ MediaPipe closed")
+            logger.info("✅ MediaPipe closed")
 
-        logger.info("✓ Cleanup complete")
+        logger.info("✅ Cleanup complete")
 
 
 # Global instance (will be initialized in main.py)

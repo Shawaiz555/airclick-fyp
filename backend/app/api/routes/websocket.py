@@ -99,18 +99,25 @@ async def hand_tracking_hybrid_websocket(websocket: WebSocket):
         }
     }
     """
-    logger.info("New WebSocket connection request for hand tracking (HYBRID MODE - Cursor + Clicks)")
+    logger.info("="*80)
+    logger.info("🔌 NEW WEBSOCKET CONNECTION REQUEST (HYBRID MODE)")
+    logger.info("="*80)
 
     try:
         # Get the hand tracking service instance
         service = get_hand_tracking_service()
+        logger.info("✓ Hand tracking service retrieved successfully")
 
         # Handle the client connection with hybrid mode ENABLED
+        logger.info("📞 Calling service.handle_client() with hybrid_mode=True")
         await service.handle_client(websocket, hybrid_mode=True)
+        logger.info("✓ service.handle_client() completed")
 
     except RuntimeError as e:
-        logger.error(f"Hand tracking service error: {e}")
+        logger.error(f"❌ Hand tracking service error: {e}")
         await websocket.close(code=1011, reason="Service not available")
     except Exception as e:
-        logger.error(f"Unexpected error in WebSocket handler: {e}")
+        logger.error(f"❌ Unexpected error in WebSocket handler: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         await websocket.close(code=1011, reason="Internal server error")

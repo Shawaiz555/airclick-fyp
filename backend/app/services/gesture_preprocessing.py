@@ -142,10 +142,23 @@ class GesturePreprocessor:
             # Extract x, y, z coordinates
             # Convert to float to avoid numpy string type issues
             try:
-                frame_landmarks = np.array([
-                    [float(lm['x']), float(lm['y']), float(lm['z'])] for lm in landmarks
-                ], dtype=np.float64)
-            except (KeyError, TypeError) as e:
+                # Handle both dict format {'x': ..., 'y': ..., 'z': ...} and list/tuple format [x, y, z]
+                if landmarks and isinstance(landmarks[0], dict):
+                    # Dictionary format from MediaPipe
+                    frame_landmarks = np.array([
+                        [float(lm['x']), float(lm['y']), float(lm['z'])] for lm in landmarks
+                    ], dtype=np.float64)
+                elif landmarks and (isinstance(landmarks[0], (list, tuple)) or hasattr(landmarks[0], '__iter__')):
+                    # List/tuple format - already in [x, y, z] form
+                    frame_landmarks = np.array([
+                        [float(lm[0]), float(lm[1]), float(lm[2])] for lm in landmarks
+                    ], dtype=np.float64)
+                else:
+                    # Try as numpy array
+                    frame_landmarks = np.array(landmarks, dtype=np.float64)
+                    if frame_landmarks.shape != (21, 3):
+                        raise ValueError(f"Invalid landmark shape: {frame_landmarks.shape}")
+            except (KeyError, TypeError, IndexError, ValueError) as e:
                 logger.error(f"Frame {frame_idx} landmark extraction error: {e}")
                 logger.error(f"Landmark type: {type(landmarks[0]) if landmarks else 'empty'}")
                 logger.error(f"First landmark sample: {landmarks[0] if landmarks else 'none'}")
