@@ -850,8 +850,17 @@
         return hybridModeEnabled;
       }
 
+      // Track if we're currently connecting to prevent multiple simultaneous connections
+      let isConnecting = false;
+
       // Connect to WebSocket with current hybrid mode
       function connectWebSocket() {
+        // Prevent multiple simultaneous connection attempts
+        if (isConnecting) {
+          console.log("⏳ Connection attempt already in progress, skipping...");
+          return;
+        }
+
         // Close existing connection if any
         if (ws) {
           if (
@@ -864,10 +873,12 @@
             ws.close();
             // Wait for connection to close before reconnecting
             ws = null;
-            setTimeout(connectWebSocket, 100);
+            setTimeout(connectWebSocket, 300);
             return;
           }
         }
+
+        isConnecting = true;
 
         // Get current hybrid mode
         const currentMode = initializeHybridMode();
@@ -885,6 +896,7 @@
         ws.onopen = () => {
           console.log("✅ Overlay connected to backend");
           statusDot.classList.add("active");
+          isConnecting = false; // Connection successful
 
           // Reset flag to allow new backend status
           backendStatusReceived = false;
@@ -912,38 +924,48 @@
               drawHand(data);
               noHandOverlay.classList.add("hidden");
 
-              // ONLY collect frames and match gestures if user is authenticated
-              if (isAuthenticated) {
-                // Collect frames for gesture recognition
-                const frame = {
-                  timestamp: Date.now(),
-                  landmarks: data.hands[0].landmarks,
-                  handedness: data.hands[0].handedness,
-                  confidence: data.hands[0].confidence,
-                };
+              // FIX: Only use legacy matching when hybrid mode is OFF
+              // When hybrid mode is ON, the backend state machine handles matching
+              const hybridModeActive = data.hybrid && data.hybrid.hybrid_mode_enabled;
 
-                recognitionFrames.push(frame);
+              if (!hybridModeActive) {
+                // LEGACY MODE: Manual frame collection and matching (gesture-only mode)
+                // ONLY collect frames and match gestures if user is authenticated
+                if (isAuthenticated) {
+                  // Collect frames for gesture recognition
+                  const frame = {
+                    timestamp: Date.now(),
+                    landmarks: data.hands[0].landmarks,
+                    handedness: data.hands[0].handedness,
+                    confidence: data.hands[0].confidence,
+                  };
 
-                // Keep only last 60 frames (2 seconds at 30fps)
-                if (recognitionFrames.length > 60) {
-                  recognitionFrames = recognitionFrames.slice(-60);
-                }
+                  recognitionFrames.push(frame);
 
-                // Update recording indicator
-                updateRecording(
-                  recognitionFrames.length > 0,
-                  recognitionFrames.length
-                );
+                  // Keep only last 60 frames (2 seconds at 30fps)
+                  if (recognitionFrames.length > 60) {
+                    recognitionFrames = recognitionFrames.slice(-60);
+                  }
 
-                // Auto-match when we have 60 frames and not in cooldown
-                if (recognitionFrames.length === 60 && !matchCooldown) {
-                  matchGesture(recognitionFrames);
-                  recognitionFrames = []; // Clear after matching
+                  // Update recording indicator
+                  updateRecording(
+                    recognitionFrames.length > 0,
+                    recognitionFrames.length
+                  );
+
+                  // Auto-match when we have 60 frames and not in cooldown
+                  if (recognitionFrames.length === 60 && !matchCooldown) {
+                    matchGesture(recognitionFrames);
+                    recognitionFrames = []; // Clear after matching
+                  }
+                } else {
+                  // User not authenticated - skip gesture matching
+                  // But still update recording indicator to show "disabled" state
+                  updateRecording(false, 0);
                 }
               } else {
-                // User not authenticated - skip gesture matching
-                // But still update recording indicator to show "disabled" state
-                updateRecording(false, 0);
+                // HYBRID MODE: State machine handles matching, clear legacy frames
+                recognitionFrames = [];
               }
             } else {
               clearCanvas();
@@ -978,6 +1000,10 @@
         ws.onclose = () => {
           console.log("❌ Overlay disconnected from backend");
           statusDot.classList.remove("active");
+          isConnecting = false; // Reset connection flag
+
+          // Clear the ws reference
+          ws = null;
 
           // Don't reload - just try to reconnect after delay
           setTimeout(() => {
@@ -988,6 +1014,7 @@
 
         ws.onerror = (error) => {
           console.error("❌ WebSocket error:", error);
+          isConnecting = false; // Reset connection flag on error
         };
       }
 
