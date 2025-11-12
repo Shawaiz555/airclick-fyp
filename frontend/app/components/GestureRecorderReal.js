@@ -482,7 +482,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
         onSave(data);
       }
 
-      // Close immediately - parent will handle success message
+      // Close immediately - parent will handle success message and restore state
       setIsProcessing(false);
       onClose();
 

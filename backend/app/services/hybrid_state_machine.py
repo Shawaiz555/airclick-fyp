@@ -229,7 +229,12 @@ class HybridStateMachine:
                 # Reset both timers if not authenticated
                 self.stationary_start_time = None
                 self.moving_start_time = None
+                logger.warning("🚫 BLOCKING collection - auth_check_callback returned False")
                 return False
+            else:
+                logger.debug("✅ Auth check passed - collection allowed")
+        else:
+            logger.warning("⚠️ No auth_check_callback registered!")
 
         # TRIGGER 1: Check if hand is stationary (static gestures)
         if self.is_hand_stationary(landmarks):

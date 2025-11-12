@@ -799,6 +799,7 @@
       let isAuthenticated = false; // Track authentication status
       let authChecked = false; // Track if we've checked auth yet
       let backendStatusReceived = false; // Track if backend sent status message
+      let isRecordingGesture = false; // Track if user is recording a gesture in web UI
 
       // Hybrid mode state - dynamic from localStorage
       let hybridModeEnabled = true; // Default to true
@@ -930,8 +931,8 @@
 
               if (!hybridModeActive) {
                 // LEGACY MODE: Manual frame collection and matching (gesture-only mode)
-                // ONLY collect frames and match gestures if user is authenticated
-                if (isAuthenticated) {
+                // ONLY collect frames and match gestures if user is authenticated AND not recording
+                if (isAuthenticated && !isRecordingGesture) {
                   // Collect frames for gesture recognition
                   const frame = {
                     timestamp: Date.now(),
@@ -959,8 +960,9 @@
                     recognitionFrames = []; // Clear after matching
                   }
                 } else {
-                  // User not authenticated - skip gesture matching
-                  // But still update recording indicator to show "disabled" state
+                  // User not authenticated OR recording gesture - skip gesture matching
+                  // Clear any collected frames and update UI to show "disabled" state
+                  recognitionFrames = [];
                   updateRecording(false, 0);
                 }
               } else {
@@ -1060,6 +1062,38 @@
         }
       }, 500);
 
+      // Poll recording state file (every 500ms)
+      // This detects when user is recording/updating a gesture in web UI
+      const recordingStateFile = path.join(os.homedir(), ".airclick-recording");
+      let lastRecordingState = false;
+
+      setInterval(() => {
+        try {
+          let currentRecordingState = false;
+          if (fs.existsSync(recordingStateFile)) {
+            const fileContent = fs.readFileSync(recordingStateFile, "utf8").trim();
+            currentRecordingState = fileContent === "true";
+          }
+
+          if (currentRecordingState !== lastRecordingState) {
+            console.log(
+              `📹 Recording state changed: ${lastRecordingState} → ${currentRecordingState}`
+            );
+            isRecordingGesture = currentRecordingState;
+            lastRecordingState = currentRecordingState;
+
+            // Update UI to show recording is disabled
+            if (isRecordingGesture) {
+              console.log("⚠️ Gesture matching DISABLED - User is recording/updating a gesture");
+            } else {
+              console.log("✅ Gesture matching ENABLED - Recording complete");
+            }
+          }
+        } catch (err) {
+          console.warn("⚠️ Error checking recording state file:", err.message);
+        }
+      }, 500);
+
       // Poll token file for changes (every 2 seconds)
       // This detects when user logs in/out or gesture count changes
       const tokenPath = path.join(os.homedir(), ".airclick-token");
@@ -1070,6 +1104,8 @@
         : null;
       let lastGestureCount = null;
 
+      // Poll gesture count changes - REDUCED from 2s to 10s to avoid spamming backend
+      // Only needed to detect when gestures are added/deleted from web UI
       setInterval(async () => {
         try {
           const currentFileExists = fs.existsSync(tokenPath);
@@ -1134,7 +1170,7 @@
         } catch (err) {
           console.warn("⚠️ Error checking token file:", err.message);
         }
-      }, 2000);
+      },5000); // Increased from 2000ms to 5000ms (5 seconds)
 
       // Initial connection
       connectWebSocket();

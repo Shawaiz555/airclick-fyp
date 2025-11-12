@@ -190,23 +190,6 @@ function toggleOverlay() {
   console.log(`✅ Overlay ${overlayEnabled ? 'enabled' : 'disabled'}`);
 }
 
-// ==================== IPC HANDLERS ====================
-
-// Receive updates from renderer process
-ipcMain.on('overlay-update', (event, data) => {
-  // Forward to overlay window
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('update-overlay', data);
-  }
-});
-
-// Handle overlay position change
-ipcMain.on('set-overlay-position', (event, { x, y }) => {
-  if (overlayWindow) {
-    overlayWindow.setPosition(x, y);
-  }
-});
-
 // ==================== APP LIFECYCLE ====================
 
 app.whenReady().then(() => {
@@ -214,6 +197,24 @@ app.whenReady().then(() => {
 
   createOverlay();
   createTray();
+
+  // ==================== IPC HANDLERS ====================
+  // Setup IPC handlers AFTER app is ready
+
+  // Receive updates from renderer process
+  ipcMain.on('overlay-update', (event, data) => {
+    // Forward to overlay window
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('update-overlay', data);
+    }
+  });
+
+  // Handle overlay position change
+  ipcMain.on('set-overlay-position', (event, { x, y }) => {
+    if (overlayWindow) {
+      overlayWindow.setPosition(x, y);
+    }
+  });
 
   console.log('✅ AirClick Electron App Ready');
   console.log('📍 Overlay position: Top-right corner');

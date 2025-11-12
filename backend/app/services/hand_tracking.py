@@ -321,16 +321,40 @@ class HandTrackingService:
                 # Gesture matching will be conditionally enabled based on authentication
                 hybrid_controller = get_hybrid_mode_controller()
 
-                # Register authentication check callback (SECURITY FIX)
+                # Register authentication check callback (SECURITY FIX + RECORDING STATE FIX)
                 # Use closure to capture gesture_matching_enabled value
                 def auth_check_callback():
                     """
-                    Check if user is authenticated AND has gestures to match.
+                    Check if user is authenticated AND has gestures to match AND not recording.
                     Called by state machine BEFORE starting frame collection.
 
-                    Returns the gesture_matching_enabled flag determined at connection time.
+                    Returns False if:
+                    - User is not authenticated
+                    - User has no gestures
+                    - User is currently recording/updating a gesture (to avoid interference)
                     """
-                    return gesture_matching_enabled
+                    # CRITICAL: Check if user is recording a gesture FIRST
+                    import os
+                    recording_state_path = os.path.join(os.path.expanduser("~"), ".airclick-recording")
+
+                    try:
+                        if os.path.exists(recording_state_path):
+                            with open(recording_state_path, 'r') as f:
+                                is_recording = f.read().strip() == "true"
+
+                            if is_recording:
+                                logger.warning("⚠️ BLOCKING gesture matching - User is recording/updating a gesture")
+                                return False
+                    except Exception as e:
+                        logger.error(f"Failed to check recording state: {e}")
+
+                    # Then check authentication
+                    if not gesture_matching_enabled:
+                        logger.debug("⚠️ BLOCKING gesture matching - User not authenticated or no gestures")
+                        return False
+
+                    logger.debug("✅ Gesture matching ALLOWED")
+                    return True
 
                 # Register the auth check callback
                 hybrid_controller.state_machine.set_auth_check_callback(auth_check_callback)

@@ -43,6 +43,29 @@ export default function CustomGestureManagement() {
       localStorage.setItem('hybridMode', 'false');
       console.log('🛑 Hybrid mode disabled for gesture recording');
 
+      // SET RECORDING STATE (disable gesture matching)
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:8000/api/gestures/recording-state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_recording: true })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📹 Recording state set to TRUE', data);
+          console.log('📂 File path:', data.path);
+        } else {
+          console.error('❌ Failed to set recording state:', response.status, response.statusText);
+        }
+      } catch (err) {
+        console.error('❌ Network error setting recording state:', err);
+      }
+
       // Sync to Electron overlay via token-helper
       try {
         await fetch('http://localhost:3001/save-hybrid-mode', {
@@ -81,6 +104,28 @@ export default function CustomGestureManagement() {
 
       localStorage.setItem('hybridMode', restoreValue);
       console.log('✅ Hybrid mode restored');
+
+      // CLEAR RECORDING STATE (re-enable gesture matching)
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:8000/api/gestures/recording-state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_recording: false })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📹 Recording state set to FALSE', data);
+        } else {
+          console.error('❌ Failed to clear recording state:', response.status);
+        }
+      } catch (err) {
+        console.error('❌ Network error clearing recording state:', err);
+      }
 
       // Sync to Electron overlay via token-helper
       try {

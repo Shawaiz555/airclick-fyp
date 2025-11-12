@@ -524,3 +524,73 @@ def get_activity_logs(
             for log in logs
         ]
     }
+
+
+@router.post("/recording-state")
+def set_recording_state(
+    state: Dict[str, bool],
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Set the recording state to coordinate with electron overlay.
+    Writes state to ~/.airclick-recording file.
+
+    Body: { "is_recording": true/false }
+    """
+    import os
+
+    try:
+        is_recording = state.get("is_recording", False)
+        recording_state_path = os.path.join(os.path.expanduser("~"), ".airclick-recording")
+
+        logger.info(f"📹 Writing recording state to: {recording_state_path}")
+
+        with open(recording_state_path, 'w') as f:
+            content = "true" if is_recording else "false"
+            f.write(content)
+            f.flush()  # Ensure immediate write
+            os.fsync(f.fileno())  # Force write to disk
+
+        # Verify the write
+        if os.path.exists(recording_state_path):
+            with open(recording_state_path, 'r') as f:
+                written_content = f.read().strip()
+            logger.info(f"📹 Recording state updated: {is_recording} (user: {current_user.email}, verified: {written_content})")
+        else:
+            logger.error(f"❌ File does not exist after write: {recording_state_path}")
+
+        return {"success": True, "is_recording": is_recording, "path": recording_state_path}
+    except Exception as e:
+        logger.error(f"Failed to set recording state: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to set recording state: {str(e)}"
+        )
+
+
+@router.get("/recording-state")
+def get_recording_state(current_user: User = Depends(get_current_user)):
+    """
+    Get the current recording state.
+
+    Returns: { "is_recording": true/false }
+    """
+    import os
+
+    try:
+        recording_state_path = os.path.join(os.path.expanduser("~"), ".airclick-recording")
+
+        if not os.path.exists(recording_state_path):
+            return {"is_recording": False}
+
+        with open(recording_state_path, 'r') as f:
+            content = f.read().strip()
+
+        is_recording = content == "true"
+
+        return {"is_recording": is_recording}
+    except Exception as e:
+        logger.error(f"Failed to get recording state: {e}")
+        return {"is_recording": False}

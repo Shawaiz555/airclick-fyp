@@ -140,9 +140,10 @@ class GesturePreprocessor:
                 continue
 
             # Extract x, y, z coordinates
+            # Convert to float to avoid numpy string type issues
             frame_landmarks = np.array([
-                [lm['x'], lm['y'], lm['z']] for lm in landmarks
-            ])
+                [float(lm['x']), float(lm['y']), float(lm['z'])] for lm in landmarks
+            ], dtype=np.float64)
 
             landmarks_list.append(frame_landmarks)
             # Ensure confidence is float (not string from database)
