@@ -350,10 +350,10 @@ class HandTrackingService:
 
                     # Then check authentication
                     if not gesture_matching_enabled:
-                        logger.debug("⚠️ BLOCKING gesture matching - User not authenticated or no gestures")
+                        logger.warning(f"⚠️ BLOCKING gesture matching - gesture_matching_enabled={gesture_matching_enabled}")
                         return False
 
-                    logger.debug("✅ Gesture matching ALLOWED")
+                    logger.info("✅ Gesture matching ALLOWED - Starting frame collection")
                     return True
 
                 # Register the auth check callback

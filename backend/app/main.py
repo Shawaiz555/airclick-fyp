@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 # Create database tables (with error handling)
 try:
     Base.metadata.create_all(bind=engine)
-    print("✓ Database connection successful")
+    logging.info("Database connection successful")
 except Exception as e:
-    print(f"⚠ Warning: Could not connect to database: {e}")
-    print("⚠ Server will start but database operations will fail")
+    logging.warning(f"Warning: Could not connect to database: {e}")
+    logging.warning("Server will start but database operations will fail")
 
 # Initialize FastAPI app
 app = FastAPI(

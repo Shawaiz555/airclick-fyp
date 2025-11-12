@@ -131,7 +131,7 @@ class GesturePreprocessor:
         landmarks_list = []
         confidences = []
 
-        for frame in frames:
+        for frame_idx, frame in enumerate(frames):
             landmarks = frame.get('landmarks', [])
             confidence = frame.get('confidence', 1.0)
 
@@ -141,9 +141,15 @@ class GesturePreprocessor:
 
             # Extract x, y, z coordinates
             # Convert to float to avoid numpy string type issues
-            frame_landmarks = np.array([
-                [float(lm['x']), float(lm['y']), float(lm['z'])] for lm in landmarks
-            ], dtype=np.float64)
+            try:
+                frame_landmarks = np.array([
+                    [float(lm['x']), float(lm['y']), float(lm['z'])] for lm in landmarks
+                ], dtype=np.float64)
+            except (KeyError, TypeError) as e:
+                logger.error(f"Frame {frame_idx} landmark extraction error: {e}")
+                logger.error(f"Landmark type: {type(landmarks[0]) if landmarks else 'empty'}")
+                logger.error(f"First landmark sample: {landmarks[0] if landmarks else 'none'}")
+                raise
 
             landmarks_list.append(frame_landmarks)
             # Ensure confidence is float (not string from database)

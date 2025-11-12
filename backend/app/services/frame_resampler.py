@@ -83,10 +83,11 @@ def resample_frames_linear(frames: List[Dict], target_frames: int = 60) -> List[
 
         for lm_i, lm_j in zip(landmarks_i, landmarks_j):
             # Linear interpolation: value = (1 - weight) * value_i + weight * value_j
+            # Convert to float to handle both numeric and string values
             interpolated_landmarks.append({
-                'x': float((1 - weight) * lm_i['x'] + weight * lm_j['x']),
-                'y': float((1 - weight) * lm_i['y'] + weight * lm_j['y']),
-                'z': float((1 - weight) * lm_i['z'] + weight * lm_j['z'])
+                'x': float((1 - weight) * float(lm_i['x']) + weight * float(lm_j['x'])),
+                'y': float((1 - weight) * float(lm_i['y']) + weight * float(lm_j['y'])),
+                'z': float((1 - weight) * float(lm_i['z']) + weight * float(lm_j['z']))
             })
 
         # Interpolate other fields

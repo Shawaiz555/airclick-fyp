@@ -43,32 +43,38 @@ class HybridStateMachine:
     def __init__(
         self,
         stationary_duration_threshold: float = 0.5,  # Seconds hand must be stationary
-        collection_frame_count: int = 60,            # Frames to collect for gesture
+        collection_frame_count: int = 60,            # MAX frames to collect for gesture
+        min_collection_frames: int = 5,              # MINIMUM frames required for matching
         idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
         velocity_threshold: float = 0.02,            # Movement threshold for stationary detection
         moving_velocity_threshold: float = 0.08,     # Minimum velocity for moving gesture detection
-        moving_duration_threshold: float = 0.3       # Seconds of movement to trigger moving gesture
+        moving_duration_threshold: float = 0.3,      # Seconds of movement to trigger moving gesture
+        gesture_end_stationary_duration: float = 0.3 # Seconds stationary to end gesture collection
     ):
         """
         Initialize the state machine.
 
         Args:
             stationary_duration_threshold: How long hand must be stationary to start collecting
-            collection_frame_count: Number of frames to collect for gesture matching
+            collection_frame_count: MAXIMUM number of frames to collect (will match earlier if gesture ends)
+            min_collection_frames: MINIMUM frames required before matching (default: 5)
             idle_cooldown_duration: Cooldown period after match before returning to cursor mode
             velocity_threshold: Maximum velocity to consider hand as stationary
             moving_velocity_threshold: Minimum velocity to detect moving gesture
             moving_duration_threshold: How long hand must be moving to trigger collection
+            gesture_end_stationary_duration: How long hand must be stationary to end gesture collection
         """
         self.state = HybridState.CURSOR_ONLY
 
         # Configuration
         self.stationary_duration_threshold = stationary_duration_threshold
         self.collection_frame_count = collection_frame_count
+        self.min_collection_frames = min_collection_frames
         self.idle_cooldown_duration = idle_cooldown_duration
         self.velocity_threshold = velocity_threshold
         self.moving_velocity_threshold = moving_velocity_threshold
         self.moving_duration_threshold = moving_duration_threshold
+        self.gesture_end_stationary_duration = gesture_end_stationary_duration
 
         # State tracking
         self.stationary_start_time: Optional[float] = None
@@ -76,6 +82,7 @@ class HybridStateMachine:
         self.collection_start_time: Optional[float] = None
         self.matching_start_time: Optional[float] = None
         self.idle_start_time: Optional[float] = None
+        self.gesture_end_stationary_start: Optional[float] = None  # Track when hand stops during collection
 
         # Frame collection
         self.collected_frames: List[Dict] = []
@@ -103,6 +110,7 @@ class HybridStateMachine:
         self.collection_start_time = None
         self.matching_start_time = None
         self.idle_start_time = None
+        self.gesture_end_stationary_start = None  # Reset gesture end timer
         self.collected_frames = []
         self.previous_hand_position = None
         self.last_velocity = 0.0
@@ -254,6 +262,59 @@ class HybridStateMachine:
 
         return False
 
+    def should_end_gesture_collection(self, landmarks: List[Dict]) -> bool:
+        """
+        Check if gesture collection should end early (before reaching max frames).
+
+        Gesture ends when:
+        1. Hand becomes stationary after moving (for moving gestures)
+        2. Hand starts moving significantly (for stationary gestures)
+        3. Minimum frames collected (5+ frames)
+
+        Args:
+            landmarks: Current frame landmarks
+
+        Returns:
+            True if gesture should end and match now, False to continue collecting
+        """
+        if self.state != HybridState.COLLECTING:
+            return False
+
+        # Need minimum frames before we can end
+        if len(self.collected_frames) < self.min_collection_frames:
+            return False
+
+        # Calculate current velocity
+        velocity = self.calculate_hand_velocity(landmarks)
+        self.last_velocity = velocity
+
+        # For MOVING gestures: End when hand becomes stationary
+        if self.trigger_type == "moving":
+            is_stationary = velocity < self.velocity_threshold
+
+            if is_stationary:
+                if self.gesture_end_stationary_start is None:
+                    self.gesture_end_stationary_start = time.time()
+
+                stationary_duration = time.time() - self.gesture_end_stationary_start
+
+                if stationary_duration >= self.gesture_end_stationary_duration:
+                    logger.info(f"✅ MOVING gesture ended: Hand stopped for {stationary_duration:.2f}s ({len(self.collected_frames)} frames)")
+                    return True
+            else:
+                # Hand still moving, reset timer
+                self.gesture_end_stationary_start = None
+
+        # For STATIONARY gestures: End when hand starts moving significantly
+        elif self.trigger_type == "stationary":
+            is_moving = velocity > self.moving_velocity_threshold
+
+            if is_moving:
+                logger.info(f"✅ STATIONARY gesture ended: Hand started moving (velocity: {velocity:.4f}, {len(self.collected_frames)} frames)")
+                return True
+
+        return False
+
     def update(
         self,
         frame: Dict,
@@ -295,12 +356,12 @@ class HybridStateMachine:
             # Continue collecting frames
             self.collected_frames.append(frame)
 
-            # Check if enough frames collected
-            if len(self.collected_frames) >= self.collection_frame_count:
-                # Transition: COLLECTING → MATCHING
+            # NEW: Check if gesture has ended naturally (user finished performing it)
+            if self.should_end_gesture_collection(landmarks):
+                # Transition: COLLECTING → MATCHING (early, before max frames)
                 self.state = HybridState.MATCHING
                 self.matching_start_time = current_time
-                logger.info(f"State: COLLECTING → MATCHING ({len(self.collected_frames)} frames)")
+                logger.info(f"State: COLLECTING → MATCHING (gesture ended at {len(self.collected_frames)} frames)")
 
                 # Trigger match callback if provided
                 if match_callback:
@@ -310,21 +371,20 @@ class HybridStateMachine:
                         logger.error(f"Match callback error: {e}")
                         self.last_match_result = {"error": str(e)}
 
-            # Check if hand behavior changed drastically (abort collection)
-            # For stationary gestures: abort if velocity exceeds moving threshold
-            # For moving gestures: abort if hand becomes truly stationary
-            elif self.trigger_type == "stationary" and self.last_velocity > self.moving_velocity_threshold:
-                logger.info(f"⚠️ Hand started moving significantly during stationary collection (velocity: {self.last_velocity:.4f}) - aborting")
-                self.state = HybridState.CURSOR_ONLY
-                self.collected_frames = []
-                self.stationary_start_time = None
-                self.moving_start_time = None
-            elif self.trigger_type == "moving" and self.last_velocity < self.velocity_threshold:
-                logger.info(f"⚠️ Hand stopped completely during dynamic collection (velocity: {self.last_velocity:.4f}) - aborting")
-                self.state = HybridState.CURSOR_ONLY
-                self.collected_frames = []
-                self.stationary_start_time = None
-                self.moving_start_time = None
+            # Check if MAX frames collected (timeout)
+            elif len(self.collected_frames) >= self.collection_frame_count:
+                # Transition: COLLECTING → MATCHING (reached max frames)
+                self.state = HybridState.MATCHING
+                self.matching_start_time = current_time
+                logger.info(f"State: COLLECTING → MATCHING (max {len(self.collected_frames)} frames reached)")
+
+                # Trigger match callback if provided
+                if match_callback:
+                    try:
+                        self.last_match_result = match_callback(self.collected_frames)
+                    except Exception as e:
+                        logger.error(f"Match callback error: {e}")
+                        self.last_match_result = {"error": str(e)}
 
         elif self.state == HybridState.MATCHING:
             # Matching is handled by callback, transition immediately to IDLE
@@ -342,6 +402,7 @@ class HybridStateMachine:
                 self.collected_frames = []
                 self.stationary_start_time = None
                 self.moving_start_time = None  # NEW: Reset moving timer
+                self.gesture_end_stationary_start = None  # Reset gesture end timer
                 self.last_match_result = None
                 self.trigger_type = None  # NEW: Reset trigger type
                 logger.info("State: IDLE → CURSOR_ONLY (cooldown complete)")

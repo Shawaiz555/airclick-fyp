@@ -801,6 +801,13 @@
       let backendStatusReceived = false; // Track if backend sent status message
       let isRecordingGesture = false; // Track if user is recording a gesture in web UI
 
+      // Gesture end detection
+      let lastHandPosition = null;
+      let gestureEndTimer = null;
+      const MIN_GESTURE_FRAMES = 5; // Minimum frames before matching
+      const MAX_GESTURE_FRAMES = 60; // Maximum frames to collect
+      const GESTURE_END_DELAY = 300; // ms to wait after hand stops before matching
+
       // Hybrid mode state - dynamic from localStorage
       let hybridModeEnabled = true; // Default to true
       let ws = null; // WebSocket connection
@@ -943,9 +950,9 @@
 
                   recognitionFrames.push(frame);
 
-                  // Keep only last 60 frames (2 seconds at 30fps)
-                  if (recognitionFrames.length > 60) {
-                    recognitionFrames = recognitionFrames.slice(-60);
+                  // Keep only MAX frames
+                  if (recognitionFrames.length > MAX_GESTURE_FRAMES) {
+                    recognitionFrames = recognitionFrames.slice(-MAX_GESTURE_FRAMES);
                   }
 
                   // Update recording indicator
@@ -954,15 +961,46 @@
                     recognitionFrames.length
                   );
 
-                  // Auto-match when we have 60 frames and not in cooldown
-                  if (recognitionFrames.length === 60 && !matchCooldown) {
+                  // Calculate hand movement to detect when gesture ends
+                  const movement = calculateHandMovement(data.hands[0].landmarks);
+                  const MOVEMENT_THRESHOLD = 0.02; // Threshold for "hand stopped"
+
+                  // Clear existing timer if hand is still moving
+                  if (movement > MOVEMENT_THRESHOLD) {
+                    if (gestureEndTimer) {
+                      clearTimeout(gestureEndTimer);
+                      gestureEndTimer = null;
+                    }
+                  } else {
+                    // Hand stopped moving - start/continue timer
+                    if (!gestureEndTimer && recognitionFrames.length >= MIN_GESTURE_FRAMES && !matchCooldown) {
+                      gestureEndTimer = setTimeout(() => {
+                        checkGestureEnd();
+                        gestureEndTimer = null;
+                      }, GESTURE_END_DELAY);
+                    }
+                  }
+
+                  // Auto-match when we have MAX frames and not in cooldown (fallback)
+                  if (recognitionFrames.length === MAX_GESTURE_FRAMES && !matchCooldown) {
+                    if (gestureEndTimer) {
+                      clearTimeout(gestureEndTimer);
+                      gestureEndTimer = null;
+                    }
+                    console.log(`⏱️ Max frames reached (${MAX_GESTURE_FRAMES}) - matching now`);
                     matchGesture(recognitionFrames);
                     recognitionFrames = []; // Clear after matching
+                    lastHandPosition = null;
                   }
                 } else {
                   // User not authenticated OR recording gesture - skip gesture matching
                   // Clear any collected frames and update UI to show "disabled" state
                   recognitionFrames = [];
+                  lastHandPosition = null;
+                  if (gestureEndTimer) {
+                    clearTimeout(gestureEndTimer);
+                    gestureEndTimer = null;
+                  }
                   updateRecording(false, 0);
                 }
               } else {
@@ -973,6 +1011,11 @@
               clearCanvas();
               noHandOverlay.classList.remove("hidden");
               recognitionFrames = []; // Clear frames when hand is lost
+              lastHandPosition = null; // Reset hand position tracking
+              if (gestureEndTimer) {
+                clearTimeout(gestureEndTimer);
+                gestureEndTimer = null;
+              }
               updateRecording(false, 0);
             }
 
@@ -1352,6 +1395,17 @@
         const stateMachine = hybridData.state_machine;
         const state = stateMachine.state;
 
+        // DEBUG: Log state transitions
+        if (!window.lastStateMachineState || window.lastStateMachineState !== state) {
+          console.log(`🔄 State Machine: ${window.lastStateMachineState || 'initial'} → ${state}`, {
+            collected: stateMachine.collected_count,
+            target: stateMachine.target_frames,
+            velocity: stateMachine.velocity,
+            trigger_type: stateMachine.trigger_type
+          });
+          window.lastStateMachineState = state;
+        }
+
         // Show state machine row
         stateMachineRow.style.display = "flex";
 
@@ -1670,14 +1724,46 @@
         checkAuthentication();
       }, 30000);
 
+      // Calculate hand movement (wrist displacement)
+      function calculateHandMovement(landmarks) {
+        if (!landmarks || landmarks.length === 0) return 0;
+
+        const wrist = landmarks[0]; // Wrist is landmark 0
+        const currentPos = [wrist.x, wrist.y, wrist.z];
+
+        if (!lastHandPosition) {
+          lastHandPosition = currentPos;
+          return 0;
+        }
+
+        // Calculate Euclidean distance
+        const dx = currentPos[0] - lastHandPosition[0];
+        const dy = currentPos[1] - lastHandPosition[1];
+        const dz = currentPos[2] - lastHandPosition[2];
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        lastHandPosition = currentPos;
+        return distance;
+      }
+
+      // Check if hand has stopped moving and trigger match
+      function checkGestureEnd() {
+        if (recognitionFrames.length >= MIN_GESTURE_FRAMES && recognitionFrames.length < MAX_GESTURE_FRAMES) {
+          console.log(`✅ Gesture ended: Hand stopped moving (${recognitionFrames.length} frames collected)`);
+          matchGesture([...recognitionFrames]); // Copy array
+          recognitionFrames = [];
+          lastHandPosition = null;
+        }
+      }
+
       async function matchGesture(frames) {
-        if (frames.length < 30) {
-          console.warn("Not enough frames to match");
+        if (frames.length < MIN_GESTURE_FRAMES) {
+          console.warn(`Not enough frames to match (need at least ${MIN_GESTURE_FRAMES}, got ${frames.length})`);
           return;
         }
 
         matchCooldown = true;
-        console.log("🔍 Starting gesture match with", frames.length, "frames");
+        console.log(`🔍 Starting gesture match with ${frames.length} frames`);
 
         try {
           // Try to get token from localStorage first
