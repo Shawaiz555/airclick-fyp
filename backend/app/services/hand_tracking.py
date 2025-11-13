@@ -65,15 +65,30 @@ class HandTrackingService:
         )
         logger.info("✅ MediaPipe Hands loaded successfully")
 
-        # Store camera index for lazy initialization
+        # Store camera index
         self.camera_index = camera_index
-        self.cap = None  # Will be initialized when first client connects
+        self.cap = None
 
         # Store connected WebSocket clients
         self.clients: Set[WebSocket] = set()
 
         # Service running flag
         self.is_running = False
+
+        # OPTIMIZATION: Pre-warm camera on startup for instant availability
+        logger.info("🔥 Pre-warming camera for instant availability...")
+        try:
+            self._open_camera()
+            # Warm-up: Capture and discard a few frames to stabilize camera
+            for i in range(5):
+                if self.cap and self.cap.isOpened():
+                    ret, _ = self.cap.read()
+                    if not ret:
+                        logger.warning(f"Failed to read warm-up frame {i+1}/5")
+            logger.info("✅ Camera pre-warmed and ready")
+        except Exception as e:
+            logger.warning(f"⚠️ Camera pre-warming failed (will retry on connect): {e}")
+            self.cap = None
 
         logger.info("✓ Hand Tracking Service initialized")
 
@@ -83,12 +98,15 @@ class HandTrackingService:
             return  # Camera already open
 
         logger.info(f"📹 Opening camera {self.camera_index}...")
-        self.cap = cv2.VideoCapture(self.camera_index)
+        self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_DSHOW)  # DirectShow on Windows for faster init
 
         # Set camera properties for optimal performance
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_FPS, 30)
+
+        # OPTIMIZATION: Reduce buffer size for lower latency
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize frame buffering
 
         # Check if camera opened successfully
         if not self.cap.isOpened():
@@ -229,8 +247,9 @@ class HandTrackingService:
         logger.info(f"✓ New client connected: {client_id} (hybrid_mode={hybrid_mode})")
         logger.info(f"✓ Total clients: {len(self.clients)}")
 
-        # Open camera if this is the first client
-        if len(self.clients) == 1:
+        # Ensure camera is open (should already be pre-warmed at startup)
+        if not self.cap or not self.cap.isOpened():
+            logger.warning("Camera not pre-warmed, opening now...")
             try:
                 self._open_camera()
             except Exception as e:
@@ -238,6 +257,16 @@ class HandTrackingService:
                 self.clients.discard(websocket)
                 await websocket.close(code=1011, reason="Camera initialization failed")
                 return
+
+        # OPTIMIZATION: Send initial frame IMMEDIATELY before heavy auth check
+        # This makes the UI feel instant while auth happens in background
+        try:
+            initial_frame = self.process_frame()
+            if initial_frame:
+                await websocket.send_text(json.dumps(initial_frame))
+                logger.info(f"⚡ Sent initial frame immediately to client {client_id}")
+        except Exception as e:
+            logger.warning(f"Could not send initial frame: {e}")
 
         # Initialize hybrid mode controller if enabled
         hybrid_controller = None
