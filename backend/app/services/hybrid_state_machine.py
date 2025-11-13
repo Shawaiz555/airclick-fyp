@@ -454,6 +454,7 @@ class HybridStateMachine:
             'matching': self.state == HybridState.MATCHING,
             'idle': self.state == HybridState.IDLE,
             'collected_frames': len(self.collected_frames),
+            'collected_count': len(self.collected_frames),  # Add this for consistency with update() metadata
             'target_frames': self.collection_frame_count,
             'progress': len(self.collected_frames) / self.collection_frame_count if self.state == HybridState.COLLECTING else 0,
             'velocity': round(self.last_velocity, 4),
@@ -462,7 +463,8 @@ class HybridStateMachine:
             'stationary_threshold': self.stationary_duration_threshold,
             'moving_threshold': self.moving_duration_threshold,
             'trigger_type': self.trigger_type,
-            'last_match': self.last_match_result
+            'last_match': self.last_match_result,
+            'match_result': self.last_match_result  # Add this for overlay consistency
         }
 
     def set_auth_check_callback(self, callback: callable):

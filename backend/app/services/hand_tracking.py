@@ -567,6 +567,10 @@ class HandTrackingService:
                                 hybrid_controller.state_machine.idle_start_time = datetime.now().timestamp()
                                 logger.info(f"🎯 Gesture match result: {no_hand_result.get('match_result')}")
 
+                            # IMPORTANT: Get the full state machine info including match_result in IDLE state
+                            # This ensures the overlay receives the match result even when hand is gone
+                            state_machine_info = hybrid_controller.state_machine.get_state_info()
+
                             # Send no hand status to client with match result if available
                             no_hand_data = {
                                 'timestamp': datetime.now().isoformat(),
@@ -576,7 +580,8 @@ class HandTrackingService:
                                 'hybrid': {
                                     'success': False,
                                     'error': 'No hands detected',
-                                    'state_machine': no_hand_result
+                                    'state_machine': state_machine_info,  # Send full state info including match_result
+                                    'hybrid_mode_enabled': True
                                 }
                             }
 

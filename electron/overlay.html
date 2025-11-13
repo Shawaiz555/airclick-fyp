@@ -1009,7 +1009,20 @@
               }
             } else {
               clearCanvas();
-              noHandOverlay.classList.remove("hidden");
+
+              // FIX: Don't show "no hand" overlay if hybrid mode is active and state is MATCHING or IDLE
+              // In these states, we want to show the match result without requiring hand to be present
+              const hybridModeActive = data.hybrid && data.hybrid.hybrid_mode_enabled;
+              const currentState = data.hybrid && data.hybrid.state_machine ? data.hybrid.state_machine.state : null;
+
+              if (hybridModeActive && (currentState === 'matching' || currentState === 'idle')) {
+                // Keep overlay hidden - we're processing/showing results
+                noHandOverlay.classList.add("hidden");
+              } else {
+                // Show "no hand" overlay for other states
+                noHandOverlay.classList.remove("hidden");
+              }
+
               recognitionFrames = []; // Clear frames when hand is lost
               lastHandPosition = null; // Reset hand position tracking
               if (gestureEndTimer) {
