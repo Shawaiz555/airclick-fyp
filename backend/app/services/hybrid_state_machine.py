@@ -220,6 +220,7 @@ class HybridStateMachine:
         - Moving trigger: Hand moving with sustained velocity (dynamic gestures)
 
         SECURITY FIX: Check authentication before starting collection.
+        IDLE FIX: Only allow collection in CURSOR_ONLY state (not during cooldown).
 
         Args:
             landmarks: Current frame landmarks
@@ -227,7 +228,12 @@ class HybridStateMachine:
         Returns:
             True if should start collecting, False otherwise
         """
+        # CRITICAL: Only check collection triggers when in CURSOR_ONLY state
+        # This prevents starting collection during IDLE cooldown or MATCHING/COLLECTING
         if self.state != HybridState.CURSOR_ONLY:
+            # Reset timers if called from wrong state (defensive programming)
+            self.stationary_start_time = None
+            self.moving_start_time = None
             return False
 
         # SECURITY: Check authentication BEFORE collecting frames
@@ -402,22 +408,41 @@ class HybridStateMachine:
             # Matching is handled by callback, transition immediately to IDLE
             self.state = HybridState.IDLE
             self.idle_start_time = current_time
-            logger.info("State: MATCHING → IDLE")
+            # CRITICAL FIX: Reset hand position tracking when entering IDLE
+            # This prevents velocity spikes when hand reappears after matching
+            self.previous_hand_position = None
+            self.last_velocity = 0.0
+            logger.info("State: MATCHING → IDLE (hand position tracking reset)")
 
         elif self.state == HybridState.IDLE:
             # Wait for cooldown period
             idle_duration = current_time - self.idle_start_time
+
+            # CRITICAL FIX: Reset velocity tracking to prevent false triggers
+            # When hand reappears during IDLE, we need fresh velocity calculation
+            if landmarks:
+                # Calculate velocity to update previous_hand_position without triggering collection
+                _ = self.calculate_hand_velocity(landmarks)
+                # Force reset timers to prevent immediate collection
+                if self.stationary_start_time is not None or self.moving_start_time is not None:
+                    logger.debug(f"✋ Hand reappeared during IDLE cooldown - resetting timers (remaining: {self.idle_cooldown_duration - idle_duration:.2f}s)")
+                self.stationary_start_time = None
+                self.moving_start_time = None
 
             if idle_duration >= self.idle_cooldown_duration:
                 # Transition: IDLE → CURSOR_ONLY
                 self.state = HybridState.CURSOR_ONLY
                 self.collected_frames = []
                 self.stationary_start_time = None
-                self.moving_start_time = None  # NEW: Reset moving timer
+                self.moving_start_time = None  # Reset moving timer
                 self.gesture_end_stationary_start = None  # Reset gesture end timer
                 self.last_match_result = None
-                self.trigger_type = None  # NEW: Reset trigger type
-                logger.info("State: IDLE → CURSOR_ONLY (cooldown complete)")
+                self.trigger_type = None  # Reset trigger type
+                # CRITICAL FIX: Reset position tracking for clean state
+                # Ensures first velocity calculation in CURSOR_ONLY is fresh
+                self.previous_hand_position = None
+                self.last_velocity = 0.0
+                logger.info("State: IDLE → CURSOR_ONLY (cooldown complete, fresh tracking)")
 
         # Log state changes
         if previous_state != self.state:
@@ -503,6 +528,11 @@ class HybridStateMachine:
             # Transition to MATCHING state
             self.state = HybridState.MATCHING
             self.matching_start_time = current_time
+
+            # CRITICAL FIX: Reset hand position tracking when hand goes away
+            # This prevents velocity spikes when hand reappears
+            self.previous_hand_position = None
+            self.last_velocity = 0.0
 
             # Execute the match callback if provided
             if match_callback:
