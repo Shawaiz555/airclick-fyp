@@ -170,6 +170,15 @@ export default function CustomGestureManagement() {
 
       if (response.ok) {
         const data = await response.json();
+
+        // DEBUG: Log the first gesture to see its structure
+        if (data.length > 0) {
+          console.log('📊 First gesture data:', data[0]);
+          console.log('📊 Landmark data:', data[0].landmark_data);
+          console.log('📊 Metadata:', data[0].landmark_data?.metadata);
+          console.log('📊 Total frames:', data[0].landmark_data?.metadata?.total_frames);
+        }
+
         setGestures(data);
         if (data.length > 0) {
           toast.success(`Loaded ${data.length} gesture${data.length > 1 ? 's' : ''} from database`);
@@ -496,6 +505,18 @@ export default function CustomGestureManagement() {
                                   <span className="text-sm text-gray-300">{gesture.action}</span>
                                 </div>
 
+                                <div className="flex items-center gap-2 text-purple-300">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                                  </svg>
+                                  <span className="text-sm font-medium">Frames:</span>
+                                  <span className="text-sm text-gray-300">
+                                    {gesture.landmark_data?.metadata?.original_frame_count ??
+                                     gesture.landmark_data?.frames?.length ??
+                                     'N/A'} recorded frames
+                                  </span>
+                                </div>
+
                                 <div className="flex items-center gap-2 text-gray-400">
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -552,7 +573,11 @@ export default function CustomGestureManagement() {
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
                                     </svg>
-                                    <span>{gesture.landmark_data?.metadata?.total_frames || gesture.landmark_data?.frames?.length || 0} frames</span>
+                                    <span>
+                                      {gesture.landmark_data?.metadata?.total_frames ??
+                                       gesture.landmark_data?.frames?.length ??
+                                       'N/A'} frames
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-2">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

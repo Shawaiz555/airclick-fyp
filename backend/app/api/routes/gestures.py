@@ -133,12 +133,29 @@ def get_user_gestures(
     # If landmarks not needed, remove them from response to reduce payload size
     if not include_landmarks:
         for gesture in gestures:
-            # Keep metadata but remove the large frames array
-            if gesture.landmark_data and 'frames' in gesture.landmark_data:
+            if gesture.landmark_data:
+                # Get existing metadata or create it with frame count
+                metadata = gesture.landmark_data.get('metadata', {})
+
+                # If metadata doesn't have total_frames, calculate it from frames array
+                if 'total_frames' not in metadata:
+                    frames = gesture.landmark_data.get('frames', [])
+                    if frames:
+                        metadata['total_frames'] = len(frames)
+                        logger.info(f"📊 Gesture '{gesture.name}' (ID: {gesture.id}): Calculated {len(frames)} frames")
+                    else:
+                        metadata['total_frames'] = 0
+                        logger.warning(f"⚠️ Gesture '{gesture.name}' (ID: {gesture.id}): No frames found in landmark_data")
+                else:
+                    logger.info(f"📊 Gesture '{gesture.name}' (ID: {gesture.id}): Metadata has {metadata['total_frames']} frames")
+
+                # Keep metadata but remove the large frames array
                 gesture.landmark_data = {
-                    'metadata': gesture.landmark_data.get('metadata', {}),
+                    'metadata': metadata,
                     'frames': []  # Empty array to reduce response size
                 }
+            else:
+                logger.warning(f"⚠️ Gesture '{gesture.name}' (ID: {gesture.id}): No landmark_data found")
 
     return gestures
 
