@@ -135,6 +135,74 @@ def get_actions_by_context(
     return actions
 
 
+@router.get("/context/{context}/available", response_model=List[ActionMappingResponse])
+def get_available_actions_by_context(
+    context: AppContext,
+    active_only: bool = Query(True, description="Only return active actions"),
+    exclude_gesture_id: Optional[int] = Query(None, description="Exclude this gesture's action from filtering (for edit mode)"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get available action mappings for a specific context (excluding already assigned actions).
+
+    **Accessible by:** All authenticated users
+
+    **Use Case:** User recording gesture - show only actions not yet assigned to prevent duplicates
+
+    **Path Parameters:**
+    - context: Application context (GLOBAL, POWERPOINT, WORD)
+
+    **Query Parameters:**
+    - active_only: If true, only return active actions (default: true)
+    - exclude_gesture_id: When editing a gesture, exclude its current action from filtering
+
+    **Returns:**
+    - List of action mappings available for assignment (not yet used by user's gestures)
+
+    **Example:**
+    - User has gesture "Swipe Right" with action "ppt_next_slide"
+    - This endpoint will return all PowerPoint actions EXCEPT "ppt_next_slide"
+    - In edit mode with exclude_gesture_id=1, "ppt_next_slide" will be included
+    """
+    from app.models.gesture import Gesture
+
+    # Get all actions for this context
+    all_actions = ActionMapping.get_by_context(
+        db=db,
+        app_context=context.value,
+        active_only=active_only
+    )
+
+    # Get all action IDs already assigned to this user's gestures
+    assigned_actions_query = db.query(Gesture.action).filter(
+        Gesture.user_id == current_user.id,
+        Gesture.app_context == context.value
+    )
+
+    # If editing a gesture, exclude its current action from the "already assigned" list
+    if exclude_gesture_id:
+        assigned_actions_query = assigned_actions_query.filter(
+            Gesture.id != exclude_gesture_id
+        )
+
+    assigned_action_ids = {action[0] for action in assigned_actions_query.all()}
+
+    # Filter out actions that are already assigned
+    available_actions = [
+        action for action in all_actions
+        if action.action_id not in assigned_action_ids
+    ]
+
+    logger.info(
+        f"User {current_user.email} fetched {len(available_actions)}/{len(all_actions)} "
+        f"available actions for context '{context.value}' "
+        f"(excluded {len(assigned_action_ids)} already assigned actions)"
+    )
+
+    return available_actions
+
+
 @router.get("/category/{category}", response_model=List[ActionMappingResponse])
 def get_actions_by_category(
     category: ActionCategory,

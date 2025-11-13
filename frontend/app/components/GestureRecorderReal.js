@@ -82,17 +82,22 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
 
   /**
    * Fetch available actions for the selected context from API
+   * OPTIMIZATION: Use /available endpoint to exclude already assigned actions
    */
   const fetchActionsForContext = async (context) => {
     setIsLoadingActions(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(
-        `http://localhost:8000/api/action-mappings/context/${context}?active_only=true`,
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
-      );
+
+      // Build URL with exclude_gesture_id for edit mode
+      let url = `http://localhost:8000/api/action-mappings/context/${context}/available?active_only=true`;
+      if (isEditMode && editingGesture?.id) {
+        url += `&exclude_gesture_id=${editingGesture.id}`;
+      }
+
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
 
       if (response.ok) {
         const actions = await response.json();
@@ -106,7 +111,10 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
         setAvailableActions(formattedActions);
 
         // If no action is selected yet and actions are available, select the first one
-        if (!selectedAction && formattedActions.length > 0) {
+        // In edit mode, keep the current action selected if available
+        if (isEditMode && editingGesture?.action) {
+          setSelectedAction(editingGesture.action);
+        } else if (!selectedAction && formattedActions.length > 0) {
           setSelectedAction(formattedActions[0].id);
         }
       } else {
@@ -665,7 +673,13 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
               </div>
               {availableActions.length === 0 && !isLoadingActions && (
                 <p className="mt-1 text-xs text-amber-400">
-                  No actions available. Please contact admin to add actions for {selectedContext} context.
+                  ℹ️ All actions for <strong>{selectedContext}</strong> context have been assigned to your gestures.
+                  {!isEditMode && ' Delete an existing gesture or choose a different context.'}
+                </p>
+              )}
+              {availableActions.length > 0 && !isEditMode && (
+                <p className="mt-1 text-xs text-cyan-400/70">
+                  💡 Showing only unassigned actions to prevent duplicates
                 </p>
               )}
             </div>
