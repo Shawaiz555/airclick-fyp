@@ -43,8 +43,8 @@ class HybridStateMachine:
     def __init__(
         self,
         stationary_duration_threshold: float = 0.5,  # Seconds hand must be stationary
-        collection_frame_count: int = 60,            # MAX frames to collect for gesture
-        min_collection_frames: int = 5,              # MINIMUM frames required for matching
+        collection_frame_count: int = 90,            # MAX frames to collect for gesture
+        min_collection_frames: int = 10,              # MINIMUM frames required for matching
         idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
         velocity_threshold: float = 0.02,            # Movement threshold for stationary detection
         moving_velocity_threshold: float = 0.08,     # Minimum velocity for moving gesture detection
