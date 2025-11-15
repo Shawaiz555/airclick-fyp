@@ -43,14 +43,21 @@ class EnhancedDTW:
 
     def __init__(
         self,
-        max_distance: float = 1000.0,
+        max_distance: float = 150.0,  # ✅ CRITICAL FIX #2: Changed from 1000.0 to 150.0
         sakoe_chiba_radius: Optional[int] = None
     ):
         """
         Initialize Enhanced DTW.
 
         Args:
-            max_distance: Maximum distance for normalization
+            max_distance: Maximum distance for normalization (default: 150.0)
+                         After Procrustes normalization, typical distances are:
+                         - Perfect match: 0-5
+                         - Excellent match: 5-15
+                         - Good match: 15-30
+                         - Poor match: 50-100
+                         - No match: 100+
+                         Therefore, 150.0 is a reasonable upper bound.
             sakoe_chiba_radius: Radius for Sakoe-Chiba band (None = auto)
         """
         self.max_distance = max_distance
@@ -381,14 +388,15 @@ class DTWEnsemble:
 
     def __init__(
         self,
-        max_distance: float = 1000.0,
+        max_distance: float = 150.0,  # ✅ CRITICAL FIX #2: Changed from 1000.0 to 150.0
         algorithm_weights: Optional[Dict[str, float]] = None
     ):
         """
         Initialize DTW Ensemble.
 
         Args:
-            max_distance: Maximum distance for normalization
+            max_distance: Maximum distance for normalization (default: 150.0)
+                         This should match the EnhancedDTW default for consistency
             algorithm_weights: Weights for each algorithm
         """
         self.dtw = EnhancedDTW(max_distance=max_distance)
@@ -532,11 +540,13 @@ def get_dtw_ensemble() -> DTWEnsemble:
     Get global DTW Ensemble instance.
 
     Returns:
-        DTWEnsemble instance
+        DTWEnsemble instance with corrected max_distance (150.0)
     """
     global _dtw_ensemble_instance
 
     if _dtw_ensemble_instance is None:
-        _dtw_ensemble_instance = DTWEnsemble()
+        # ✅ CRITICAL FIX #2: Explicitly set max_distance to ensure it's not using old default
+        _dtw_ensemble_instance = DTWEnsemble(max_distance=150.0)
+        logger.info(f"✅ DTW Ensemble initialized with max_distance=150.0 (FIXED)")
 
     return _dtw_ensemble_instance

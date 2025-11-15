@@ -552,3 +552,53 @@ def preprocess_for_matching(
     logger.debug(f"  ✓ Matching preprocessing complete: {features.shape}")
 
     return features
+
+
+def convert_features_to_frames(features: np.ndarray, original_frames: List[Dict]) -> List[Dict]:
+    """
+    Convert preprocessed features back to frames format for storage.
+
+    This function is critical for storing preprocessed gestures in the database
+    while maintaining the original frame structure (timestamps, metadata).
+
+    Args:
+        features: (num_frames, 63) preprocessed features array
+                 63 = 21 landmarks × 3 coordinates (x, y, z)
+        original_frames: Original frames list (for preserving timestamps/metadata)
+
+    Returns:
+        List of frame dicts with preprocessed landmarks in standard format
+
+    Example:
+        >>> features = np.random.rand(60, 63)  # 60 frames, 63 features
+        >>> frames = [{'timestamp': i*33, 'landmarks': [...]} for i in range(60)]
+        >>> new_frames = convert_features_to_frames(features, frames)
+        >>> len(new_frames)  # 60
+        >>> len(new_frames[0]['landmarks'])  # 21
+    """
+    num_frames = len(features)
+    new_frames = []
+
+    for i in range(num_frames):
+        # Reshape features (63,) to landmarks (21, 3)
+        landmarks = features[i].reshape(21, 3)
+
+        # Preserve original metadata if available, otherwise use defaults
+        original_frame = original_frames[i] if i < len(original_frames) else {}
+
+        new_frame = {
+            'timestamp': original_frame.get('timestamp', i * 33.33),  # 30 FPS default
+            'landmarks': [
+                {
+                    'x': float(landmarks[j, 0]),
+                    'y': float(landmarks[j, 1]),
+                    'z': float(landmarks[j, 2])
+                }
+                for j in range(21)
+            ],
+            'handedness': original_frame.get('handedness', 'Right'),
+            'confidence': original_frame.get('confidence', 1.0)
+        }
+        new_frames.append(new_frame)
+
+    return new_frames

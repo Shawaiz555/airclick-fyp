@@ -312,12 +312,24 @@ class GestureMatcher:
             - value: Either distance or similarity depending on method
             - is_similarity_flag: True if value is similarity (0-1), False if distance
         """
+        # ✅ CRITICAL FIX #4: Add debugging logs
+        logger.debug(f"DTW Calculation:")
+        logger.debug(f"  Input shape: {seq1.shape}")
+        logger.debug(f"  Stored shape: {seq2.shape}")
+        logger.debug(f"  Method: {self.dtw_method}")
+
         # Use Phase 2 enhanced DTW if enabled
         if self.enable_enhanced_dtw:
             if self.dtw_method == 'ensemble':
                 # FIXED: Ensemble returns SIMILARITY directly (0-1)
                 # DO NOT convert to distance!
                 similarity = self.dtw_ensemble.match(seq1, seq2)
+
+                # ✅ CRITICAL FIX #4: Log max_distance being used
+                max_dist = self.dtw_ensemble.dtw.max_distance
+                logger.debug(f"  max_distance: {max_dist}")
+                logger.debug(f"  Similarity (direct from ensemble): {similarity:.4f}")
+
                 return similarity, True  # Return similarity directly
 
             elif self.dtw_method == 'direction':
@@ -461,10 +473,14 @@ class GestureMatcher:
                 logger.info(f"✓ Cache HIT! Returned in {cache_time:.1f}ms")
                 return cached_result
 
-        # Extract and normalize input features
+        # Extract input features (already normalized by Procrustes + bone-length)
         try:
             input_features = self.extract_features(input_frames)
-            input_normalized = self.normalize_sequence(input_features)
+            # ✅ CRITICAL FIX #3: Remove double normalization!
+            # extract_features() already applies Procrustes + bone-length normalization
+            # Adding z-score normalization on top DESTROYS the geometric features
+            # input_normalized = self.normalize_sequence(input_features)  # ❌ REMOVED
+            input_normalized = input_features  # Use features as-is
         except Exception as e:
             logger.error(f"Error extracting input features: {e}")
             return None
@@ -589,9 +605,11 @@ class GestureMatcher:
                     value = cached_value
                     is_similarity = False
                 else:
-                    # Extract and normalize stored features
+                    # Extract stored features (already normalized by Procrustes + bone-length)
                     stored_features = self.extract_features(stored_frames)
-                    stored_normalized = self.normalize_sequence(stored_features)
+                    # ✅ CRITICAL FIX #3: Remove double normalization!
+                    # stored_normalized = self.normalize_sequence(stored_features)  # ❌ REMOVED
+                    stored_normalized = stored_features  # Use features as-is
 
                     # Calculate DTW distance or similarity
                     # FIXED: dtw_distance now returns (value, is_similarity_flag)
@@ -604,8 +622,13 @@ class GestureMatcher:
                 # FIXED: Convert to similarity correctly
                 similarity = self.calculate_final_similarity(value, is_similarity)
 
-                logger.info(f"  {idx}. '{gesture.get('name')}' (template {gesture.get('template_index', 0)}): "
-                          f"similarity={similarity:.2%}")
+                # ✅ CRITICAL FIX #4: Enhanced logging with distance/similarity info
+                if is_similarity:
+                    logger.info(f"  {idx}. '{gesture.get('name')}' (template {gesture.get('template_index', 0)}): "
+                              f"similarity={similarity:.2%} (direct from ensemble)")
+                else:
+                    logger.info(f"  {idx}. '{gesture.get('name')}' (template {gesture.get('template_index', 0)}): "
+                              f"distance={value:.2f} → similarity={similarity:.2%}")
 
                 # Update best match if this is better
                 if similarity > best_similarity:
@@ -658,9 +681,11 @@ class GestureMatcher:
                     value = cached_value
                     is_similarity = False
                 else:
-                    # Extract and normalize stored features
+                    # Extract stored features (already normalized by Procrustes + bone-length)
                     stored_features = self.extract_features(stored_frames)
-                    stored_normalized = self.normalize_sequence(stored_features)
+                    # ✅ CRITICAL FIX #3: Remove double normalization!
+                    # stored_normalized = self.normalize_sequence(stored_features)  # ❌ REMOVED
+                    stored_normalized = stored_features  # Use features as-is
 
                     # Calculate DTW distance or similarity
                     value, is_similarity = self.dtw_distance(input_normalized, stored_normalized)
@@ -686,8 +711,9 @@ class GestureMatcher:
                     gesture, similarity = future.result()
 
                     if similarity > 0:
+                        # ✅ CRITICAL FIX #4: Enhanced logging for parallel matching
                         logger.info(f"  {idx}. '{gesture.get('name')}' (template {gesture.get('template_index', 0)}): "
-                                  f"similarity={similarity:.2%}")
+                                  f"similarity={similarity:.2%} (parallel)")
 
                         if similarity > best_similarity:
                             best_similarity = similarity
@@ -719,10 +745,12 @@ class GestureMatcher:
         if not stored_gestures:
             return []
 
-        # Extract and normalize input features
+        # Extract input features (already normalized by Procrustes + bone-length)
         try:
             input_features = self.extract_features(input_frames)
-            input_normalized = self.normalize_sequence(input_features)
+            # ✅ CRITICAL FIX #3: Remove double normalization!
+            # input_normalized = self.normalize_sequence(input_features)  # ❌ REMOVED
+            input_normalized = input_features  # Use features as-is
         except Exception as e:
             logger.error(f"Error extracting input features: {e}")
             return []
@@ -739,7 +767,9 @@ class GestureMatcher:
                     continue
 
                 stored_features = self.extract_features(stored_frames)
-                stored_normalized = self.normalize_sequence(stored_features)
+                # ✅ CRITICAL FIX #3: Remove double normalization!
+                # stored_normalized = self.normalize_sequence(stored_features)  # ❌ REMOVED
+                stored_normalized = stored_features  # Use features as-is
 
                 value, is_similarity = self.dtw_distance(input_normalized, stored_normalized)
                 similarity = self.calculate_final_similarity(value, is_similarity)

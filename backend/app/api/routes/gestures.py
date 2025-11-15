@@ -66,12 +66,31 @@ def record_gesture(
                f"Avg FPS: {original_stats['avg_fps']} | "
                f"Avg Confidence: {original_stats['avg_confidence']}")
 
-    # PHASE 1 FIX: Resample to exactly 60 frames
-    if len(frames_dict) != 60:
-        logger.info(f"📐 Resampling: {len(frames_dict)} frames → 60 frames (PHASE 1 FIX)")
-        frames_dict = resample_frames_linear(frames_dict, target_frames=60)
-    else:
-        logger.info(f"✓ Frame count already at target: 60 frames")
+    # ✅ CRITICAL FIX #1: Apply FULL preprocessing during recording
+    # This ensures recorded gestures use the SAME normalization as matching
+    from app.services.gesture_preprocessing import preprocess_for_recording, convert_features_to_frames
+
+    logger.info(f"📐 Applying FULL preprocessing (CRITICAL FIX #1):")
+    logger.info(f"   - Resampling to 60 frames")
+    logger.info(f"   - Temporal smoothing (One Euro Filter)")
+    logger.info(f"   - Procrustes normalization (translation/rotation/scale invariance)")
+    logger.info(f"   - Bone-length normalization (anatomical consistency)")
+
+    # Apply preprocessing and get features
+    features = preprocess_for_recording(
+        frames_dict,
+        target_frames=60,
+        apply_smoothing=True,
+        apply_procrustes=True,
+        apply_bone_normalization=True
+    )
+
+    logger.info(f"✅ Preprocessing complete: {features.shape}")
+
+    # Convert features back to frames format for storage
+    frames_dict = convert_features_to_frames(features, frames_dict)
+
+    logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
 
     # Convert to storable format
     landmark_data = {
@@ -82,7 +101,9 @@ def record_gesture(
             "original_frame_count": original_stats['frame_count'],
             "resampled": original_stats['frame_count'] != 60,
             "avg_confidence": original_stats['avg_confidence'],
-            "handedness": original_stats['handedness']
+            "handedness": original_stats['handedness'],
+            "preprocessed": True,  # Mark that preprocessing was applied
+            "preprocessing_version": "v2_fix1"  # Version tracking
         }
     }
 
