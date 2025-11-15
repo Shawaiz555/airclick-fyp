@@ -215,23 +215,59 @@ def update_gesture(
                     detail="Each frame must have exactly 21 landmarks"
                 )
 
-        # Convert frames to storable format
+        # 🔥 CRITICAL FIX: Apply SAME preprocessing as recording!
+        # Convert to dict format for processing
+        frames_dict = [
+            {
+                "timestamp": frame.timestamp,
+                "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
+                "handedness": frame.handedness,
+                "confidence": frame.confidence
+            }
+            for frame in gesture_data.frames
+        ]
+
+        # Get frame statistics
+        from app.services.frame_resampler import get_frame_statistics
+        original_stats = get_frame_statistics(frames_dict)
+
+        logger.info(f"📐 Updating gesture '{gesture.name}' with FULL preprocessing:")
+        logger.info(f"   Original frames: {original_stats['frame_count']}")
+        logger.info(f"   - Resampling to 60 frames")
+        logger.info(f"   - Temporal smoothing (One Euro Filter)")
+        logger.info(f"   - Procrustes normalization")
+        logger.info(f"   - Bone-length normalization")
+
+        # Apply preprocessing
+        from app.services.gesture_preprocessing import preprocess_for_recording, convert_features_to_frames
+
+        features = preprocess_for_recording(
+            frames_dict,
+            target_frames=60,
+            apply_smoothing=True,
+            apply_procrustes=True,
+            apply_bone_normalization=True
+        )
+
+        logger.info(f"✅ Preprocessing complete: {features.shape}")
+
+        # Convert back to frames format
+        frames_dict = convert_features_to_frames(features, frames_dict)
+
+        logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
+
+        # Convert to storable format
         landmark_data = {
-            "frames": [
-                {
-                    "timestamp": frame.timestamp,
-                    "landmarks": [
-                        {"x": lm.x, "y": lm.y, "z": lm.z}
-                        for lm in frame.landmarks
-                    ],
-                    "handedness": frame.handedness,
-                    "confidence": frame.confidence
-                }
-                for frame in gesture_data.frames
-            ],
+            "frames": frames_dict,
             "metadata": {
-                "total_frames": len(gesture_data.frames),
-                "duration": (gesture_data.frames[-1].timestamp - gesture_data.frames[0].timestamp) / 1000.0 if len(gesture_data.frames) > 1 else 0
+                "total_frames": len(frames_dict),
+                "duration": original_stats['duration_ms'] / 1000.0,
+                "original_frame_count": original_stats['frame_count'],
+                "resampled": original_stats['frame_count'] != 60,
+                "avg_confidence": original_stats['avg_confidence'],
+                "handedness": original_stats['handedness'],
+                "preprocessed": True,  # Mark that preprocessing was applied
+                "preprocessing_version": "v2_fix1"  # Version tracking
             }
         }
         gesture.landmark_data = landmark_data

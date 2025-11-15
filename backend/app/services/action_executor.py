@@ -43,9 +43,25 @@ class ActionExecutor:
     """
 
     # Application window title patterns for detection
+    # 🔥 CRITICAL FIX: Expanded patterns to catch more window title variations
     APP_WINDOW_PATTERNS = {
-        "POWERPOINT": ["PowerPoint", "Microsoft PowerPoint", ".pptx", ".ppt"],
-        "WORD": ["Word", "Microsoft Word", ".docx", ".doc"],
+        "POWERPOINT": [
+            "PowerPoint",
+            "Microsoft PowerPoint",
+            ".pptx",
+            ".ppt",
+            "Presentation",  # Added
+            "POWERPNT",  # Added: shortened version
+            "PPT"  # Added
+        ],
+        "WORD": [
+            "Word",
+            "Microsoft Word",
+            ".docx",
+            ".doc",
+            "Document",  # Added
+            "WINWORD"  # Added: process name
+        ],
         "GLOBAL": []  # Global actions don't need specific windows
     }
 
@@ -94,15 +110,25 @@ class ActionExecutor:
             # Get all windows
             all_windows = gw.getAllWindows()
 
+            # 🔥 CRITICAL FIX: Log all windows to help debug
+            logger.debug(f"🔍 Searching for {context} window...")
+            logger.debug(f"   Patterns to match: {patterns}")
+            window_titles = [w.title for w in all_windows if w.title]
+            logger.debug(f"   Available windows ({len(window_titles)}): {window_titles[:10]}")  # Log first 10
+
             # Search for matching window
             for window in all_windows:
                 if window.title:  # Skip windows without titles
                     for pattern in patterns:
                         if pattern.lower() in window.title.lower():
-                            logger.info(f"✓ Found {context} window: '{window.title}'")
+                            logger.info(f"✅ Found {context} window: '{window.title}'")
                             return window
 
-            logger.warning(f"⚠ No {context} window found. Searched for patterns: {patterns}")
+            # 🔥 CRITICAL FIX: Better error message with available windows
+            logger.error(f"❌ No {context} window found!")
+            logger.error(f"   Searched for patterns: {patterns}")
+            logger.error(f"   Available windows: {window_titles[:5]}")  # Show first 5
+            logger.error(f"   💡 Make sure {context} application is open!")
             return None
 
         except Exception as e:
