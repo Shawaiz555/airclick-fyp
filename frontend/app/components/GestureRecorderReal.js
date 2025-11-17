@@ -356,12 +356,14 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
         console.warn('⚠️ Could not set localStorage:', error.message);
       }
 
-      // Also call API as backup (for file-based communication)
+      // CRITICAL FIX: Send authentication token with API request
       try {
+        const token = localStorage.getItem('token');
         const response = await fetch('http://localhost:8000/api/gestures/recording-state', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}` // CRITICAL: Include auth token
           },
           body: JSON.stringify({ is_recording: isRecording }),
         });
@@ -369,7 +371,8 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
         if (response.ok) {
           console.log(`✅ Recording state set via API: ${isRecording}`);
         } else {
-          console.warn('⚠️ Failed to set recording state via API');
+          const error = await response.text();
+          console.warn('⚠️ Failed to set recording state via API:', error);
         }
       } catch (error) {
         console.warn('⚠️ Could not notify recording state via API:', error.message);
@@ -530,6 +533,24 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
       }
 
       const data = await response.json();
+
+      // CRITICAL FIX: Ensure recording state is cleared before closing
+      // This guarantees cursor re-enables even if cleanup doesn't run immediately
+      try {
+        localStorage.setItem('airclick_recording', 'false');
+        const token = localStorage.getItem('token');
+        await fetch('http://localhost:8000/api/gestures/recording-state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ is_recording: false }),
+        });
+        console.log('✅ Recording state explicitly cleared before closing modal');
+      } catch (error) {
+        console.warn('⚠️ Could not clear recording state:', error.message);
+      }
 
       // Call parent callback first
       if (onSave) {

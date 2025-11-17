@@ -87,13 +87,27 @@ class HybridModeController:
 
         # Check if hands are detected
         if hand_data.get('hand_count', 0) == 0:
-            return {
-                'success': False,
-                'error': 'No hands detected',
-                'hybrid_mode_enabled': self.hybrid_mode_enabled,
-                'cursor_enabled': False,
-                'state_machine': self.state_machine.get_state_info()
-            }
+            # CRITICAL FIX: Notify state machine about hand removal
+            # This triggers gesture matching if we were collecting frames
+            if self.hybrid_mode_enabled:
+                state_metadata = self.state_machine.handle_no_hand_detected(
+                    match_callback=self.gesture_match_callback
+                )
+                return {
+                    'success': False,
+                    'error': 'No hands detected',
+                    'hybrid_mode_enabled': self.hybrid_mode_enabled,
+                    'cursor_enabled': False,
+                    'state_machine': state_metadata
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': 'No hands detected',
+                    'hybrid_mode_enabled': self.hybrid_mode_enabled,
+                    'cursor_enabled': False,
+                    'state_machine': self.state_machine.get_state_info()
+                }
 
         # Get first hand landmarks
         hand = hand_data['hands'][0]

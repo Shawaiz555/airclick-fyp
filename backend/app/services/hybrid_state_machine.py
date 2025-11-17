@@ -44,7 +44,7 @@ class HybridStateMachine:
         self,
         stationary_duration_threshold: float = 0.8,  # INCREASED: Seconds hand must be stationary (more deliberate)
         collection_frame_count: int = 90,            # MAX frames to collect for gesture
-        min_collection_frames: int = 30,             # INCREASED: MINIMUM frames required for matching (prevent false positives)
+        min_collection_frames: int = 10,             # CRITICAL FIX: Reduced to 10 frames minimum (allow quick gestures)
         idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
         velocity_threshold: float = 0.015,           # DECREASED: Movement threshold for stationary detection (more strict)
         moving_velocity_threshold: float = 0.12,     # INCREASED: Minimum velocity for moving gesture detection (more intentional)
@@ -548,7 +548,13 @@ class HybridStateMachine:
             else:
                 logger.warning("⚠️ No match callback provided for hand removal trigger!")
 
-            # Return metadata showing we're now matching with result
+            # CRITICAL FIX: Immediately transition to IDLE state after matching
+            # This ensures the system goes into cooldown and doesn't get stuck in MATCHING
+            self.state = HybridState.IDLE
+            self.idle_start_time = current_time
+            logger.info("State: MATCHING → IDLE (hand removed trigger)")
+
+            # Return metadata showing we're now in IDLE with match result
             return {
                 'state': self.state.value,
                 'cursor_enabled': False,

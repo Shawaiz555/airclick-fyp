@@ -527,15 +527,38 @@ class HandTrackingService:
                             # Result is Optional[Tuple[Dict, float]]
                             if result:
                                 matched_gesture, similarity = result
-                                logger.info(f"✅ Gesture matched: {matched_gesture['name']} (similarity: {similarity:.1%})")
 
-                                # 🔥 CRITICAL FIX: Execute the action associated with the gesture!
+                                # CRITICAL FIX: Log match result FIRST, before action execution
+                                logger.info(f"")
+                                logger.info(f"{'='*60}")
+                                logger.info(f"✅ GESTURE MATCHED: {matched_gesture['name']}")
+                                logger.info(f"   Similarity: {similarity:.1%}")
+                                logger.info(f"   Gesture ID: {matched_gesture.get('id')}")
+                                logger.info(f"{'='*60}")
+
+                                # Get action details
                                 gesture_action = matched_gesture.get('action')
                                 gesture_app_context = matched_gesture.get('app_context')
 
+                                # Update gesture stats in database BEFORE action execution
+                                try:
+                                    gesture_record = db.query(Gesture).filter(Gesture.id == matched_gesture.get('id')).first()
+                                    if gesture_record:
+                                        gesture_record.total_similarity = (gesture_record.total_similarity or 0.0) + similarity
+                                        gesture_record.match_count = (gesture_record.match_count or 0) + 1
+                                        gesture_record.accuracy_score = gesture_record.total_similarity / gesture_record.match_count
+                                        db.commit()
+                                        logger.debug(f"📊 Updated gesture stats: match_count={gesture_record.match_count}, accuracy={gesture_record.accuracy_score:.1%}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to update gesture stats: {e}")
+                                    db.rollback()
+
+                                # Execute action AFTER logging match result
                                 if gesture_action:
-                                    logger.info(f"🎬 Executing action: {gesture_action} for gesture '{matched_gesture['name']}'")
+                                    logger.info(f"")
+                                    logger.info(f"🎬 Executing action: {gesture_action}")
                                     logger.info(f"   App context: {gesture_app_context}")
+                                    logger.info(f"   Gesture: '{matched_gesture['name']}'")
 
                                     # Import action executor
                                     from app.services.action_executor import get_action_executor
@@ -557,19 +580,6 @@ class HandTrackingService:
                                         logger.error(f"❌ Action execution failed: {action_result.get('error')}")
                                         if action_result.get('app_not_found'):
                                             logger.error(f"   ⚠️ {gesture_app_context} application is not running!")
-
-                                    # Update gesture stats in database
-                                    try:
-                                        gesture_record = db.query(Gesture).filter(Gesture.id == matched_gesture.get('id')).first()
-                                        if gesture_record:
-                                            gesture_record.total_similarity = (gesture_record.total_similarity or 0.0) + similarity
-                                            gesture_record.match_count = (gesture_record.match_count or 0) + 1
-                                            gesture_record.accuracy_score = gesture_record.total_similarity / gesture_record.match_count
-                                            db.commit()
-                                            logger.debug(f"📊 Updated gesture stats: match_count={gesture_record.match_count}, accuracy={gesture_record.accuracy_score:.1%}")
-                                    except Exception as e:
-                                        logger.warning(f"Failed to update gesture stats: {e}")
-                                        db.rollback()
 
                                     return {
                                         "matched": True,
@@ -647,15 +657,13 @@ class HandTrackingService:
                                 logger.info(f"🚫 NO HAND detected while COLLECTING ({len(hybrid_controller.state_machine.collected_frames)} frames collected)")
 
                             # Process "no hand" frame to allow state machine to finish collection
+                            # CRITICAL FIX: State machine now handles IDLE transition internally
                             no_hand_result = hybrid_controller.state_machine.handle_no_hand_detected(
                                 match_callback=hybrid_controller.gesture_match_callback
                             )
 
-                            # If match was triggered, transition to IDLE
+                            # Log match result if triggered
                             if no_hand_result.get('trigger') == 'hand_removed':
-                                # Transition state machine to IDLE after matching
-                                hybrid_controller.state_machine.state = HybridState.IDLE
-                                hybrid_controller.state_machine.idle_start_time = datetime.now().timestamp()
                                 logger.info(f"🎯 Gesture match result: {no_hand_result.get('match_result')}")
 
                             # IMPORTANT: Get the full state machine info including match_result in IDLE state
