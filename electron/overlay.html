@@ -27,7 +27,8 @@
       }
 
       #overlay-container {
-        width: 480px;
+        width: 400px;
+        opacity: 85%;
         background: rgba(17, 24, 39, 0.98);
         backdrop-filter: blur(20px);
         border: 3px solid rgba(6, 182, 212, 0.6);
@@ -145,7 +146,7 @@
       .canvas-container {
         position: relative;
         width: 100%;
-        height: 360px;
+        height: 330px;
         background: linear-gradient(
           135deg,
           rgba(17, 24, 39, 0.95),
@@ -805,7 +806,7 @@
       let lastHandPosition = null;
       let gestureEndTimer = null;
       const MIN_GESTURE_FRAMES = 5; // Minimum frames before matching
-      const MAX_GESTURE_FRAMES = 60; // Maximum frames to collect
+      const MAX_GESTURE_FRAMES = 90; // Maximum frames to collect
       const GESTURE_END_DELAY = 300; // ms to wait after hand stops before matching
 
       // Hybrid mode state - dynamic from localStorage
@@ -831,25 +832,19 @@
             ".airclick-hybridmode"
           );
 
-          if (fs.existsSync(hybridModeFile)) {
-            const fileContent = fs.readFileSync(hybridModeFile, "utf8").trim();
-            hybridModeEnabled = fileContent === "true";
-            console.log(
-              `🔧 Hybrid mode initialized from file: ${hybridModeEnabled}`
+          // CRITICAL FIX: Always default to TRUE for cursor control to work
+          // Cursor control system (hybrid mode) should be enabled by default
+          hybridModeEnabled = true;
+
+          // Always write/overwrite the file to ensure it's set to true
+          try {
+            fs.writeFileSync(hybridModeFile, "true", "utf8");
+            console.log("🔧 Hybrid mode initialized: true (cursor control ENABLED by default)");
+          } catch (err) {
+            console.warn(
+              "⚠️ Could not write hybrid mode file:",
+              err.message
             );
-          } else {
-            // Default to true if file doesn't exist, and create the file
-            hybridModeEnabled = true;
-            try {
-              fs.writeFileSync(hybridModeFile, "true", "utf8");
-              console.log("🔧 Hybrid mode file created with default: true");
-            } catch (err) {
-              console.warn(
-                "⚠️ Could not create hybrid mode file:",
-                err.message
-              );
-            }
-            console.log("🔧 Hybrid mode file not found, using default: true");
           }
         } catch (error) {
           console.error("Error initializing hybrid mode:", error);
@@ -1105,6 +1100,14 @@
             currentHybridMode = fileContent === "true";
           }
 
+          // CRITICAL FIX: Don't override hybrid mode if recording is active
+          // Recording state takes priority - cursor should stay disabled while recording
+          if (isRecordingGesture) {
+            // Skip hybrid mode changes while recording
+            lastHybridMode = currentHybridMode; // Update last value to prevent re-triggering
+            return;
+          }
+
           if (currentHybridMode !== lastHybridMode) {
             console.log(
               `🔄 Hybrid mode changed (file polling): ${lastHybridMode} → ${currentHybridMode} - Reconnecting WebSocket...`
@@ -1138,11 +1141,23 @@
             isRecordingGesture = currentRecordingState;
             lastRecordingState = currentRecordingState;
 
-            // Update UI to show recording is disabled
+            // CRITICAL FIX: Disable cursor control (hybrid mode) while recording
             if (isRecordingGesture) {
-              console.log("⚠️ Gesture matching DISABLED - User is recording/updating a gesture");
+              console.log("⚠️ CURSOR CONTROL DISABLED - User is recording/updating a gesture in web UI");
+              // Temporarily disable hybrid mode to stop cursor control
+              if (hybridModeEnabled) {
+                hybridModeEnabled = false;
+                console.log("🔄 Switching to gesture-only mode - Reconnecting WebSocket...");
+                connectWebSocket();
+              }
             } else {
-              console.log("✅ Gesture matching ENABLED - Recording complete");
+              console.log("✅ CURSOR CONTROL ENABLED - Recording complete");
+              // Re-enable hybrid mode (cursor control)
+              if (!hybridModeEnabled) {
+                hybridModeEnabled = true;
+                console.log("🔄 Switching back to hybrid mode - Reconnecting WebSocket...");
+                connectWebSocket();
+              }
             }
           }
         } catch (err) {

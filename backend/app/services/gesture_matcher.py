@@ -47,7 +47,7 @@ class GestureMatcher:
 
     def __init__(
         self,
-        similarity_threshold: float = 0.65,  # FIXED: Lowered from 0.80 to 0.65
+        similarity_threshold: float = 0.75,  # UPDATED: Raised to 0.75 (75%) for stricter matching
         enable_preprocessing: bool = True,
         enable_smoothing: bool = True,
         enable_enhanced_dtw: bool = True,
@@ -62,7 +62,7 @@ class GestureMatcher:
 
         Args:
             similarity_threshold: Minimum similarity score (0-1) to consider a match
-                                 FIXED: Default 0.65 (65%) - More realistic for user gestures
+                                 UPDATED: Default 0.75 (75%) - Stricter matching with motion-aware features
                                  This will be overridden by gesture-specific adaptive thresholds
             enable_preprocessing: Enable Procrustes + bone-length normalization
             enable_smoothing: Enable temporal smoothing (One Euro Filter)
@@ -125,7 +125,7 @@ class GestureMatcher:
 
         # Log the critical fix
         logger.info(f"✅ FIXED: max_distance auto-calculated as {self.max_distance} (was 1000.0)")
-        logger.info(f"✅ FIXED: Default threshold set to {self.similarity_threshold:.0%} (was 80%)")
+        logger.info(f"✅ MOTION-AWARE: Default threshold set to {self.similarity_threshold:.0%} (stricter matching)")
 
     def _auto_calculate_max_distance(self) -> float:
         """
@@ -334,14 +334,16 @@ class GestureMatcher:
 
             elif self.dtw_method == 'direction':
                 # Returns distance
-                distance = self.enhanced_dtw.direction_similarity_dtw(seq1, seq2, alpha=0.4)
+                # CRITICAL FIX: Increased alpha to emphasize movement direction
+                distance = self.enhanced_dtw.direction_similarity_dtw(seq1, seq2, alpha=0.6)
                 return distance, False
 
             elif self.dtw_method == 'multi_feature':
                 # Returns distance
+                # BALANCED FIX: Equal weight to position and velocity
                 distance, _ = self.enhanced_dtw.multi_feature_dtw(
                     seq1, seq2,
-                    weights={'pos': 0.5, 'vel': 0.3, 'acc': 0.2}
+                    weights={'pos': 0.45, 'vel': 0.40, 'acc': 0.15}
                 )
                 return distance, False
 
@@ -431,7 +433,8 @@ class GestureMatcher:
         input_frames: List[Dict],
         stored_gestures: List[Dict],
         user_id: Optional[int] = None,
-        app_context: Optional[str] = None
+        app_context: Optional[str] = None,
+        return_best_candidate: bool = False
     ) -> Optional[Tuple[Dict, float]]:
         """
         Match input gesture against stored gesture templates with Phase 3 optimizations.
@@ -451,9 +454,11 @@ class GestureMatcher:
             stored_gestures: List of stored gesture templates from database
             user_id: User ID (for caching)
             app_context: Application context (for caching)
+            return_best_candidate: If True, return best match even if below threshold (for false trigger tracking)
 
         Returns:
             Tuple of (best_match_gesture, similarity_score) or None if no match
+            When return_best_candidate=True, always returns best match regardless of threshold
         """
         start_time = time.time()
 
@@ -556,6 +561,11 @@ class GestureMatcher:
             logger.info(f"  - Ensure hand stays in frame throughout gesture")
             logger.info(f"  - Record additional variations of this gesture for better matching")
             logger.info(f"  - Check if gesture motion matches recording closely")
+
+            # If return_best_candidate is True, still return the best match for false trigger tracking
+            if return_best_candidate and best_match:
+                logger.info(f"  ℹ️ Returning best candidate for false trigger tracking")
+                result = (best_match, best_similarity)
 
         # Phase 3: Cache result for future queries
         if self.enable_caching and user_id is not None and result is not None:
@@ -785,12 +795,12 @@ class GestureMatcher:
         return matches[:top_k]
 
 
-# Global gesture matcher instance with ALL FIXES APPLIED
-# Threshold progression: 0.65 (original) → 0.75 (Phase 1) → 0.80 (Phase 1+2) → 0.65 (FIXED - realistic)
+# Global gesture matcher instance with ALL FIXES APPLIED + MOTION-AWARE
+# Threshold progression: 0.65 (original) → 0.75 (Phase 1) → 0.80 (Phase 1+2) → 0.65 (FIXED - realistic) → 0.75 (MOTION-AWARE - stricter)
 # Performance: 10-16s for 1000 gestures → 20-70ms (Phase 3) - MAINTAINED
-# Accuracy: 22-25% (BROKEN) → 80-92% (FIXED)
+# Accuracy: 22-25% (BROKEN) → 80-92% (FIXED) → Better with motion-aware features
 gesture_matcher = GestureMatcher(
-    similarity_threshold=0.65,  # FIXED: Realistic default threshold
+    similarity_threshold=0.75,  # MOTION-AWARE: Stricter threshold with improved features
     enable_preprocessing=True,
     enable_smoothing=True,
     enable_enhanced_dtw=True,

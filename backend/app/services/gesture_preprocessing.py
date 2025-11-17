@@ -1,8 +1,9 @@
 """
-AirClick - Gesture Preprocessing Module
-========================================
+AirClick - Gesture Preprocessing Module (MOTION-AWARE VERSION)
+================================================================
 
-This module implements advanced preprocessing techniques to improve gesture matching accuracy:
+This module implements advanced preprocessing techniques to improve gesture matching accuracy
+while PRESERVING movement information.
 
 Phase 1 Enhancements:
 1. Procrustes Analysis - Removes translation, rotation, and scale variations
@@ -10,15 +11,29 @@ Phase 1 Enhancements:
 3. Wrist-Centered Coordinate System - Consistent reference frame
 4. Outlier Detection & Removal - Filters low-confidence and anomalous frames
 
-Expected Impact: +20-30% accuracy improvement
+CRITICAL FIX (v3_motion_aware):
+Previous versions normalized each frame independently, which DESTROYED movement information:
+- ❌ Per-frame rotation alignment → Lost hand rotation direction
+- ❌ Per-frame scale normalization → Lost depth movement (forward/backward)
+- ❌ Result: Gestures matched on hand shape only, not movement patterns
+
+New approach uses REFERENCE FRAME normalization:
+- ✅ Reference rotation from first frame → Preserves relative rotation changes
+- ✅ Average scale across gesture → Preserves depth movement variations
+- ✅ Result: Gestures match on BOTH shape AND movement dynamics
+
+Expected Impact:
+- Phase 1: +20-30% accuracy improvement
+- Motion-aware fix: Solves incorrect matching of different gestures with similar hand shapes
 
 Research References:
 - Procrustes superimposition for shape analysis
 - MediaPipe hand landmark normalization best practices
-- Rotation-invariant hand gesture recognition techniques
+- Dynamic gesture recognition with temporal features
 
-Author: Muhammad Shawaiz
-Project: AirClick FYP - Phase 1 Accuracy Enhancement
+Author: Muhammad Shawaiz (Enhanced by Claude - Motion-Aware Fix)
+Project: AirClick FYP - Phase 1 Accuracy Enhancement + Motion-Aware Correction
+Version: v3_motion_aware
 """
 
 import numpy as np
@@ -230,26 +245,112 @@ class GesturePreprocessor:
 
     def _apply_procrustes_per_frame(self, landmarks: np.ndarray) -> np.ndarray:
         """
-        Apply Procrustes normalization to each frame independently.
+        Apply Procrustes normalization using REFERENCE FRAME approach.
 
-        Procrustes superimposition removes:
-        1. Translation - centers at wrist (landmark 0)
-        2. Scale - normalizes by palm size
-        3. Rotation - aligns to reference orientation
+        CRITICAL FIX: Instead of normalizing each frame independently (which destroys
+        movement information), we:
+        1. Normalize the FIRST frame to get reference orientation
+        2. Apply ONLY translation and scale to subsequent frames
+        3. Preserve relative rotation/movement between frames
+
+        This ensures:
+        ✅ Translation invariant (hand position in frame doesn't matter)
+        ✅ Scale invariant (distance from camera doesn't matter)
+        ✅ Movement PRESERVED (rotation and motion direction maintained)
 
         Args:
             landmarks: (num_frames, 21, 3) array
 
         Returns:
-            Normalized landmarks (num_frames, 21, 3)
+            Normalized landmarks (num_frames, 21, 3) with preserved motion
         """
-        normalized_frames = []
+        if len(landmarks) == 0:
+            return landmarks
 
-        for frame in landmarks:
-            normalized_frame = self._procrustes_normalize_single_frame(frame)
-            normalized_frames.append(normalized_frame)
+        # Get reference frame (first frame) and normalize it FULLY
+        reference_frame = landmarks[0].copy()
+        reference_normalized = self._procrustes_normalize_single_frame(reference_frame)
+
+        # Get the reference rotation matrix by comparing original to normalized
+        reference_rotation = self._extract_rotation_matrix(reference_frame)
+
+        normalized_frames = [reference_normalized]
+
+        # For subsequent frames: apply ONLY translation and scale (NO rotation)
+        # This preserves the relative motion between frames
+        for i in range(1, len(landmarks)):
+            frame = landmarks[i]
+
+            # Step 1: Center at wrist (translation invariance)
+            wrist = frame[0].copy()
+            centered = frame - wrist
+
+            # Step 2: Normalize by palm size (scale invariance)
+            middle_base = centered[9]
+            palm_size = np.linalg.norm(middle_base)
+
+            if palm_size > 1e-6:
+                scaled = centered / palm_size
+            else:
+                scaled = centered
+
+            # Step 3: Apply REFERENCE rotation (not per-frame rotation)
+            # This aligns all frames to the same coordinate system while preserving
+            # the relative rotation changes between frames
+            rotated = scaled @ reference_rotation
+
+            normalized_frames.append(rotated)
 
         return np.array(normalized_frames)
+
+    def _extract_rotation_matrix(self, landmarks: np.ndarray) -> np.ndarray:
+        """
+        Extract rotation matrix from a single frame's landmarks.
+
+        Uses wrist→middle finger as primary axis and wrist→index as secondary axis
+        to create an orthonormal basis.
+
+        Args:
+            landmarks: (21, 3) array for single frame
+
+        Returns:
+            (3, 3) rotation matrix
+        """
+        # Center at wrist
+        wrist = landmarks[0].copy()
+        centered = landmarks - wrist
+
+        # Normalize by scale
+        middle_base = centered[9]
+        palm_size = np.linalg.norm(middle_base)
+        if palm_size > 1e-6:
+            scaled = centered / palm_size
+        else:
+            scaled = centered
+
+        # Create orthonormal basis
+        primary_axis = scaled[9]  # Wrist to middle finger base
+        secondary_axis = scaled[5]  # Wrist to index finger base
+
+        # Z-axis: perpendicular to palm
+        z_axis = np.cross(primary_axis, secondary_axis)
+        z_norm = np.linalg.norm(z_axis)
+
+        if z_norm > 1e-6:
+            z_axis = z_axis / z_norm
+        else:
+            z_axis = np.array([0, 0, 1])
+
+        # X-axis: primary direction
+        x_axis = primary_axis / (np.linalg.norm(primary_axis) + 1e-6)
+
+        # Y-axis: perpendicular to both
+        y_axis = np.cross(z_axis, x_axis)
+
+        # Rotation matrix
+        rotation_matrix = np.column_stack([x_axis, y_axis, z_axis])
+
+        return rotation_matrix
 
     def _procrustes_normalize_single_frame(self, landmarks: np.ndarray) -> np.ndarray:
         """
@@ -317,12 +418,18 @@ class GesturePreprocessor:
         landmarks: np.ndarray
     ) -> Tuple[np.ndarray, Dict]:
         """
-        Apply bone-length normalization to each frame.
+        Apply bone-length normalization using AVERAGE reference scale.
 
-        Uses anatomical bone lengths as reference for consistent scaling:
-        - Palm width (index base to pinky base)
-        - Palm height (wrist to middle finger base)
-        - Palm diagonal (reference scale)
+        CRITICAL FIX: Instead of normalizing each frame independently (which removes
+        depth/scale movement), we:
+        1. Calculate AVERAGE bone length across all frames
+        2. Use this as a consistent reference scale for ALL frames
+        3. Preserve relative scale changes between frames
+
+        This ensures:
+        ✅ Anatomically consistent scaling
+        ✅ Hand size invariant (works for different hand sizes)
+        ✅ Depth movement PRESERVED (hand moving forward/backward maintained)
 
         Args:
             landmarks: (num_frames, 21, 3) array
@@ -330,37 +437,52 @@ class GesturePreprocessor:
         Returns:
             Tuple of (normalized_landmarks, bone_statistics)
         """
-        normalized_frames = []
+        if len(landmarks) == 0:
+            return landmarks, {}
+
         palm_widths = []
         palm_heights = []
 
+        # First pass: Calculate bone lengths for all frames
         for frame in landmarks:
-            # Calculate bone lengths
             # Palm width: index base (5) to pinky base (17)
             palm_width = np.linalg.norm(frame[17] - frame[5])
 
             # Palm height: wrist (0) to middle base (9)
             palm_height = np.linalg.norm(frame[9] - frame[0])
 
-            # Reference scale: palm diagonal
-            reference_scale = np.sqrt(palm_width**2 + palm_height**2)
-
-            # Normalize by reference scale
-            if reference_scale > 1e-6:
-                normalized_frame = frame / reference_scale
-            else:
-                normalized_frame = frame
-
-            normalized_frames.append(normalized_frame)
             palm_widths.append(palm_width)
             palm_heights.append(palm_height)
 
+        # Calculate AVERAGE reference scale across entire gesture
+        # This represents the "typical" hand size for this gesture
+        avg_palm_width = np.mean(palm_widths)
+        avg_palm_height = np.mean(palm_heights)
+        avg_reference_scale = np.sqrt(avg_palm_width**2 + avg_palm_height**2)
+
+        # Second pass: Normalize all frames by the SAME reference scale
+        # This preserves relative size variations (depth movement)
+        normalized_frames = []
+
+        if avg_reference_scale > 1e-6:
+            for frame in landmarks:
+                normalized_frame = frame / avg_reference_scale
+                normalized_frames.append(normalized_frame)
+        else:
+            # Fallback: no normalization if reference scale is too small
+            normalized_frames = list(landmarks)
+
         bone_stats = {
-            'avg_palm_width': float(np.mean(palm_widths)),
-            'avg_palm_height': float(np.mean(palm_heights)),
+            'avg_palm_width': float(avg_palm_width),
+            'avg_palm_height': float(avg_palm_height),
             'palm_width_std': float(np.std(palm_widths)),
-            'palm_height_std': float(np.std(palm_heights))
+            'palm_height_std': float(np.std(palm_heights)),
+            'reference_scale': float(avg_reference_scale)
         }
+
+        logger.debug(f"Bone normalization: avg_scale={avg_reference_scale:.4f}, "
+                    f"width_std={bone_stats['palm_width_std']:.4f}, "
+                    f"height_std={bone_stats['palm_height_std']:.4f}")
 
         return np.array(normalized_frames), bone_stats
 

@@ -622,6 +622,9 @@ class HandTrackingService:
                     if hybrid_mode and hybrid_controller:
                         try:
                             hybrid_result = hybrid_controller.process_frame(hand_data)
+                            # CRITICAL FIX: Add gesture_matching_enabled status to state machine metadata
+                            if 'state_machine' in hybrid_result:
+                                hybrid_result['state_machine']['gesture_matching_enabled'] = gesture_matching_enabled
                             hand_data['hybrid'] = hybrid_result
                         except Exception as e:
                             logger.error(f"Hybrid mode processing error: {e}")
@@ -658,6 +661,8 @@ class HandTrackingService:
                             # IMPORTANT: Get the full state machine info including match_result in IDLE state
                             # This ensures the overlay receives the match result even when hand is gone
                             state_machine_info = hybrid_controller.state_machine.get_state_info()
+                            # CRITICAL FIX: Add gesture_matching_enabled status
+                            state_machine_info['gesture_matching_enabled'] = gesture_matching_enabled
 
                             # Send no hand status to client with match result if available
                             no_hand_data = {

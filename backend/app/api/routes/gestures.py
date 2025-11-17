@@ -103,7 +103,7 @@ def record_gesture(
             "avg_confidence": original_stats['avg_confidence'],
             "handedness": original_stats['handedness'],
             "preprocessed": True,  # Mark that preprocessing was applied
-            "preprocessing_version": "v2_fix1"  # Version tracking
+            "preprocessing_version": "v3_motion_aware"  # CRITICAL: Motion-aware preprocessing
         }
     }
 
@@ -267,7 +267,7 @@ def update_gesture(
                 "avg_confidence": original_stats['avg_confidence'],
                 "handedness": original_stats['handedness'],
                 "preprocessed": True,  # Mark that preprocessing was applied
-                "preprocessing_version": "v2_fix1"  # Version tracking
+                "preprocessing_version": "v3_motion_aware"  # CRITICAL: Motion-aware preprocessing
             }
         }
         gesture.landmark_data = landmark_data
@@ -340,6 +340,25 @@ def match_gesture(
     logger.info(f"GESTURE MATCHING STARTED")
     logger.info(f"{'='*60}")
     logger.info(f"User: {current_user.email} (ID: {current_user.id})")
+
+    # CRITICAL FIX: Check for stored gestures FIRST before doing any processing
+    # This avoids expensive preprocessing when there are no gestures to match against
+    stored_gestures = db.query(Gesture).filter(
+        Gesture.user_id == current_user.id
+    ).all()
+
+    logger.info(f"Stored gestures found in database: {len(stored_gestures)}")
+
+    if not stored_gestures:
+        logger.warning("⚠️ No stored gestures found - returning early without processing")
+        logger.info(f"{'='*60}\n")
+        return {
+            "matched": False,
+            "message": "No gestures stored yet. Please record some gestures first.",
+            "reason": "no_gestures_stored"
+        }
+
+    # Only log frame stats if we have gestures to match against
     logger.info(f"Input frames received: {len(frames)}")
 
     # Log frame statistics
@@ -355,20 +374,6 @@ def match_gesture(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least 5 frames required for gesture matching"
         )
-
-    # Get user's stored gestures
-    stored_gestures = db.query(Gesture).filter(
-        Gesture.user_id == current_user.id
-    ).all()
-
-    logger.info(f"Stored gestures found in database: {len(stored_gestures)}")
-
-    if not stored_gestures:
-        logger.warning("⚠ No stored gestures found for this user")
-        return {
-            "matched": False,
-            "message": "No gestures stored yet. Please record some gestures first."
-        }
 
     # Convert to dictionary format
     gestures_dict = [
@@ -403,65 +408,153 @@ def match_gesture(
         frames,
         gestures_dict,
         user_id=current_user.id,  # Phase 3: For caching
-        app_context=None  # Can be filtered later if needed
+        app_context=None,  # Can be filtered later if needed
+        return_best_candidate=True  # Get best match even if below threshold
     )
 
     if match_result:
         matched_gesture, similarity = match_result
 
-        logger.info(f"\n{'='*60}")
-        logger.info(f"✓ MATCH FOUND!")
-        logger.info(f"{'='*60}")
-        logger.info(f"Matched Gesture: {matched_gesture['name']}")
-        logger.info(f"Similarity Score: {similarity:.2%}")
-        logger.info(f"Action: {matched_gesture['action']}")
-        logger.info(f"Context: {matched_gesture['app_context']}")
-        logger.info(f"{'='*60}\n")
-
-        # Update rolling average accuracy score for the matched gesture
+        # Get the gesture threshold to check if this is a true match or false trigger
         gesture_db = db.query(Gesture).filter(Gesture.id == matched_gesture["id"]).first()
-        if gesture_db:
-            # Update rolling average
-            gesture_db.total_similarity = (gesture_db.total_similarity or 0.0) + similarity
-            gesture_db.match_count = (gesture_db.match_count or 0) + 1
-            gesture_db.accuracy_score = gesture_db.total_similarity / gesture_db.match_count
+        gesture_threshold = matched_gesture.get('adaptive_threshold', matcher.similarity_threshold)
 
-            logger.info(f"📊 Rolling Average Updated:")
-            logger.info(f"   Match Count: {gesture_db.match_count}")
-            logger.info(f"   Total Similarity: {gesture_db.total_similarity:.4f}")
-            logger.info(f"   Accuracy Score (Avg): {gesture_db.accuracy_score:.2%}")
+        # Check if this is a true match or a false trigger
+        is_true_match = similarity >= gesture_threshold
+
+        if is_true_match:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"✓ MATCH FOUND!")
+            logger.info(f"{'='*60}")
+            logger.info(f"Matched Gesture: {matched_gesture['name']}")
+            logger.info(f"Similarity Score: {similarity:.2%}")
+            logger.info(f"Action: {matched_gesture['action']}")
+            logger.info(f"Context: {matched_gesture['app_context']}")
             logger.info(f"{'='*60}\n")
 
-        # Log the match
-        activity_log = ActivityLog(
-            user_id=current_user.id,
-            action=f"Gesture Matched: {matched_gesture['name']}",
-            meta_data={
-                "gesture_id": matched_gesture["id"],
-                "gesture_name": matched_gesture["name"],
-                "action": matched_gesture["action"],
-                "app_context": matched_gesture["app_context"],
-                "similarity": similarity,
-                "input_frames": len(frames),
-                "accuracy_score": gesture_db.accuracy_score if gesture_db else None,
-                "match_count": gesture_db.match_count if gesture_db else None
-            }
-        )
-        db.add(activity_log)
+            # Update rolling average accuracy score for the matched gesture
+            if gesture_db:
+                # Update rolling average
+                gesture_db.total_similarity = (gesture_db.total_similarity or 0.0) + similarity
+                gesture_db.match_count = (gesture_db.match_count or 0) + 1
+                gesture_db.accuracy_score = gesture_db.total_similarity / gesture_db.match_count
+
+                logger.info(f"📊 Rolling Average Updated:")
+                logger.info(f"   Match Count: {gesture_db.match_count}")
+                logger.info(f"   Total Similarity: {gesture_db.total_similarity:.4f}")
+                logger.info(f"   Accuracy Score (Avg): {gesture_db.accuracy_score:.2%}")
+                logger.info(f"{'='*60}\n")
+        else:
+            # FALSE TRIGGER: Increment false trigger count
+            logger.info(f"\n{'='*60}")
+            logger.info(f"⚠️ FALSE TRIGGER DETECTED")
+            logger.info(f"{'='*60}")
+            logger.info(f"Closest Gesture: {matched_gesture['name']}")
+            logger.info(f"Similarity Score: {similarity:.2%}")
+            logger.info(f"Threshold: {gesture_threshold:.2%}")
+            logger.info(f"Delta: {(gesture_threshold - similarity):.2%}")
+            logger.info(f"{'='*60}\n")
+
+            if gesture_db:
+                # Increment false trigger count
+                gesture_db.false_trigger_count = (gesture_db.false_trigger_count or 0) + 1
+
+                logger.info(f"📊 False Trigger Count Updated:")
+                logger.info(f"   Gesture: {matched_gesture['name']}")
+                logger.info(f"   False Trigger Count: {gesture_db.false_trigger_count}")
+                logger.info(f"   (User attempted this gesture but similarity was below threshold)")
+                logger.info(f"{'='*60}\n")
+
+        # CRITICAL FIX: Execute the action ONLY for true matches (not false triggers)
+        action_result = None
+        if is_true_match and matched_gesture["action"]:
+            logger.info(f"🎬 Executing action: {matched_gesture['action']} for gesture '{matched_gesture['name']}'")
+            logger.info(f"   App context: {matched_gesture['app_context']}")
+
+            # Execute the action
+            executor = get_action_executor()
+            action_result = executor.execute_action(
+                matched_gesture["action"],
+                matched_gesture["app_context"]
+            )
+
+            if action_result.get("success"):
+                logger.info(f"✅ Action executed successfully: {matched_gesture['action']}")
+                logger.info(f"   Action name: {action_result.get('action_name')}")
+                logger.info(f"   Keyboard shortcut: {action_result.get('keyboard_shortcut')}")
+                if action_result.get('window_switched'):
+                    logger.info(f"   Window switched to: {action_result.get('window_title')}")
+            else:
+                logger.error(f"❌ Action execution failed: {action_result.get('error')}")
+                if action_result.get('app_not_found'):
+                    logger.error(f"   ⚠️ {matched_gesture['app_context']} application is not running!")
+
+        # Commit changes to database (accuracy updates or false trigger count)
         db.commit()
 
-        return {
-            "matched": True,
-            "gesture": {
-                "id": matched_gesture["id"],
-                "name": matched_gesture["name"],
-                "action": matched_gesture["action"],
-                "app_context": matched_gesture["app_context"],
-                "accuracy_score": gesture_db.accuracy_score if gesture_db else None,
-                "match_count": gesture_db.match_count if gesture_db else 0
-            },
-            "similarity": similarity
-        }
+        # Log the activity
+        if is_true_match:
+            activity_log = ActivityLog(
+                user_id=current_user.id,
+                action=f"Gesture Matched: {matched_gesture['name']}",
+                meta_data={
+                    "gesture_id": matched_gesture["id"],
+                    "gesture_name": matched_gesture["name"],
+                    "action": matched_gesture["action"],
+                    "app_context": matched_gesture["app_context"],
+                    "similarity": similarity,
+                    "input_frames": len(frames),
+                    "accuracy_score": gesture_db.accuracy_score if gesture_db else None,
+                    "match_count": gesture_db.match_count if gesture_db else None,
+                    "action_executed": action_result.get("success", False) if action_result else False
+                }
+            )
+            db.add(activity_log)
+            db.commit()
+
+            return {
+                "matched": True,
+                "gesture": {
+                    "id": matched_gesture["id"],
+                    "name": matched_gesture["name"],
+                    "action": matched_gesture["action"],
+                    "app_context": matched_gesture["app_context"],
+                    "accuracy_score": gesture_db.accuracy_score if gesture_db else None,
+                    "match_count": gesture_db.match_count if gesture_db else 0,
+                    "false_trigger_count": gesture_db.false_trigger_count if gesture_db else 0
+                },
+                "similarity": similarity,
+                "action_executed": action_result.get("success", False) if action_result else False,
+                "action_result": action_result
+            }
+        else:
+            # FALSE TRIGGER: Log it and return no match
+            activity_log = ActivityLog(
+                user_id=current_user.id,
+                action=f"False Trigger: {matched_gesture['name']}",
+                meta_data={
+                    "gesture_id": matched_gesture["id"],
+                    "gesture_name": matched_gesture["name"],
+                    "similarity": similarity,
+                    "threshold": gesture_threshold,
+                    "delta": gesture_threshold - similarity,
+                    "input_frames": len(frames),
+                    "false_trigger_count": gesture_db.false_trigger_count if gesture_db else 0
+                }
+            )
+            db.add(activity_log)
+            db.commit()
+
+            return {
+                "matched": False,
+                "message": f"No matching gesture found (similarity {similarity:.2%} below {gesture_threshold:.2%} threshold)",
+                "closest_gesture": {
+                    "id": matched_gesture["id"],
+                    "name": matched_gesture["name"],
+                    "similarity": similarity,
+                    "false_trigger_count": gesture_db.false_trigger_count if gesture_db else 0
+                }
+            }
     else:
         logger.info(f"\n{'='*60}")
         logger.info(f"✗ NO MATCH FOUND")
@@ -639,21 +732,23 @@ def set_recording_state(
         is_recording = state.get("is_recording", False)
         recording_state_path = os.path.join(os.path.expanduser("~"), ".airclick-recording")
 
-        logger.info(f"📹 Writing recording state to: {recording_state_path}")
+        if is_recording:
+            # Create file when recording starts
+            logger.info(f"📹 Creating recording state file: {recording_state_path}")
+            with open(recording_state_path, 'w') as f:
+                f.write("true")
+                f.flush()  # Ensure immediate write
+                os.fsync(f.fileno())  # Force write to disk
 
-        with open(recording_state_path, 'w') as f:
-            content = "true" if is_recording else "false"
-            f.write(content)
-            f.flush()  # Ensure immediate write
-            os.fsync(f.fileno())  # Force write to disk
-
-        # Verify the write
-        if os.path.exists(recording_state_path):
-            with open(recording_state_path, 'r') as f:
-                written_content = f.read().strip()
-            logger.info(f"📹 Recording state updated: {is_recording} (user: {current_user.email}, verified: {written_content})")
+            logger.info(f"✅ Recording state enabled (user: {current_user.email})")
         else:
-            logger.error(f"❌ File does not exist after write: {recording_state_path}")
+            # DELETE file when recording stops (critical fix!)
+            if os.path.exists(recording_state_path):
+                logger.info(f"📹 Deleting recording state file: {recording_state_path}")
+                os.remove(recording_state_path)
+                logger.info(f"✅ Recording state disabled (user: {current_user.email})")
+            else:
+                logger.info(f"⚠️ Recording state file already removed")
 
         return {"success": True, "is_recording": is_recording, "path": recording_state_path}
     except Exception as e:

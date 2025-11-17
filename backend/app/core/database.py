@@ -17,7 +17,7 @@ engine = create_engine(
     pool_recycle=3600,           # Recycle connections after 1 hour
     pool_timeout=30,             # Wait 30 seconds for connection
     connect_args={
-        "connect_timeout": 10,    # Connection timeout in seconds
+        "connect_timeout": 30,    # Connection timeout in seconds (increased from 10)
         "keepalives": 1,          # Enable TCP keepalives
         "keepalives_idle": 30,    # Seconds before sending keepalive
         "keepalives_interval": 10, # Seconds between keepalives

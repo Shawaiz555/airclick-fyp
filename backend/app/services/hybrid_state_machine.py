@@ -42,14 +42,14 @@ class HybridStateMachine:
 
     def __init__(
         self,
-        stationary_duration_threshold: float = 0.5,  # Seconds hand must be stationary
+        stationary_duration_threshold: float = 0.8,  # INCREASED: Seconds hand must be stationary (more deliberate)
         collection_frame_count: int = 90,            # MAX frames to collect for gesture
-        min_collection_frames: int = 10,              # MINIMUM frames required for matching
+        min_collection_frames: int = 30,             # INCREASED: MINIMUM frames required for matching (prevent false positives)
         idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
-        velocity_threshold: float = 0.02,            # Movement threshold for stationary detection
-        moving_velocity_threshold: float = 0.08,     # Minimum velocity for moving gesture detection
-        moving_duration_threshold: float = 0.3,      # Seconds of movement to trigger moving gesture
-        gesture_end_stationary_duration: float = 0.3 # Seconds stationary to end gesture collection
+        velocity_threshold: float = 0.015,           # DECREASED: Movement threshold for stationary detection (more strict)
+        moving_velocity_threshold: float = 0.12,     # INCREASED: Minimum velocity for moving gesture detection (more intentional)
+        moving_duration_threshold: float = 0.5,      # INCREASED: Seconds of movement to trigger moving gesture (more deliberate)
+        gesture_end_stationary_duration: float = 0.5 # INCREASED: Seconds stationary to end gesture collection (ensure gesture is complete)
     ):
         """
         Initialize the state machine.

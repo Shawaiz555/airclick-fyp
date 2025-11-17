@@ -27,6 +27,7 @@ class GestureResponse(BaseModel):
     app_context: str
     accuracy_score: Optional[float]
     match_count: Optional[int] = 0  # Total successful matches
+    false_trigger_count: Optional[int] = 0  # Total false triggers (attempts below threshold)
     created_at: datetime
     updated_at: Optional[datetime] = None  # Make optional until column is added
     landmark_data: Optional[Dict[str, Any]] = None  # Include landmark data (frames + metadata)

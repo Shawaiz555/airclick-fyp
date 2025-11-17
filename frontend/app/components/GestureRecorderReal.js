@@ -342,6 +342,52 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   // ==================== LIFECYCLE HOOKS ====================
 
   /**
+   * Notify system that recording modal is open/closed
+   * This disables cursor control in Electron overlay during recording
+   */
+  useEffect(() => {
+    const setRecordingState = async (isRecording) => {
+      // CRITICAL FIX: Use localStorage for immediate communication
+      // Electron overlay can read localStorage and respond instantly
+      try {
+        localStorage.setItem('airclick_recording', isRecording.toString());
+        console.log(`✅ Recording state set in localStorage: ${isRecording}`);
+      } catch (error) {
+        console.warn('⚠️ Could not set localStorage:', error.message);
+      }
+
+      // Also call API as backup (for file-based communication)
+      try {
+        const response = await fetch('http://localhost:8000/api/gestures/recording-state', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ is_recording: isRecording }),
+        });
+
+        if (response.ok) {
+          console.log(`✅ Recording state set via API: ${isRecording}`);
+        } else {
+          console.warn('⚠️ Failed to set recording state via API');
+        }
+      } catch (error) {
+        console.warn('⚠️ Could not notify recording state via API:', error.message);
+      }
+    };
+
+    // Modal opened - disable cursor control
+    console.log('🎬 Gesture recording modal OPENED - Disabling cursor control');
+    setRecordingState(true);
+
+    // Modal closed - re-enable cursor control
+    return () => {
+      console.log('✅ Gesture recording modal CLOSED - Re-enabling cursor control');
+      setRecordingState(false);
+    };
+  }, []); // Run once on mount and cleanup on unmount
+
+  /**
    * Initialize WebSocket connection when component mounts
    */
   useEffect(() => {

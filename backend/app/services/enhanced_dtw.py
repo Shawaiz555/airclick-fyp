@@ -403,12 +403,16 @@ class DTWEnsemble:
 
         # Default algorithm weights
         if algorithm_weights is None:
-            # Balanced ensemble
+            # BALANCED FIX: Equal importance to hand shape AND movement
+            # to distinguish both gesture types:
+            # - Different shapes, same movement (peace vs open hand swipe)
+            # - Same shape, different movement (swipe left vs swipe right)
             self.algorithm_weights = {
-                'standard': 0.2,
-                'direction': 0.3,
-                'multi_feature': 0.5
+                'standard': 0.30,        # Increased: hand shape/position matching (important!)
+                'direction': 0.35,       # Balanced: movement direction (important!)
+                'multi_feature': 0.35    # Balanced: combined features
             }
+            logger.info("✅ BALANCED DTW weights: standard=30%, direction=35%, multi_feature=35%")
         else:
             self.algorithm_weights = algorithm_weights
 
@@ -440,15 +444,22 @@ class DTWEnsemble:
 
         # 2. Direction Similarity DTW
         if self.algorithm_weights.get('direction', 0) > 0:
-            dir_dist = self.dtw.direction_similarity_dtw(seq1, seq2, alpha=0.4)
+            # CRITICAL FIX: Increased alpha to emphasize direction over position
+            # alpha=0.6 means 60% weight on direction, 40% on position
+            dir_dist = self.dtw.direction_similarity_dtw(seq1, seq2, alpha=0.6)
             dir_sim = self.dtw.calculate_similarity(dir_dist)
             results['direction'] = dir_sim
 
         # 3. Multi-Feature DTW
         if self.algorithm_weights.get('multi_feature', 0) > 0:
+            # BALANCED FIX: Equal weight to position and velocity
             mf_dist, _ = self.dtw.multi_feature_dtw(
                 seq1, seq2,
-                weights={'pos': 0.5, 'vel': 0.3, 'acc': 0.2}
+                weights={
+                    'pos': 0.45,  # Increased: position/hand shape is important
+                    'vel': 0.40,  # Balanced: velocity captures movement
+                    'acc': 0.15   # Reduced: acceleration is less critical
+                }
             )
             mf_sim = self.dtw.calculate_similarity(mf_dist)
             results['multi_feature'] = mf_sim
