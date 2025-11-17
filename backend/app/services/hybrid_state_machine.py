@@ -42,7 +42,7 @@ class HybridStateMachine:
 
     def __init__(
         self,
-        stationary_duration_threshold: float = 0.8,  # INCREASED: Seconds hand must be stationary (more deliberate)
+        stationary_duration_threshold: float = 1.5,  # CRITICAL FIX: 1.5 seconds hand must be still before starting gesture collection
         collection_frame_count: int = 90,            # MAX frames to collect for gesture
         min_collection_frames: int = 10,             # CRITICAL FIX: Reduced to 10 frames minimum (allow quick gestures)
         idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
