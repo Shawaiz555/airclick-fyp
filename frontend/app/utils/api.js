@@ -83,3 +83,57 @@ export const gesturesAPI = {
     return true;
   },
 };
+
+// Admin API
+export const adminAPI = {
+  async getOverviewStats() {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/admin/overview-stats`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async getMonthlyUserGrowth(months = 6) {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/admin/monthly-user-growth?months=${months}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async getMonthlyGestureAccuracy(months = 6) {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/admin/monthly-gesture-accuracy?months=${months}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async getRecentActivity(limit = 50) {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/admin/recent-activity?limit=${limit}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async getAllUsers(params = {}) {
+    const token = getAuthToken();
+    const queryParams = new URLSearchParams(params);
+    const response = await fetch(`${API_BASE_URL}/admin/users?${queryParams}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+};

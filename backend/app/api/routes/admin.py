@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Database and security imports
 from app.core.database import get_db
@@ -21,6 +21,7 @@ from app.core.deps import get_current_user
 
 # Models
 from app.models.user import User
+from app.models.gesture import Gesture, ActivityLog
 from sqlalchemy import text
 
 # Pydantic schemas
@@ -78,6 +79,41 @@ class UserStatsResponse(BaseModel):
     admins: int
     moderators: int
     users: int
+
+
+class MonthlyUserGrowth(BaseModel):
+    """Schema for monthly user growth data"""
+    month_start: str
+    month_label: str
+    user_count: int
+
+
+class MonthlyAccuracyData(BaseModel):
+    """Schema for monthly gesture accuracy data"""
+    month_start: str
+    month_label: str
+    avg_accuracy: float
+
+
+class OverviewStats(BaseModel):
+    """Schema for overview dashboard statistics"""
+    total_users: int
+    active_users: int
+    average_gesture_accuracy: float
+    total_false_triggers: int
+
+
+class ActivityLogForAdmin(BaseModel):
+    """Schema for activity log in admin dashboard"""
+    id: int
+    user_id: int
+    user_email: Optional[str]
+    action: str
+    timestamp: datetime
+    meta_data: Optional[dict]
+
+    class Config:
+        from_attributes = True
 
 
 # ============================================
@@ -386,3 +422,234 @@ def get_user_stats(
         "moderators": moderators,
         "users": users
     }
+
+
+@router.get("/overview-stats", response_model=OverviewStats)
+def get_overview_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get comprehensive overview statistics for admin dashboard.
+
+    Requires ADMIN role.
+
+    Returns:
+        - Total users count
+        - Active users count (logged in within last 30 days)
+        - Average gesture accuracy across all gestures
+        - Total false triggers count
+
+    Raises:
+        HTTPException 403: User is not an admin
+    """
+    verify_admin(current_user)
+
+    # Total users
+    total_users = db.query(func.count(User.id)).scalar() or 0
+
+    # Active users (logged in within last 30 days)
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    active_users = db.query(func.count(User.id)).filter(
+        User.last_login >= thirty_days_ago
+    ).scalar() or 0
+
+    # Average gesture accuracy (average of all gestures' accuracy_score)
+    avg_accuracy_result = db.query(func.avg(Gesture.accuracy_score)).filter(
+        Gesture.accuracy_score.isnot(None)
+    ).scalar()
+    average_gesture_accuracy = float(avg_accuracy_result) if avg_accuracy_result else 0.0
+
+    # Total false triggers (sum of all gestures' false_trigger_count)
+    total_false_triggers_result = db.query(func.sum(Gesture.false_trigger_count)).scalar()
+    total_false_triggers = int(total_false_triggers_result) if total_false_triggers_result else 0
+
+    return {
+        "total_users": total_users,
+        "active_users": active_users,
+        "average_gesture_accuracy": average_gesture_accuracy,
+        "total_false_triggers": total_false_triggers
+    }
+
+
+@router.get("/monthly-user-growth", response_model=List[MonthlyUserGrowth])
+def get_monthly_user_growth(
+    months: int = 6,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get monthly user growth data for the specified number of months.
+
+    Requires ADMIN role.
+
+    Args:
+        months: Number of months to retrieve (default: 6)
+
+    Returns:
+        List of monthly user counts with month labels
+
+    Raises:
+        HTTPException 403: User is not an admin
+    """
+    verify_admin(current_user)
+
+    monthly_data = []
+
+    # Get current date
+    now = datetime.utcnow()
+
+    for i in range(months - 1, -1, -1):
+        # Calculate month boundaries
+        # Go back i months from current month
+        if now.month - i <= 0:
+            # Handle year boundary
+            target_month = 12 + (now.month - i)
+            target_year = now.year - 1
+        else:
+            target_month = now.month - i
+            target_year = now.year
+
+        # First day of target month
+        month_start = datetime(target_year, target_month, 1)
+
+        # First day of next month
+        if target_month == 12:
+            month_end = datetime(target_year + 1, 1, 1)
+        else:
+            month_end = datetime(target_year, target_month + 1, 1)
+
+        # Count users created in this month
+        user_count = db.query(func.count(User.id)).filter(
+            User.created_at >= month_start,
+            User.created_at < month_end
+        ).scalar() or 0
+
+        # Format month label (e.g., "Jan", "Feb", "Mar")
+        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        month_label = month_names[target_month - 1]
+
+        monthly_data.append({
+            "month_start": month_start.strftime("%Y-%m-%d"),
+            "month_label": month_label,
+            "user_count": user_count
+        })
+
+    return monthly_data
+
+
+@router.get("/monthly-gesture-accuracy", response_model=List[MonthlyAccuracyData])
+def get_monthly_gesture_accuracy(
+    months: int = 6,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get monthly average gesture accuracy for the specified number of months.
+
+    Requires ADMIN role.
+
+    Args:
+        months: Number of months to retrieve (default: 6)
+
+    Returns:
+        List of monthly average accuracy scores
+
+    Raises:
+        HTTPException 403: User is not an admin
+    """
+    verify_admin(current_user)
+
+    monthly_data = []
+
+    # Get current date
+    now = datetime.utcnow()
+
+    for i in range(months - 1, -1, -1):
+        # Calculate month boundaries
+        if now.month - i <= 0:
+            target_month = 12 + (now.month - i)
+            target_year = now.year - 1
+        else:
+            target_month = now.month - i
+            target_year = now.year
+
+        # First day of target month
+        month_start = datetime(target_year, target_month, 1)
+
+        # First day of next month
+        if target_month == 12:
+            month_end = datetime(target_year + 1, 1, 1)
+        else:
+            month_end = datetime(target_year, target_month + 1, 1)
+
+        # Calculate average accuracy for gestures updated in this month
+        avg_accuracy = db.query(func.avg(Gesture.accuracy_score)).filter(
+            Gesture.accuracy_score.isnot(None),
+            Gesture.updated_at >= month_start,
+            Gesture.updated_at < month_end
+        ).scalar()
+
+        # If no data for this month, use 0
+        avg_accuracy_value = float(avg_accuracy) if avg_accuracy else 0.0
+
+        # Format month label (e.g., "Jan", "Feb", "Mar")
+        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        month_label = month_names[target_month - 1]
+
+        monthly_data.append({
+            "month_start": month_start.strftime("%Y-%m-%d"),
+            "month_label": month_label,
+            "avg_accuracy": avg_accuracy_value
+        })
+
+    return monthly_data
+
+
+@router.get("/recent-activity", response_model=List[ActivityLogForAdmin])
+def get_recent_activity(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Get recent activity logs from all users.
+
+    Requires ADMIN role.
+
+    Args:
+        limit: Maximum number of logs to return (default: 50)
+
+    Returns:
+        List of recent activity logs with user information
+
+    Raises:
+        HTTPException 403: User is not an admin
+    """
+    verify_admin(current_user)
+
+    # Get activity logs with user email joined
+    logs = db.query(
+        ActivityLog.id,
+        ActivityLog.user_id,
+        ActivityLog.action,
+        ActivityLog.timestamp,
+        ActivityLog.meta_data,
+        User.email.label("user_email")
+    ).join(
+        User, ActivityLog.user_id == User.id
+    ).order_by(
+        ActivityLog.timestamp.desc()
+    ).limit(limit).all()
+
+    return [
+        {
+            "id": log.id,
+            "user_id": log.user_id,
+            "user_email": log.user_email,
+            "action": log.action,
+            "timestamp": log.timestamp,
+            "meta_data": log.meta_data
+        }
+        for log in logs
+    ]
