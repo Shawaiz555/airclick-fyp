@@ -146,7 +146,7 @@
       .canvas-container {
         position: relative;
         width: 100%;
-        height: 330px;
+        height: 350px;
         background: linear-gradient(
           135deg,
           rgba(17, 24, 39, 0.95),
@@ -1075,6 +1075,13 @@
       window.addEventListener("storage", (e) => {
         if (e.key === "hybridMode" && e.newValue !== null) {
           const newValue = e.newValue === "true";
+
+          // CRITICAL FIX: Don't reconnect if user is recording
+          if (isRecordingGesture) {
+            console.log("⏭️ Skipping hybrid mode change - user is recording");
+            return;
+          }
+
           console.log(
             `🔄 Hybrid mode changed (storage event): ${newValue} - Reconnecting WebSocket...`
           );
@@ -1141,23 +1148,29 @@
             isRecordingGesture = currentRecordingState;
             lastRecordingState = currentRecordingState;
 
-            // CRITICAL FIX: Disable cursor control (hybrid mode) while recording
+            // CRITICAL FIX: Update UI when recording state changes
+            // Backend auth check will handle blocking gesture collection
             if (isRecordingGesture) {
-              console.log("⚠️ CURSOR CONTROL DISABLED - User is recording/updating a gesture in web UI");
-              // Temporarily disable hybrid mode to stop cursor control
-              if (hybridModeEnabled) {
-                hybridModeEnabled = false;
-                console.log("🔄 Switching to gesture-only mode - Reconnecting WebSocket...");
-                connectWebSocket();
-              }
+              console.log("⚠️ GESTURE MATCHING PAUSED - User is recording/updating a gesture in web UI");
+
+              // Update UI to show gesture matching is disabled while recording
+              authStatus.innerHTML = '<span class="status-badge" style="background: #f59e0b;" title="Gesture matching paused while recording">DISABLED (Recording)</span>';
+
+              // CRITICAL: Don't reconnect WebSocket - let backend auth check handle blocking
+              // The existing connection will continue but backend will block collection via auth callback
+              console.log("💡 Backend auth check will block gesture collection while recording");
             } else {
-              console.log("✅ CURSOR CONTROL ENABLED - Recording complete");
-              // Re-enable hybrid mode (cursor control)
-              if (!hybridModeEnabled) {
-                hybridModeEnabled = true;
-                console.log("🔄 Switching back to hybrid mode - Reconnecting WebSocket...");
-                connectWebSocket();
+              console.log("✅ GESTURE MATCHING RESUMED - Recording complete");
+
+              // Restore gesture matching status based on authentication
+              if (isAuthenticated) {
+                authStatus.innerHTML = '<span class="status-badge success">ENABLED</span>';
+              } else {
+                authStatus.innerHTML = '<span class="status-badge error">DISABLED (Login Required)</span>';
               }
+
+              // No need to reconnect - backend auth check will allow collection again
+              console.log("💡 Backend auth check will allow gesture collection again");
             }
           }
         } catch (err) {
@@ -1446,9 +1459,15 @@
           disabled: "Disabled"
         };
 
-        // Update state indicator
-        const stateName = stateNames[state] || state.toUpperCase();
-        const stateClass = state;
+        // CRITICAL FIX: Check if cursor is actually enabled (not just state)
+        // If state is cursor_only but cursor_enabled is false, show "Disabled (Recording)"
+        let stateName = stateNames[state] || state.toUpperCase();
+        let stateClass = state;
+
+        if (state === "cursor_only" && stateMachine.cursor_enabled === false) {
+          stateName = "Disabled (Recording)";
+          stateClass = "disabled";
+        }
 
         stateMachineStatus.innerHTML = `
           <span class="state-indicator ${stateClass}">

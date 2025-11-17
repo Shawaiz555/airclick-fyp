@@ -138,21 +138,41 @@ class HybridModeController:
             result['state_machine'] = state_metadata
             result['cursor_enabled'] = state_metadata['cursor_enabled']
 
-            # Only process cursor/clicks if in CURSOR_ONLY state
+            # Only process cursor/clicks if in CURSOR_ONLY state AND not recording
             if state == HybridState.CURSOR_ONLY:
-                # Process cursor movement
-                cursor_result = self.cursor_controller.update_cursor(landmarks)
-                result['cursor'] = cursor_result
-                self.stats['cursor_updates'] += 1
+                # CRITICAL FIX: Check if user is recording before allowing cursor control
+                # Use the same auth check that blocks gesture collection
+                cursor_allowed = True
+                if self.state_machine.auth_check_callback:
+                    cursor_allowed = self.state_machine.auth_check_callback()
 
-                # Detect and execute clicks
-                click_result = self.hand_pose_detector.detect_clicks(landmarks)
-                result['clicks'] = click_result
+                if cursor_allowed:
+                    # Process cursor movement
+                    cursor_result = self.cursor_controller.update_cursor(landmarks)
+                    result['cursor'] = cursor_result
+                    self.stats['cursor_updates'] += 1
 
-                if click_result['click_type'] != 'none':
-                    self.hand_pose_detector.execute_click(click_result['click_type'])
-                    self.stats['clicks_detected'] += 1
-                    logger.debug(f"Click executed: {click_result['click_type']}")
+                    # Detect and execute clicks
+                    click_result = self.hand_pose_detector.detect_clicks(landmarks)
+                    result['clicks'] = click_result
+
+                    if click_result['click_type'] != 'none':
+                        self.hand_pose_detector.execute_click(click_result['click_type'])
+                        self.stats['clicks_detected'] += 1
+                        logger.debug(f"Click executed: {click_result['click_type']}")
+                else:
+                    # Cursor disabled during recording - update state metadata
+                    result['cursor_enabled'] = False
+                    result['state_machine']['cursor_enabled'] = False
+                    result['cursor'] = {
+                        'success': False,
+                        'cursor_enabled': False,
+                        'message': 'Cursor disabled - user is recording'
+                    }
+                    result['clicks'] = {
+                        'click_type': 'none',
+                        'message': 'Clicks disabled - user is recording'
+                    }
             else:
                 # Cursor disabled during gesture collection/matching
                 result['cursor'] = {

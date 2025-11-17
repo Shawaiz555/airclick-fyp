@@ -359,6 +359,33 @@ class HybridStateMachine:
                 logger.info("State: CURSOR_ONLY → COLLECTING")
 
         elif self.state == HybridState.COLLECTING:
+            # CRITICAL FIX: Check auth (including recording state) BEFORE continuing collection
+            # This aborts ongoing collection if user starts recording in web UI
+            if self.auth_check_callback:
+                is_authenticated = self.auth_check_callback()
+                if not is_authenticated:
+                    # ABORT collection - user started recording or lost authentication
+                    logger.warning(f"🚫 ABORTING ongoing collection - auth check failed (user may be recording)")
+                    logger.info(f"   Collected {len(self.collected_frames)} frames before abort")
+                    # Reset to CURSOR_ONLY state immediately
+                    self.state = HybridState.CURSOR_ONLY
+                    self.collected_frames = []
+                    self.collection_start_time = None
+                    self.stationary_start_time = None
+                    self.moving_start_time = None
+                    self.gesture_end_stationary_start = None
+                    self.trigger_type = None
+                    logger.info("State: COLLECTING → CURSOR_ONLY (collection aborted)")
+                    # Return early - don't continue processing
+                    metadata = {
+                        'state': self.state.value,
+                        'cursor_enabled': True,
+                        'collecting': False,
+                        'aborted': True,
+                        'reason': 'Authentication check failed during collection'
+                    }
+                    return self.state, metadata
+
             # Continue collecting frames
             self.collected_frames.append(frame)
 
@@ -405,6 +432,24 @@ class HybridStateMachine:
                     logger.warning("⚠️ No match callback provided! Gesture matching skipped.")
 
         elif self.state == HybridState.MATCHING:
+            # CRITICAL FIX: Check if user started recording during matching
+            if self.auth_check_callback:
+                is_authenticated = self.auth_check_callback()
+                if not is_authenticated:
+                    logger.warning(f"🚫 ABORTING matching - auth check failed (user may be recording)")
+                    self.state = HybridState.CURSOR_ONLY
+                    self.collected_frames = []
+                    self.last_match_result = None
+                    logger.info("State: MATCHING → CURSOR_ONLY (matching aborted)")
+                    metadata = {
+                        'state': self.state.value,
+                        'cursor_enabled': True,
+                        'matching': False,
+                        'aborted': True,
+                        'reason': 'Authentication check failed during matching'
+                    }
+                    return self.state, metadata
+
             # Matching is handled by callback, transition immediately to IDLE
             self.state = HybridState.IDLE
             self.idle_start_time = current_time
@@ -415,6 +460,24 @@ class HybridStateMachine:
             logger.info("State: MATCHING → IDLE (hand position tracking reset)")
 
         elif self.state == HybridState.IDLE:
+            # CRITICAL FIX: Check if user started recording during cooldown
+            if self.auth_check_callback:
+                is_authenticated = self.auth_check_callback()
+                if not is_authenticated:
+                    logger.warning(f"🚫 Resetting from IDLE - auth check failed (user may be recording)")
+                    self.state = HybridState.CURSOR_ONLY
+                    self.collected_frames = []
+                    self.last_match_result = None
+                    logger.info("State: IDLE → CURSOR_ONLY (reset due to recording)")
+                    metadata = {
+                        'state': self.state.value,
+                        'cursor_enabled': True,
+                        'idle': False,
+                        'aborted': True,
+                        'reason': 'Authentication check failed during idle'
+                    }
+                    return self.state, metadata
+
             # Wait for cooldown period
             idle_duration = current_time - self.idle_start_time
 

@@ -347,6 +347,13 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
    */
   useEffect(() => {
     const setRecordingState = async (isRecording) => {
+      // CRITICAL FIX: Check if state is already set to avoid duplicate API calls
+      const currentState = localStorage.getItem('airclick_recording');
+      if (currentState === isRecording.toString()) {
+        console.log(`ℹ️ Recording state already ${isRecording} - skipping API call`);
+        return;
+      }
+
       // CRITICAL FIX: Use localStorage for immediate communication
       // Electron overlay can read localStorage and respond instantly
       try {

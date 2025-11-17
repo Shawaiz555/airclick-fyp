@@ -742,13 +742,21 @@ def set_recording_state(
 
             logger.info(f"✅ Recording state enabled (user: {current_user.email})")
         else:
-            # DELETE file when recording stops (critical fix!)
-            if os.path.exists(recording_state_path):
-                logger.info(f"📹 Deleting recording state file: {recording_state_path}")
-                os.remove(recording_state_path)
-                logger.info(f"✅ Recording state disabled (user: {current_user.email})")
-            else:
-                logger.info(f"⚠️ Recording state file already removed")
+            # DELETE file when recording stops
+            # CRITICAL FIX: Gracefully handle file not existing (race condition or double-delete)
+            try:
+                if os.path.exists(recording_state_path):
+                    logger.info(f"📹 Deleting recording state file: {recording_state_path}")
+                    os.remove(recording_state_path)
+                    logger.info(f"✅ Recording state disabled (user: {current_user.email})")
+                else:
+                    logger.info(f"⚠️ Recording state file already removed (user: {current_user.email})")
+            except FileNotFoundError:
+                # File was deleted between check and remove - this is fine
+                logger.info(f"⚠️ Recording state file already removed by another process (user: {current_user.email})")
+            except Exception as remove_error:
+                # Log but don't fail - recording state is being disabled anyway
+                logger.warning(f"⚠️ Error removing recording state file (non-critical): {remove_error}")
 
         return {"success": True, "is_recording": is_recording, "path": recording_state_path}
     except Exception as e:
