@@ -1460,13 +1460,20 @@
         };
 
         // CRITICAL FIX: Check if cursor is actually enabled (not just state)
-        // If state is cursor_only but cursor_enabled is false, show "Disabled (Recording)"
+        // Distinguish between "recording" and "not authenticated"
         let stateName = stateNames[state] || state.toUpperCase();
         let stateClass = state;
 
         if (state === "cursor_only" && stateMachine.cursor_enabled === false) {
-          stateName = "Disabled (Recording)";
-          stateClass = "disabled";
+          // Check if user is recording vs not authenticated
+          if (stateMachine.is_recording === true) {
+            stateName = "Disabled (Recording)";
+            stateClass = "disabled";
+          } else {
+            // User is not authenticated - keep original cursor_only state display
+            stateName = "Cursor Control";
+            stateClass = "cursor_only";
+          }
         }
 
         stateMachineStatus.innerHTML = `

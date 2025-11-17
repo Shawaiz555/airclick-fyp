@@ -140,16 +140,26 @@ class HybridModeController:
 
             # Only process cursor/clicks if in CURSOR_ONLY state AND not recording
             if state == HybridState.CURSOR_ONLY:
-                # CRITICAL FIX: Check if user is recording before allowing cursor control
-                # Use the same auth check that blocks gesture collection
-                cursor_allowed = True
-                if self.state_machine.auth_check_callback:
-                    cursor_allowed = self.state_machine.auth_check_callback()
+                # CRITICAL FIX: Cursor control should work WITHOUT authentication
+                # Only block cursor if user is actively recording a gesture
+                import os
+                recording_state_path = os.path.join(os.path.expanduser("~"), ".airclick-recording")
+                is_recording = False
 
-                if cursor_allowed:
-                    # Process cursor movement
+                try:
+                    if os.path.exists(recording_state_path):
+                        with open(recording_state_path, 'r') as f:
+                            is_recording = f.read().strip() == "true"
+                except Exception as e:
+                    logger.error(f"Failed to check recording state in cursor control: {e}")
+
+                # CRITICAL: Only block cursor if recording, NOT if unauthenticated
+                # Cursor control should work even without login
+                if not is_recording:
+                    # Cursor enabled - process movement and clicks
                     cursor_result = self.cursor_controller.update_cursor(landmarks)
                     result['cursor'] = cursor_result
+                    result['state_machine']['is_recording'] = False  # Not recording
                     self.stats['cursor_updates'] += 1
 
                     # Detect and execute clicks
@@ -161,9 +171,11 @@ class HybridModeController:
                         self.stats['clicks_detected'] += 1
                         logger.debug(f"Click executed: {click_result['click_type']}")
                 else:
-                    # Cursor disabled during recording - update state metadata
+                    # Cursor disabled - user is recording a gesture
                     result['cursor_enabled'] = False
                     result['state_machine']['cursor_enabled'] = False
+                    result['state_machine']['is_recording'] = True  # Recording active
+
                     result['cursor'] = {
                         'success': False,
                         'cursor_enabled': False,
