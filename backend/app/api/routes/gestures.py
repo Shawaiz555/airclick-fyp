@@ -103,7 +103,7 @@ def record_gesture(
             "avg_confidence": original_stats['avg_confidence'],
             "handedness": original_stats['handedness'],
             "preprocessed": True,  # Mark that preprocessing was applied
-            "preprocessing_version": "v3_motion_aware"  # CRITICAL: Motion-aware preprocessing
+            "preprocessing_version": "v4_direction_aware"  # CRITICAL: Direction-aware preprocessing v2
         }
     }
 
@@ -267,7 +267,7 @@ def update_gesture(
                 "avg_confidence": original_stats['avg_confidence'],
                 "handedness": original_stats['handedness'],
                 "preprocessed": True,  # Mark that preprocessing was applied
-                "preprocessing_version": "v3_motion_aware"  # CRITICAL: Motion-aware preprocessing
+                "preprocessing_version": "v4_direction_aware"  # CRITICAL: Direction-aware preprocessing v2
             }
         }
         gesture.landmark_data = landmark_data
