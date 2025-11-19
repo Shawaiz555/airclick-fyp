@@ -914,6 +914,13 @@
       // This is more reliable for gesture-controlled cursors
       let dragPollInterval = null;
 
+      // Track cursor position for stationary detection
+      let lastCursorX = 0;
+      let lastCursorY = 0;
+      let stationaryCount = 0;
+      const STATIONARY_THRESHOLD = 10; // 10 polls × 20ms = 200ms of no movement
+      const MIN_DRAG_TIME_FOR_AUTO_RELEASE = 200; // Must drag for at least 200ms before allowing auto-release
+
       function pollDragPosition() {
         // Silently exit if not dragging (this can happen briefly after drag ends)
         if (!isDragging) {
@@ -933,6 +940,34 @@
 
         // Move the window
         currentWindow.setPosition(newX, newY);
+
+        // CRITICAL: Detect if cursor has stopped moving (stationary detection)
+        // This indicates user released the click gesture
+        const cursorMoved = (cursorPoint.x !== lastCursorX || cursorPoint.y !== lastCursorY);
+
+        if (cursorMoved) {
+          // Cursor is moving - reset stationary counter
+          stationaryCount = 0;
+          lastCursorX = cursorPoint.x;
+          lastCursorY = cursorPoint.y;
+        } else {
+          // Cursor hasn't moved - increment stationary counter
+          stationaryCount++;
+
+          const dragDuration = Date.now() - dragStartTime;
+
+          // Only auto-release if:
+          // 1. Cursor has been stationary for STATIONARY_THRESHOLD polls
+          // 2. User has been dragging for at least MIN_DRAG_TIME_FOR_AUTO_RELEASE
+          if (stationaryCount >= STATIONARY_THRESHOLD && dragDuration >= MIN_DRAG_TIME_FOR_AUTO_RELEASE) {
+            console.log(`🛑 Cursor stationary for ${stationaryCount} polls (${stationaryCount * 20}ms) - auto-releasing drag`);
+            handleMouseUp({ target: { tagName: 'AUTO_RELEASE' } });
+            return;
+          } else if (stationaryCount % 5 === 0) {
+            // Log every 5 polls for debugging
+            console.log(`⏸️ Cursor stationary: ${stationaryCount}/${STATIONARY_THRESHOLD} polls (dragDuration: ${dragDuration}ms)`);
+          }
+        }
 
         console.log('🖱️ Dragging to', { x: newX, y: newY, deltaX, deltaY });
       }
@@ -966,8 +1001,13 @@
           target: e?.target?.tagName || 'unknown'
         });
 
-        // Ignore mouseup if drag duration is too short (gesture released too fast)
-        if (isDragging && dragDuration < MIN_DRAG_DURATION) {
+        // CRITICAL: Always honor AUTO_RELEASE (from stationary detection)
+        // Only apply MIN_DRAG_DURATION check to regular mouse events
+        const isAutoRelease = e?.target?.tagName === 'AUTO_RELEASE';
+
+        // Ignore mouseup if drag duration is too short (accidental release)
+        // BUT always allow auto-release from stationary detection
+        if (!isAutoRelease && isDragging && dragDuration < MIN_DRAG_DURATION) {
           console.log(`⏱️ Drag too short (${dragDuration}ms < ${MIN_DRAG_DURATION}ms) - ignoring mouseup, continuing drag`);
           return; // Keep dragging
         }
@@ -1014,6 +1054,11 @@
         isDragging = true;
         hasMovedDuringDrag = false;
         dragStartTime = Date.now(); // Record when drag started
+
+        // Reset stationary detection
+        stationaryCount = 0;
+        lastCursorX = e.screenX;
+        lastCursorY = e.screenY;
 
         // CRITICAL: Disable click-through during drag so we can capture events
         currentWindow.setIgnoreMouseEvents(false);
@@ -1784,20 +1829,25 @@
 
       // NEW: Show visual feedback for clicks
       function updateClickFeedback(clickData) {
-        if (!clickData || clickData.click_type === "none") {
+        if (!clickData) {
           return;
         }
 
-        // Flash the cursor indicator
-        cursorIndicator.style.transform = "scale(1.5)";
-        setTimeout(() => {
-          cursorIndicator.style.transform = "scale(1)";
-        }, 150);
+        const currentClickType = clickData.click_type || "none";
 
-        // Log click
-        const clickType =
-          clickData.click_type === "left_click" ? "LEFT CLICK" : "RIGHT CLICK";
-        console.log(`🖱️ ${clickType} detected!`);
+        // Visual feedback for new clicks
+        if (currentClickType !== "none") {
+          // Flash the cursor indicator
+          cursorIndicator.style.transform = "scale(1.5)";
+          setTimeout(() => {
+            cursorIndicator.style.transform = "scale(1)";
+          }, 150);
+
+          // Log click
+          const clickType =
+            currentClickType === "left_click" ? "LEFT CLICK" : "RIGHT CLICK";
+          console.log(`🖱️ ${clickType} detected!`);
+        }
       }
 
       // Update gesture match result
