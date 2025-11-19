@@ -17,6 +17,9 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, screen } = require('electron');
 const path = require('path');
 
+// Enable remote module for renderer process (needed for drag functionality)
+require('@electron/remote/main').initialize();
+
 // Start token helper server
 const tokenHelper = require('./token-helper.js');
 
@@ -43,7 +46,7 @@ function createOverlay() {
     alwaysOnTop: true,
     skipTaskbar: true,
     resizable: false,
-    focusable: false, // Will be set to true for dragging
+    focusable: true, // Enabled for dragging - auto-blur implemented in overlay.html
     minimizable: false,
     maximizable: false,
     show: false, // Start hidden, show after ready
@@ -54,8 +57,11 @@ function createOverlay() {
     }
   });
 
-  // DON'T make window ignore mouse events - we need dragging!
-  // overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  // Enable remote module for this window
+  require('@electron/remote/main').enable(overlayWindow.webContents);
+
+  // Note: Click-through behavior is now managed in overlay.html
+  // It automatically enables/disables based on whether cursor is over header
 
   // Load the overlay HTML
   overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));

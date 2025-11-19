@@ -71,7 +71,7 @@
         justify-content: space-between;
         border-bottom: 2px solid rgba(6, 182, 212, 0.3);
         cursor: move;
-        -webkit-app-region: drag; /* Make header draggable */
+        /* Using custom JavaScript drag instead of -webkit-app-region */
       }
 
       .header-title {
@@ -134,7 +134,7 @@
         cursor: pointer;
         transition: all 0.2s;
         pointer-events: auto;
-        -webkit-app-region: no-drag; /* Make button clickable (not draggable) */
+        /* Close button is protected in JavaScript drag handler */
       }
 
       .close-btn:hover {
@@ -823,6 +823,240 @@
         // Send message to main process to hide overlay
         window.close();
       });
+
+      // ==================== CUSTOM DRAG HANDLING ====================
+      // Manual drag implementation using mouse position tracking
+      // Works with both physical mouse AND cursor control system
+
+      const header = document.querySelector('.header');
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+      let windowStartX = 0;
+      let windowStartY = 0;
+      let dragTimeout = null;
+      let hasMovedDuringDrag = false;
+      let dragStartTime = 0;
+      const MIN_DRAG_DURATION = 100; // Minimum 100ms before allowing mouseup
+
+      // Get current window position using Electron remote
+      const remote = require('@electron/remote');
+      const currentWindow = remote.getCurrentWindow();
+
+      // CRITICAL: Make window click-through by default (so it doesn't block your apps)
+      // BUT the header area should still be interactive for dragging
+
+      let isOverHeader = false;
+      let lastInteractionCheck = Date.now();
+
+      // Use polling to detect cursor position over header (works better with cursor control)
+      // This is more reliable than mouseenter/mouseleave for gesture-controlled cursors
+      function checkCursorOverHeader() {
+        // Get screen from remote (since we're in renderer process)
+        const screen = remote.screen;
+
+        // Get current cursor position (global screen coordinates)
+        const cursorPoint = screen.getCursorScreenPoint();
+
+        // Get window bounds
+        const windowBounds = currentWindow.getBounds();
+
+        // Get header element bounds (relative to window)
+        const headerRect = header.getBoundingClientRect();
+
+        // Calculate header bounds in screen coordinates
+        const headerBounds = {
+          x: windowBounds.x + headerRect.left,
+          y: windowBounds.y + headerRect.top,
+          width: headerRect.width,
+          height: headerRect.height
+        };
+
+        // Check if cursor is within header bounds
+        const isOver = cursorPoint.x >= headerBounds.x &&
+                      cursorPoint.x <= headerBounds.x + headerBounds.width &&
+                      cursorPoint.y >= headerBounds.y &&
+                      cursorPoint.y <= headerBounds.y + headerBounds.height;
+
+        // ALWAYS update click-through state based on cursor position
+        // Don't skip during drag - we need to maintain state
+        if (isOver !== isOverHeader) {
+          isOverHeader = isOver;
+
+          if (isOver) {
+            // Cursor over header - MUST capture events
+            currentWindow.setIgnoreMouseEvents(false);
+            console.log('🎯 Cursor over header - interactions enabled');
+          } else if (!isDragging) {
+            // Cursor left header and not dragging - restore click-through
+            currentWindow.setIgnoreMouseEvents(true, { forward: true });
+            console.log('🔓 Cursor left header - click-through restored');
+          }
+        }
+
+        // CRITICAL: Force interaction mode if over header (safety check)
+        // This ensures we never miss enabling interactions
+        if (isOver) {
+          currentWindow.setIgnoreMouseEvents(false);
+        }
+      }
+
+      // Poll cursor position every 16ms (60 times per second for faster response)
+      // Faster polling = more reliable click detection with gesture control
+      const cursorCheckInterval = setInterval(checkCursorOverHeader, 16);
+
+      // Set initial state to click-through
+      currentWindow.setIgnoreMouseEvents(true, { forward: true });
+      console.log('🔓 Window set to click-through mode (won\'t block your apps)');
+      console.log('🔄 Active cursor polling enabled (checking every 16ms = 60fps)');
+
+      // ALTERNATIVE: Use polling for drag instead of mousemove events
+      // This is more reliable for gesture-controlled cursors
+      let dragPollInterval = null;
+
+      function pollDragPosition() {
+        // Silently exit if not dragging (this can happen briefly after drag ends)
+        if (!isDragging) {
+          return;
+        }
+
+        const screen = remote.screen;
+        const cursorPoint = screen.getCursorScreenPoint();
+
+        // Calculate how much cursor has moved since drag started
+        const deltaX = cursorPoint.x - dragStartX;
+        const deltaY = cursorPoint.y - dragStartY;
+
+        // Calculate new window position
+        const newX = windowStartX + deltaX;
+        const newY = windowStartY + deltaY;
+
+        // Move the window
+        currentWindow.setPosition(newX, newY);
+
+        console.log('🖱️ Dragging to', { x: newX, y: newY, deltaX, deltaY });
+      }
+
+      // Mouse move handler (kept as backup)
+      function handleMouseMove(e) {
+        if (!isDragging) return;
+
+        hasMovedDuringDrag = true;
+
+        // Calculate how much mouse has moved
+        const deltaX = e.screenX - dragStartX;
+        const deltaY = e.screenY - dragStartY;
+
+        // Calculate new window position
+        const newX = windowStartX + deltaX;
+        const newY = windowStartY + deltaY;
+
+        // Move the window
+        currentWindow.setPosition(newX, newY);
+
+        console.log('🖱️ [Event] Dragging to', { x: newX, y: newY, deltaX, deltaY });
+      }
+
+      // Mouse up handler
+      function handleMouseUp(e) {
+        const dragDuration = Date.now() - dragStartTime;
+        console.log('🖱️ mouseup event fired!', {
+          isDragging,
+          dragDuration: `${dragDuration}ms`,
+          target: e?.target?.tagName || 'unknown'
+        });
+
+        // Ignore mouseup if drag duration is too short (gesture released too fast)
+        if (isDragging && dragDuration < MIN_DRAG_DURATION) {
+          console.log(`⏱️ Drag too short (${dragDuration}ms < ${MIN_DRAG_DURATION}ms) - ignoring mouseup, continuing drag`);
+          return; // Keep dragging
+        }
+
+        if (isDragging) {
+          isDragging = false;
+          console.log(`🖱️ Drag ended (duration: ${dragDuration}ms)`);
+
+          // Stop drag polling
+          if (dragPollInterval) {
+            clearInterval(dragPollInterval);
+            dragPollInterval = null;
+            console.log('⏹️ Drag polling stopped');
+          }
+
+          // Remove global listeners
+          document.removeEventListener('mousemove', handleMouseMove, true);
+          document.removeEventListener('mouseup', handleMouseUp, true);
+
+          // CRITICAL: Re-enable click-through mode immediately
+          currentWindow.setIgnoreMouseEvents(true, { forward: true });
+          console.log('🔓 Click-through re-enabled - your apps are now clickable again');
+
+          // Blur window to release focus completely
+          window.blur();
+          console.log('✅ Window blurred - focus returned to previous app');
+        }
+      }
+
+      // Detect when drag starts
+      header.addEventListener('mousedown', (e) => {
+        console.log('🖱️ mousedown event fired on header!', {
+          target: e.target.tagName,
+          screenX: e.screenX,
+          screenY: e.screenY
+        });
+
+        // Only handle drag on header area (not on close button)
+        if (e.target.closest('.close-btn')) {
+          console.log('❌ Click on close button - ignoring drag');
+          return; // Don't interfere with close button
+        }
+
+        isDragging = true;
+        hasMovedDuringDrag = false;
+        dragStartTime = Date.now(); // Record when drag started
+
+        // CRITICAL: Disable click-through during drag so we can capture events
+        currentWindow.setIgnoreMouseEvents(false);
+        console.log('🔒 Click-through FORCEFULLY disabled for dragging');
+
+        // Store initial mouse position (screen coordinates)
+        dragStartX = e.screenX;
+        dragStartY = e.screenY;
+
+        // Store initial window position
+        const bounds = currentWindow.getBounds();
+        windowStartX = bounds.x;
+        windowStartY = bounds.y;
+
+        console.log('🖱️ Drag started at', { screenX: dragStartX, screenY: dragStartY });
+        console.log('📍 Window position', { x: windowStartX, y: windowStartY });
+
+        // CRITICAL: Start polling cursor position for drag (20ms = 50fps)
+        // This works better than events for gesture control
+        dragPollInterval = setInterval(pollDragPosition, 20);
+        console.log('▶️ Drag polling started (50fps)');
+
+        // Add global mouse move and mouse up listeners (capture phase) as backup
+        document.addEventListener('mousemove', handleMouseMove, true);
+        document.addEventListener('mouseup', handleMouseUp, true);
+
+        // Safety timeout: If drag hangs, restore click-through after 5 seconds
+        if (dragTimeout) {
+          clearTimeout(dragTimeout);
+        }
+        dragTimeout = setTimeout(() => {
+          if (isDragging) {
+            console.warn('⚠️ Drag timeout - forcing click-through re-enable');
+            handleMouseUp();
+          }
+        }, 5000);
+
+        // Prevent text selection during drag
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      console.log('✅ Custom drag handling initialized (click-through enabled)');
 
       // Initialize hybrid mode from file (source of truth)
       function initializeHybridMode() {
