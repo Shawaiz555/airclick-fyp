@@ -84,6 +84,54 @@ export const gesturesAPI = {
   },
 };
 
+// Settings API
+export const settingsAPI = {
+  async getSettings() {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/settings`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async updateSettings(settings) {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(settings),
+    });
+    return handleResponse(response);
+  },
+
+  async resetSettings() {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/settings/reset`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async applySettings() {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/settings/apply`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+};
+
 // Admin API
 export const adminAPI = {
   async getOverviewStats() {
