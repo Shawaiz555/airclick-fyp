@@ -1,86 +1,176 @@
 // pages/admin/settings.js
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import AdminSidebar from '../../components/AdminSidebar';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
+import { adminAPI } from '../../utils/api';
+
+// Default settings (matches backend defaults)
+const DEFAULT_SETTINGS = {
+  system: {
+    system_name: 'AirClick Gesture Control',
+    maintenance_mode: false,
+    default_app_context: 'GLOBAL'
+  },
+  defaults: {
+    default_cursor_speed: 1.5,
+    default_gesture_sensitivity: 0.75,
+    default_click_sensitivity: 0.08,
+    default_smoothing_level: 0.5
+  },
+  gesture_system: {
+    global_similarity_threshold: 0.75,
+    gesture_collection_frames: 90,
+    stationary_duration_threshold: 1.5,
+    gesture_cooldown_duration: 1.0
+  }
+};
+
+const APP_CONTEXTS = ['GLOBAL', 'POWERPOINT', 'WORD'];
 
 export default function SystemSettings() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [settings, setSettings] = useState({
-    systemName: 'Gesture Control Pro',
-    maintenanceMode: false,
-    maxConcurrentSessions: 1000,
-    gestureSensitivity: 'medium',
-    cloudSyncEnabled: true,
-    auditLogging: true,
-    emailNotifications: true,
-    autoUpdate: true,
-    dataRetentionDays: 30,
-    defaultAppContext: 'GLOBAL'
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [originalSettings, setOriginalSettings] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
 
-  const appContexts = ['GLOBAL', 'YOUTUBE', 'POWERPOINT', 'ZOOM', 'SPOTIFY', 'NETFLIX'];
-  const sensitivityLevels = [
-    { value: 'low', label: 'Low (Less sensitive, fewer false triggers)' },
-    { value: 'medium', label: 'Medium (Balanced accuracy and responsiveness)' },
-    { value: 'high', label: 'High (More sensitive, may have more false triggers)' }
-  ];
-
+  // Load settings from backend
   useEffect(() => {
-    // Simulate loading settings from API
     const loadSettings = async () => {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setIsLoading(false);
+      try {
+        const response = await adminAPI.getSettings();
+        if (response.settings) {
+          setSettings(response.settings);
+          setOriginalSettings(response.settings);
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+        toast.error('Failed to load settings. Using defaults.');
+        setSettings(DEFAULT_SETTINGS);
+        setOriginalSettings(DEFAULT_SETTINGS);
+      } finally {
+        setIsLoading(false);
+      }
     };
     loadSettings();
   }, []);
 
-  const handleInputChange = (field, value) => {
-    setSettings(prev => ({ ...prev, [field]: value }));
-  };
+  // Track changes
+  useEffect(() => {
+    if (originalSettings) {
+      const changed = JSON.stringify(settings) !== JSON.stringify(originalSettings);
+      setHasChanges(changed);
+    }
+  }, [settings, originalSettings]);
 
+  // Update nested setting
+  const updateSetting = useCallback((category, key, value) => {
+    setSettings(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [key]: value
+      }
+    }));
+  }, []);
+
+  // Save settings
   const handleSaveSettings = async () => {
     setIsSaving(true);
-
     try {
-      // Simulate API call to save settings
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await adminAPI.updateSettings(settings);
+      if (response.settings) {
+        setSettings(response.settings);
+        setOriginalSettings(response.settings);
+        setHasChanges(false);
 
-      toast.success('Settings saved successfully!');
+        if (response.applied_to_runtime) {
+          toast.success('Settings saved and applied to system!');
+        } else {
+          toast.success('Settings saved!');
+        }
+      }
     } catch (error) {
-      toast.error('Failed to save settings. Please try again.');
-      console.error('Save error:', error);
+      console.error('Failed to save settings:', error);
+      toast.error('Failed to save settings: ' + error.message);
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Reset settings
   const handleResetSettings = () => {
     setShowResetConfirm(true);
   };
 
-  const confirmReset = () => {
-    setSettings({
-      systemName: 'Gesture Control Pro',
-      maintenanceMode: false,
-      maxConcurrentSessions: 1000,
-      gestureSensitivity: 'medium',
-      cloudSyncEnabled: true,
-      auditLogging: true,
-      emailNotifications: true,
-      autoUpdate: true,
-      dataRetentionDays: 30,
-      defaultAppContext: 'GLOBAL'
-    });
-    toast.success('Settings reset to defaults');
+  const confirmReset = async () => {
+    setShowResetConfirm(false);
+    setIsSaving(true);
+    try {
+      const response = await adminAPI.resetSettings();
+      if (response.settings) {
+        setSettings(response.settings);
+        setOriginalSettings(response.settings);
+        setHasChanges(false);
+        toast.success('Settings reset to defaults!');
+      }
+    } catch (error) {
+      console.error('Failed to reset settings:', error);
+      toast.error('Failed to reset settings: ' + error.message);
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // Slider component
+  const SettingSlider = ({ label, description, value, onChange, min, max, step, displayValue, leftLabel, rightLabel }) => (
+    <div className="space-y-2">
+      <div className="flex justify-between mb-1">
+        <label className="text-sm font-medium text-gray-200">{label}</label>
+        <span className="text-sm text-gray-400">{displayValue}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+      />
+      <div className="flex justify-between text-xs text-gray-500">
+        <span>{leftLabel}</span>
+        <span>{rightLabel}</span>
+      </div>
+      {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+    </div>
+  );
+
+  // Toggle component
+  const SettingToggle = ({ label, description, checked, onChange, color = "cyan", warning = false }) => (
+    <div className={`flex items-center justify-between p-4 rounded-lg border ${warning ? 'bg-amber-500/10 border-amber-500/30' : 'bg-gray-800/30 border-gray-700/50'}`}>
+      <div>
+        <p className="font-medium">{label}</p>
+        <p className={`text-sm ${warning ? 'text-amber-300' : 'text-gray-400'}`}>{description}</p>
+      </div>
+      <label className="relative inline-flex items-center cursor-pointer">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="sr-only peer"
+        />
+        <div className={`w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-${color}-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-${color}-500`}></div>
+      </label>
+    </div>
+  );
 
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
@@ -104,143 +194,215 @@ export default function SystemSettings() {
             </div>
           ) : (
           <div className="max-w-4xl">
+            {/* Header */}
             <div className="mb-8">
               <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                 System Settings
               </h1>
               <p className="text-purple-200">Configure system-wide preferences and behaviors</p>
+              {hasChanges && (
+                <p className="text-amber-400 text-sm mt-2">You have unsaved changes</p>
+              )}
             </div>
 
             {/* Settings Form */}
-            <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl border border-cyan-500/20 p-6 space-y-8">
-              {/* General Settings */}
-              <div>
-                <h2 className="text-xl font-semibold mb-4 text-cyan-200 flex items-center">
+            <div className="space-y-8">
+
+              {/* System Settings Section */}
+              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
+                <h2 className="text-xl font-semibold mb-6 text-cyan-200 flex items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   </svg>
-                  General Settings
+                  System Configuration
                 </h2>
 
                 <div className="space-y-4">
+                  {/* System Name */}
                   <div>
                     <label className="block text-sm font-medium mb-2 text-cyan-200">System Name</label>
                     <input
                       type="text"
-                      value={settings.systemName}
-                      onChange={(e) => handleInputChange('systemName', e.target.value)}
+                      value={settings.system.system_name}
+                      onChange={(e) => updateSetting('system', 'system_name', e.target.value)}
                       className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
+                      placeholder="AirClick Gesture Control"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Display name shown in the application</p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-cyan-200">Max Concurrent Sessions</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="10000"
-                        value={settings.maxConcurrentSessions}
-                        onChange={(e) => handleInputChange('maxConcurrentSessions', parseInt(e.target.value))}
-                        className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-cyan-200">Data Retention (Days)</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={settings.dataRetentionDays}
-                        onChange={(e) => handleInputChange('dataRetentionDays', parseInt(e.target.value))}
-                        className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
-                      />
-                    </div>
-                  </div>
-
+                  {/* Default App Context */}
                   <div>
-                    <label className="block text-sm font-medium mb-2 text-cyan-200">Default App Context</label>
+                    <label className="block text-sm font-medium mb-2 text-cyan-200">Default Application Context</label>
                     <select
-                      value={settings.defaultAppContext}
-                      onChange={(e) => handleInputChange('defaultAppContext', e.target.value)}
+                      value={settings.system.default_app_context}
+                      onChange={(e) => updateSetting('system', 'default_app_context', e.target.value)}
                       className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
                     >
-                      {appContexts.map(context => (
-                        <option key={context} value={context}>{context === 'GLOBAL' ? 'Global (All Apps)' : context}</option>
+                      {APP_CONTEXTS.map(context => (
+                        <option key={context} value={context}>
+                          {context === 'GLOBAL' ? 'Global (All Applications)' : context}
+                        </option>
                       ))}
                     </select>
+                    <p className="text-xs text-gray-500 mt-1">Default context for gesture actions</p>
                   </div>
+
+                  {/* Maintenance Mode */}
+                  <SettingToggle
+                    label="Maintenance Mode"
+                    description="Temporarily disable user access for system maintenance"
+                    checked={settings.system.maintenance_mode}
+                    onChange={(v) => updateSetting('system', 'maintenance_mode', v)}
+                    color="amber"
+                    warning={true}
+                  />
                 </div>
               </div>
 
-              {/* Gesture Settings */}
-              <div className="border-t border-cyan-500/20 pt-8">
-                <h2 className="text-xl font-semibold mb-4 text-emerald-200 flex items-center">
+              {/* Default User Settings Section */}
+              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-green-500/20">
+                <h2 className="text-xl font-semibold mb-6 text-green-200 flex items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                   </svg>
-                  Gesture Recognition
+                  Default User Settings
                 </h2>
+                <p className="text-sm text-gray-400 mb-6">These values are applied as defaults for new users</p>
 
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-cyan-200">Gesture Sensitivity</label>
-                    <div className="space-y-2">
-                      {sensitivityLevels.map(level => (
-                        <label key={level.value} className="flex items-start">
-                          <input
-                            type="radio"
-                            name="sensitivity"
-                            value={level.value}
-                            checked={settings.gestureSensitivity === level.value}
-                            onChange={(e) => handleInputChange('gestureSensitivity', e.target.value)}
-                            className="mt-1 mr-3 h-4 w-4 text-cyan-500 bg-gray-700 border-gray-600 focus:ring-cyan-500"
-                          />
-                          <div>
-                            <span className="font-medium capitalize">{level.value}</span>
-                            <p className="text-sm text-gray-400 mt-1">{level.label}</p>
-                          </div>
-                        </label>
-                      ))}
+                <div className="space-y-6">
+                  {/* Default Cursor Speed */}
+                  <SettingSlider
+                    label="Default Cursor Speed"
+                    value={settings.defaults.default_cursor_speed}
+                    onChange={(v) => updateSetting('defaults', 'default_cursor_speed', v)}
+                    min={0.5}
+                    max={4.0}
+                    step={0.1}
+                    displayValue={`${settings.defaults.default_cursor_speed.toFixed(1)}x`}
+                    leftLabel="Slow"
+                    rightLabel="Fast"
+                    description="Default cursor movement multiplier for new users"
+                  />
+
+                  {/* Default Gesture Sensitivity */}
+                  <SettingSlider
+                    label="Default Gesture Sensitivity"
+                    value={settings.defaults.default_gesture_sensitivity}
+                    onChange={(v) => updateSetting('defaults', 'default_gesture_sensitivity', v)}
+                    min={0.5}
+                    max={0.95}
+                    step={0.05}
+                    displayValue={`${(settings.defaults.default_gesture_sensitivity * 100).toFixed(0)}%`}
+                    leftLabel="Lenient"
+                    rightLabel="Strict"
+                    description="Default gesture matching threshold for new users"
+                  />
+
+                  {/* Default Click Sensitivity */}
+                  <SettingSlider
+                    label="Default Click Sensitivity"
+                    value={settings.defaults.default_click_sensitivity}
+                    onChange={(v) => updateSetting('defaults', 'default_click_sensitivity', v)}
+                    min={0.03}
+                    max={0.15}
+                    step={0.01}
+                    displayValue={settings.defaults.default_click_sensitivity <= 0.05 ? "Precise" : settings.defaults.default_click_sensitivity >= 0.12 ? "Easy" : "Normal"}
+                    leftLabel="Precise"
+                    rightLabel="Easy"
+                    description="Default pinch sensitivity for new users"
+                  />
+
+                  {/* Default Smoothing Level */}
+                  <SettingSlider
+                    label="Default Smoothing Level"
+                    value={settings.defaults.default_smoothing_level}
+                    onChange={(v) => updateSetting('defaults', 'default_smoothing_level', v)}
+                    min={0.1}
+                    max={2.0}
+                    step={0.1}
+                    displayValue={settings.defaults.default_smoothing_level <= 0.5 ? "Smooth" : settings.defaults.default_smoothing_level >= 1.5 ? "Responsive" : "Balanced"}
+                    leftLabel="Smooth"
+                    rightLabel="Responsive"
+                    description="Default cursor smoothing level for new users"
+                  />
+                </div>
+              </div>
+
+              {/* Gesture System Settings Section */}
+              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/20">
+                <h2 className="text-xl font-semibold mb-6 text-purple-200 flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
+                  </svg>
+                  Gesture Recognition System
+                </h2>
+                <p className="text-sm text-gray-400 mb-6">System-wide gesture detection and matching parameters</p>
+
+                <div className="space-y-6">
+                  {/* Global Similarity Threshold */}
+                  <SettingSlider
+                    label="Global Similarity Threshold"
+                    value={settings.gesture_system.global_similarity_threshold}
+                    onChange={(v) => updateSetting('gesture_system', 'global_similarity_threshold', v)}
+                    min={0.5}
+                    max={0.95}
+                    step={0.05}
+                    displayValue={`${(settings.gesture_system.global_similarity_threshold * 100).toFixed(0)}%`}
+                    leftLabel="Lenient (more matches)"
+                    rightLabel="Strict (precise matches)"
+                    description="Minimum similarity score required to match a gesture"
+                  />
+
+                  {/* Gesture Collection Frames */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between mb-1">
+                      <label className="text-sm font-medium text-gray-200">Gesture Collection Frames</label>
+                      <span className="text-sm text-gray-400">{settings.gesture_system.gesture_collection_frames} frames</span>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* System Features */}
-              <div className="border-t border-cyan-500/20 pt-8">
-                <h2 className="text-xl font-semibold mb-4 text-purple-200 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                  </svg>
-                  System Features
-                </h2>
-              </div>
-
-              {/* Maintenance Mode */}
-              <div className="border-t border-cyan-500/20 pt-8">
-                <h2 className="text-xl font-semibold mb-4 text-amber-200 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  Maintenance Mode
-                </h2>
-
-                <div className="flex items-center justify-between p-4 bg-amber-500/10 rounded-lg border border-amber-500/30">
-                  <div>
-                    <p className="font-medium">Enable Maintenance Mode</p>
-                    <p className="text-sm text-amber-300">Temporarily disable user access for system maintenance</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
                     <input
-                      type="checkbox"
-                      checked={settings.maintenanceMode}
-                      onChange={(e) => handleInputChange('maintenanceMode', e.target.checked)}
-                      className="sr-only peer"
+                      type="range"
+                      min={30}
+                      max={150}
+                      step={10}
+                      value={settings.gesture_system.gesture_collection_frames}
+                      onChange={(e) => updateSetting('gesture_system', 'gesture_collection_frames', parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
                     />
-                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-amber-500/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                  </label>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>30 (quick)</span>
+                      <span>150 (detailed)</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Maximum frames collected for gesture matching</p>
+                  </div>
+
+                  {/* Stationary Duration Threshold */}
+                  <SettingSlider
+                    label="Hand Still Duration"
+                    value={settings.gesture_system.stationary_duration_threshold}
+                    onChange={(v) => updateSetting('gesture_system', 'stationary_duration_threshold', v)}
+                    min={0.5}
+                    max={3.0}
+                    step={0.1}
+                    displayValue={`${settings.gesture_system.stationary_duration_threshold.toFixed(1)}s`}
+                    leftLabel="Quick (0.5s)"
+                    rightLabel="Slow (3.0s)"
+                    description="Time hand must be still before gesture collection starts"
+                  />
+
+                  {/* Gesture Cooldown */}
+                  <SettingSlider
+                    label="Gesture Cooldown"
+                    value={settings.gesture_system.gesture_cooldown_duration}
+                    onChange={(v) => updateSetting('gesture_system', 'gesture_cooldown_duration', v)}
+                    min={0.5}
+                    max={3.0}
+                    step={0.1}
+                    displayValue={`${settings.gesture_system.gesture_cooldown_duration.toFixed(1)}s`}
+                    leftLabel="Short (0.5s)"
+                    rightLabel="Long (3.0s)"
+                    description="Cooldown period after a gesture is matched before next detection"
+                  />
                 </div>
               </div>
 
@@ -248,8 +410,13 @@ export default function SystemSettings() {
               <div className="flex flex-col sm:flex-row gap-4 pt-6">
                 <button
                   onClick={handleSaveSettings}
-                  disabled={isSaving}
-                  className="flex-1 py-3 px-6 hover:cursor-pointer bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-medium hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 flex items-center justify-center gap-2"
+                  disabled={isSaving || !hasChanges}
+                  className={`flex-1 py-3 px-6 rounded-xl font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 flex items-center justify-center gap-2
+                    ${hasChanges
+                      ? 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 hover:cursor-pointer'
+                      : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    }
+                    disabled:opacity-50`}
                 >
                   {isSaving ? (
                     <>
@@ -271,10 +438,24 @@ export default function SystemSettings() {
 
                 <button
                   onClick={handleResetSettings}
-                  className="flex-1 py-3 px-6 hover:cursor-pointer bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50"
+                  disabled={isSaving}
+                  className="flex-1 py-3 px-6 hover:cursor-pointer bg-gray-700 rounded-xl font-medium hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50 disabled:opacity-50"
                 >
                   Reset to Defaults
                 </button>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mt-4">
+                <div className="flex items-start gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-blue-200">
+                    <p className="font-medium mb-1">Admin Settings</p>
+                    <p className="text-blue-300/80">These settings affect the entire system. Changes to gesture system settings are applied immediately to the running detection system. Default user settings only affect newly created accounts.</p>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -284,7 +465,7 @@ export default function SystemSettings() {
               onClose={() => setShowResetConfirm(false)}
               onConfirm={confirmReset}
               title="Reset System Settings"
-              message="Are you sure you want to reset all system settings to their default values? This will affect all users and cannot be undone."
+              message="Are you sure you want to reset all system settings to their default values? This will affect gesture detection parameters and default user preferences."
               confirmText="Reset"
               cancelText="Cancel"
               confirmButtonClass="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700"

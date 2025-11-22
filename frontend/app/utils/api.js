@@ -184,4 +184,38 @@ export const adminAPI = {
     });
     return handleResponse(response);
   },
+
+  async getSettings() {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/admin/settings`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
+
+  async updateSettings(settings) {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/admin/settings`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(settings),
+    });
+    return handleResponse(response);
+  },
+
+  async resetSettings() {
+    const token = getAuthToken();
+    const response = await fetch(`${API_BASE_URL}/admin/settings/reset`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+    return handleResponse(response);
+  },
 };

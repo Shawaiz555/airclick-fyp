@@ -653,3 +653,181 @@ def get_recent_activity(
         }
         for log in logs
     ]
+
+
+# ============================================
+# ADMIN SETTINGS ENDPOINTS
+# ============================================
+
+# Import admin settings schemas
+from app.schemas.admin_settings import (
+    AdminSettings,
+    AdminSettingsUpdate,
+    AdminSettingsResponse,
+    AdminSettingsUpdateResponse,
+    DEFAULT_ADMIN_SETTINGS
+)
+import json
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Settings file path (stored in user home directory)
+ADMIN_SETTINGS_FILE = os.path.join(os.path.expanduser("~"), ".airclick-admin-settings.json")
+
+
+def load_admin_settings() -> AdminSettings:
+    """
+    Load admin settings from file.
+    Returns default settings if file doesn't exist or is invalid.
+    """
+    try:
+        if os.path.exists(ADMIN_SETTINGS_FILE):
+            with open(ADMIN_SETTINGS_FILE, 'r') as f:
+                data = json.load(f)
+                return AdminSettings(**data)
+    except Exception as e:
+        logger.warning(f"Error loading admin settings: {e}")
+
+    return DEFAULT_ADMIN_SETTINGS.model_copy()
+
+
+def save_admin_settings(settings: AdminSettings) -> bool:
+    """
+    Save admin settings to file.
+    """
+    try:
+        with open(ADMIN_SETTINGS_FILE, 'w') as f:
+            json.dump(settings.model_dump(), f, indent=2)
+        return True
+    except Exception as e:
+        logger.error(f"Error saving admin settings: {e}")
+        return False
+
+
+def apply_admin_settings_to_runtime(settings: AdminSettings) -> bool:
+    """
+    Apply admin settings to the running gesture control system.
+    """
+    try:
+        from app.services.gesture_matcher import get_gesture_matcher
+        from app.services.hybrid_state_machine import get_hybrid_state_machine
+
+        # Apply gesture system settings
+        gesture_matcher = get_gesture_matcher()
+        gesture_matcher.similarity_threshold = settings.gesture_system.global_similarity_threshold
+
+        state_machine = get_hybrid_state_machine()
+        state_machine.stationary_duration_threshold = settings.gesture_system.stationary_duration_threshold
+        state_machine.collection_frame_count = settings.gesture_system.gesture_collection_frames
+        state_machine.idle_cooldown_duration = settings.gesture_system.gesture_cooldown_duration
+
+        logger.info(f"Applied admin settings to runtime: threshold={settings.gesture_system.global_similarity_threshold}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error applying admin settings to runtime: {e}")
+        return False
+
+
+@router.get("/settings", response_model=AdminSettingsResponse)
+def get_admin_settings(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current admin system settings.
+
+    Requires ADMIN role.
+
+    Returns:
+        Current admin settings
+    """
+    verify_admin(current_user)
+
+    settings = load_admin_settings()
+
+    return AdminSettingsResponse(
+        settings=settings,
+        message="Settings retrieved successfully"
+    )
+
+
+@router.put("/settings", response_model=AdminSettingsUpdateResponse)
+def update_admin_settings(
+    settings_update: AdminSettingsUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Update admin system settings.
+
+    Requires ADMIN role.
+
+    Args:
+        settings_update: Fields to update
+
+    Returns:
+        Updated settings
+    """
+    verify_admin(current_user)
+
+    # Load current settings
+    current_settings = load_admin_settings()
+
+    # Merge with updates
+    if settings_update.system:
+        current_settings.system = settings_update.system
+    if settings_update.defaults:
+        current_settings.defaults = settings_update.defaults
+    if settings_update.gesture_system:
+        current_settings.gesture_system = settings_update.gesture_system
+
+    # Save to file
+    if not save_admin_settings(current_settings):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save settings"
+        )
+
+    # Apply to runtime
+    applied = apply_admin_settings_to_runtime(current_settings)
+
+    return AdminSettingsUpdateResponse(
+        settings=current_settings,
+        message="Settings updated successfully",
+        applied_to_runtime=applied
+    )
+
+
+@router.post("/settings/reset", response_model=AdminSettingsUpdateResponse)
+def reset_admin_settings(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reset admin settings to defaults.
+
+    Requires ADMIN role.
+
+    Returns:
+        Default settings
+    """
+    verify_admin(current_user)
+
+    # Get default settings
+    default_settings = DEFAULT_ADMIN_SETTINGS.model_copy()
+
+    # Save to file
+    if not save_admin_settings(default_settings):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save settings"
+        )
+
+    # Apply to runtime
+    applied = apply_admin_settings_to_runtime(default_settings)
+
+    return AdminSettingsUpdateResponse(
+        settings=default_settings,
+        message="Settings reset to defaults",
+        applied_to_runtime=applied
+    )
