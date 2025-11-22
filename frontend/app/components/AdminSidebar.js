@@ -176,7 +176,7 @@ export default function AdminSidebar({ isOpen, onToggle }) {
 
   return (
     <>
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/90 backdrop-blur-lg border-r overflow-y-auto thin-scrollbar border-cyan-500/20 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900/70 backdrop-blur-lg border-r overflow-y-auto thin-scrollbar border-cyan-500/20 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
         <div className="p-4 py-10 border-b border-cyan-500/20">
           <div className="flex items-center justify-center space-x-3">
             <Image src="/assets/logos/airClickLogo.png" width={900} height={900} alt='Logo' className='w-40 h-42 rounded-full' />

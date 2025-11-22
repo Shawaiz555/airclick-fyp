@@ -284,7 +284,7 @@ export default function CustomGestureManagement() {
   const stats = {
     total: gestures.length,
     global: gestures.filter(g => g.app_context === 'GLOBAL').length,
-    totalFrames: gestures.reduce((sum, g) => sum + (g.landmark_data?.metadata?.total_frames || g.landmark_data?.frames?.length || 0), 0),
+    totalFrames: gestures.reduce((sum, g) => sum + (g.landmark_data?.metadata?.original_frame_count || g.landmark_data?.frames?.length || 0), 0),
     byContext: {} // Will be populated dynamically
   };
 
@@ -312,42 +312,108 @@ export default function CustomGestureManagement() {
   return (
     <ProtectedRoute allowedRoles={['USER']}>
       <div className="md:ml-64 min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white">
+        {/* Subtle background pattern */}
+        <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-500/10 via-transparent to-transparent pointer-events-none"></div>
+
         {isLoading ? (
           <div className="flex items-center justify-center min-h-screen">
             <LoadingSpinner message="Loading gestures..." size="lg" />
           </div>
         ) : (
-          <div className="py-6 md:py-10 px-4 lg:px-8">
-            <div className="max-w-[1400px] mx-auto">
+          <div className="relative py-8 md:py-12 px-4 lg:px-8">
+            <div className="max-w-8xl mx-auto">
               {/* Header Section */}
               <div className="mb-8">
-                <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
+                <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                   Gesture Management
                 </h1>
-                <p className="text-purple-200/90">
-                  Record, organize, and manage your custom hand gestures.
+                <p className="text-[15px] text-purple-200/90">
+                  Record, organize, and manage your custom hand gestures for seamless control.
                 </p>
               </div>
 
-              {/* Actions Bar - Fully Responsive */}
-              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-cyan-500/20 mb-8">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                {/* Total Gestures */}
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-white">{stats.total}</p>
+                      <p className="text-xs text-purple-200/70">Total Gestures</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Global Gestures */}
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-amber-500/40 transition-all duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-white">{stats.global}</p>
+                      <p className="text-xs text-purple-200/70">Global</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* App-Specific */}
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-purple-500/40 transition-all duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-white">{stats.total - stats.global}</p>
+                      <p className="text-xs text-purple-200/70">App-Specific</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Frames */}
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-emerald-500/40 transition-all duration-300">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-white">{stats.totalFrames}</p>
+                      <p className="text-xs text-purple-200/70">Total Frames</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions Bar */}
+              <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 md:p-6 border border-cyan-500/20 mb-8">
                 <div className="space-y-4">
                   {/* Top Row: Search and Record Button */}
                   <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                     {/* Search */}
                     <div className="flex-1 w-full">
                       <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                           </svg>
                         </div>
                         <input
                           type="text"
-                          placeholder="Search gestures..."
+                          placeholder="Search gestures by name or action..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2.5 bg-gray-700/50 border border-cyan-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300"
+                          className="w-full pl-12 pr-4 py-3 bg-gray-700/50 border border-cyan-500/30 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all duration-300"
                         />
                       </div>
                     </div>
@@ -355,12 +421,12 @@ export default function CustomGestureManagement() {
                     {/* Record Button */}
                     <button
                       onClick={handleOpenRecorder}
-                      className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg font-bold hover:cursor-pointer shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
+                      className="w-full sm:w-auto px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold hover:cursor-pointer shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center gap-2 whitespace-nowrap"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                       </svg>
-                      <span className="hidden sm:inline">Record New</span>
+                      <span className="hidden sm:inline">Record New Gesture</span>
                       <span className="sm:hidden">New Gesture</span>
                     </button>
                   </div>
@@ -375,25 +441,28 @@ export default function CustomGestureManagement() {
                           <button
                             key={context}
                             onClick={() => setFilterContext(context)}
-                            className={`px-3 sm:px-4 py-2 rounded-lg font-medium text-sm sm:text-base transition-all duration-300 hover:cursor-pointer ${filterContext === context
-                              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/30'
-                              : 'bg-gray-700/50 text-gray-300 hover:bg-gray-700'
-                              }`}
+                            className={`px-4 py-2 rounded-xl font-medium text-sm transition-all duration-300 hover:cursor-pointer ${
+                              filterContext === context
+                                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+                                : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-cyan-500/20'
+                            }`}
                           >
-                            <span className="hidden sm:inline">{context}</span>
-                            <span className="sm:hidden">{context.length > 8 ? context.substring(0, 8) + '...' : context}</span>
-                            <span className="ml-1.5 sm:ml-2 text-xs opacity-75">({count})</span>
+                            {context}
+                            <span className="ml-2 text-xs opacity-75">({count})</span>
                           </button>
                         );
                       })}
                     </div>
 
                     {/* View Mode Toggle */}
-                    <div className="flex gap-2 bg-gray-700/50 rounded-lg p-1 w-full sm:w-auto justify-center">
+                    <div className="flex gap-1 bg-gray-700/50 rounded-xl p-1 w-full sm:w-auto justify-center border border-cyan-500/20">
                       <button
                         onClick={() => setViewMode('grid')}
-                        className={`flex-1 sm:flex-none p-2 rounded-lg hover:cursor-pointer transition-all duration-300 ${viewMode === 'grid' ? 'bg-cyan-500 text-white' : 'text-gray-400 hover:text-white'
-                          }`}
+                        className={`flex-1 sm:flex-none p-2.5 rounded-lg hover:cursor-pointer transition-all duration-300 ${
+                          viewMode === 'grid'
+                            ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-600/50'
+                        }`}
                         title="Grid view"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -402,8 +471,11 @@ export default function CustomGestureManagement() {
                       </button>
                       <button
                         onClick={() => setViewMode('list')}
-                        className={`flex-1 sm:flex-none p-2 rounded-lg hover:cursor-pointer transition-all duration-300 ${viewMode === 'list' ? 'bg-cyan-500 text-white' : 'text-gray-400 hover:text-white'
-                          }`}
+                        className={`flex-1 sm:flex-none p-2.5 rounded-lg hover:cursor-pointer transition-all duration-300 ${
+                          viewMode === 'list'
+                            ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
+                            : 'text-gray-400 hover:text-white hover:bg-gray-600/50'
+                        }`}
                         title="List view"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -418,24 +490,24 @@ export default function CustomGestureManagement() {
               {/* Gesture List */}
               {filteredGestures.length === 0 ? (
                 <div className="text-center py-16">
-                  <div className="inline-block p-8 bg-gray-800/30 backdrop-blur-sm rounded-2xl border border-dashed border-cyan-500/30">
-                    <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center">
+                  <div className="inline-block p-10 bg-gray-800/30 backdrop-blur-lg rounded-2xl border border-dashed border-cyan-500/30">
+                    <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-500/20 flex items-center justify-center border border-cyan-500/20">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                       </svg>
                     </div>
-                    <h3 className="text-2xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                    <h3 className="text-2xl font-bold mb-3 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
                       {gestures.length === 0 ? 'No gestures recorded yet' : 'No gestures found'}
                     </h3>
-                    <p className="text-purple-200 max-w-md mx-auto mb-6">
+                    <p className="text-purple-200/80 max-w-md mx-auto mb-8 text-[15px]">
                       {gestures.length === 0
-                        ? 'Start creating custom gestures to control your applications with hand movements'
+                        ? 'Start creating custom gestures to control your applications with intuitive hand movements'
                         : 'Try adjusting your search or filter criteria'}
                     </p>
                     {gestures.length === 0 && (
                       <button
                         onClick={handleOpenRecorder}
-                        className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold hover:cursor-pointer shadow-lg hover:shadow-cyan-500/30 transition-all duration-300 transform hover:scale-105"
+                        className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold hover:cursor-pointer shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all duration-300 transform hover:scale-[1.02]"
                       >
                         Record Your First Gesture
                       </button>
@@ -445,7 +517,8 @@ export default function CustomGestureManagement() {
               ) : (
                 <>
                   {/* Results Count */}
-                  <div className="mb-4 text-sm text-purple-200">
+                  <div className="mb-4 text-sm text-purple-200/80 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>
                     Showing {filteredGestures.length} of {gestures.length} gesture{gestures.length !== 1 ? 's' : ''}
                   </div>
 
@@ -457,10 +530,10 @@ export default function CustomGestureManagement() {
                         return (
                           <div
                             key={gesture.id}
-                            className="bg-gray-800/30 backdrop-blur-sm rounded-2xl overflow-hidden border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10 hover:scale-[1.02]"
+                            className="bg-gray-800/30 backdrop-blur-lg rounded-2xl overflow-hidden border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10 hover:scale-[1.02]"
                           >
-                            {/* Context Badge */}
-                            <div className={`h-2 bg-gradient-to-r ${colors.gradient}`}></div>
+                            {/* Context Badge Header */}
+                            <div className={`h-1.5 bg-gradient-to-r ${colors.gradient}`}></div>
 
                             <div className="p-6">
                               <div className="flex justify-between items-start mb-4">
@@ -474,7 +547,7 @@ export default function CustomGestureManagement() {
                                     </span>
                                   </div>
                                 </div>
-                                <div className="flex gap-2">
+                                <div className="flex gap-1">
                                   <button
                                     onClick={() => handleEditGesture(gesture)}
                                     className="p-2 hover:cursor-pointer rounded-lg hover:bg-cyan-500/20 border border-transparent hover:border-cyan-500/30 transition-all duration-300"
@@ -497,39 +570,45 @@ export default function CustomGestureManagement() {
                               </div>
 
                               <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-cyan-300">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                  </svg>
-                                  <span className="text-sm font-medium">Action:</span>
-                                  <span className="text-sm text-gray-300">{gesture.action}</span>
+                                <div className="flex items-center gap-3 text-cyan-300">
+                                  <div className="w-8 h-8 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <span className="text-xs text-gray-400">Action</span>
+                                    <p className="text-sm text-white">{gesture.action}</p>
+                                  </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 text-purple-300">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
-                                  </svg>
-                                  <span className="text-sm font-medium">Frames:</span>
-                                  <span className="text-sm text-gray-300">
-                                    {gesture.landmark_data?.metadata?.original_frame_count ??
-                                     gesture.landmark_data?.frames?.length ??
-                                     'N/A'} recorded frames
-                                  </span>
+                                <div className="flex items-center gap-3 text-purple-300">
+                                  <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <span className="text-xs text-gray-400">Recorded Frames</span>
+                                    <p className="text-sm text-white">
+                                      {gesture.landmark_data?.metadata?.original_frame_count ??
+                                       gesture.landmark_data?.frames?.length ??
+                                       'N/A'}
+                                    </p>
+                                  </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 text-gray-400">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  <span className="text-sm">{new Date(gesture.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                </div>
-
-                                <div className="pt-3 mt-3 border-t border-gray-700/50 flex items-center justify-between">
+                                <div className="pt-3 mt-2 border-t border-gray-700/50 flex items-center justify-between">
                                   <div className="flex items-center gap-2">
                                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                                     <span className="text-xs text-green-400">Active</span>
                                   </div>
-                                  <span className="text-xs text-gray-500">ID: {gesture.id}</span>
+                                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    {new Date(gesture.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -538,76 +617,164 @@ export default function CustomGestureManagement() {
                       })}
                     </div>
                   ) : (
-                    /* List View */
+                    /* List View - Fully Responsive */
                     <div className="space-y-4">
                       {filteredGestures.map((gesture) => {
                         const colors = getContextColor(gesture.app_context);
                         return (
                           <div
                             key={gesture.id}
-                            className="bg-gray-800/30 backdrop-blur-sm rounded-2xl border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10"
+                            className="bg-gray-800/30 backdrop-blur-lg rounded-2xl border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10 overflow-hidden"
                           >
-                            <div className="p-6 flex items-center gap-6">
-                              {/* Context Indicator */}
-                              <div className={`w-1 h-20 rounded-full bg-gradient-to-b ${colors.gradient}`}></div>
+                            {/* Mobile Layout (< md) */}
+                            <div className="block md:hidden">
+                              {/* Context Header Bar */}
+                              <div className={`h-1.5 bg-gradient-to-r ${colors.gradient}`}></div>
 
-                              {/* Main Info */}
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                                    {gesture.name}
-                                  </h3>
-                                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text} border ${colors.border}`}>
-                                    {gesture.app_context}
-                                  </span>
+                              <div className="p-4">
+                                {/* Top Row: Name + Actions */}
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                  <div className="flex-1 min-w-0">
+                                    <h3 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 truncate mb-2">
+                                      {gesture.name}
+                                    </h3>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text} border ${colors.border}`}>
+                                        {gesture.app_context}
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                        <span className="text-xs text-green-400">Active</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {/* Actions */}
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <button
+                                      onClick={() => handleEditGesture(gesture)}
+                                      className="p-2 hover:cursor-pointer rounded-lg hover:bg-cyan-500/20 border border-transparent hover:border-cyan-500/30 transition-all duration-300"
+                                      title="Edit gesture"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteGesture(gesture.id)}
+                                      className="p-2 hover:cursor-pointer rounded-lg hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all duration-300"
+                                      title="Delete gesture"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-6 text-sm text-gray-400">
-                                  <div className="flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+
+                                {/* Info Grid */}
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-700/30">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                     </svg>
-                                    <span className="text-cyan-300 font-medium">Action:</span>
-                                    <span>{gesture.action}</span>
+                                    <span className="text-gray-300 truncate">{gesture.action}</span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <div className="flex items-center gap-2 p-2 rounded-lg bg-gray-700/30">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
                                     </svg>
-                                    <span>
-                                      {gesture.landmark_data?.metadata?.total_frames ??
+                                    <span className="text-gray-400">
+                                      {gesture.landmark_data?.metadata?.original_frame_count ??
                                        gesture.landmark_data?.frames?.length ??
                                        'N/A'} frames
                                     </span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    <span>{new Date(gesture.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                  </div>
+                                </div>
+
+                                {/* Date */}
+                                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-700/50 text-xs text-gray-500">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span>{new Date(gesture.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                 </div>
                               </div>
+                            </div>
 
-                              {/* Actions */}
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleEditGesture(gesture)}
-                                  className="p-3 hover:cursor-pointer rounded-xl hover:bg-cyan-500/20 border border-transparent hover:border-cyan-500/30 transition-all duration-300"
-                                  title="Edit gesture"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            {/* Desktop Layout (>= md) */}
+                            <div className="hidden md:block">
+                              <div className="p-5 flex items-center gap-5">
+                                {/* Context Indicator */}
+                                <div className={`w-1.5 h-16 rounded-full bg-gradient-to-b ${colors.gradient} flex-shrink-0`}></div>
+
+                                {/* Icon */}
+                                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colors.bg} flex items-center justify-center border ${colors.border} flex-shrink-0`}>
+                                  <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                                   </svg>
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteGesture(gesture.id)}
-                                  className="p-3 hover:cursor-pointer rounded-xl hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all duration-300"
-                                  title="Delete gesture"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
+                                </div>
+
+                                {/* Main Info */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-3 mb-1.5 flex-wrap">
+                                    <h3 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500 truncate max-w-[200px] lg:max-w-none">
+                                      {gesture.name}
+                                    </h3>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text} border ${colors.border} flex-shrink-0`}>
+                                      {gesture.app_context}
+                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                      <span className="text-xs text-green-400">Active</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-4 lg:gap-6 text-sm text-gray-400 flex-wrap">
+                                    <div className="flex items-center gap-2">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-cyan-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                      </svg>
+                                      <span className="text-gray-300 truncate max-w-[150px] lg:max-w-none">{gesture.action}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
+                                      </svg>
+                                      <span>
+                                        {gesture.landmark_data?.metadata?.original_frame_count ??
+                                         gesture.landmark_data?.frames?.length ??
+                                         'N/A'} frames
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      <span className="whitespace-nowrap">{new Date(gesture.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Actions */}
+                                <div className="flex gap-2 flex-shrink-0">
+                                  <button
+                                    onClick={() => handleEditGesture(gesture)}
+                                    className="p-3 hover:cursor-pointer rounded-xl hover:bg-cyan-500/20 border border-transparent hover:border-cyan-500/30 transition-all duration-300"
+                                    title="Edit gesture"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteGesture(gesture.id)}
+                                    className="p-3 hover:cursor-pointer rounded-xl hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all duration-300"
+                                    title="Delete gesture"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           </div>
