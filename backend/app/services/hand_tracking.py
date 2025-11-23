@@ -520,89 +520,131 @@ class HandTrackingService:
                                 }
                                 gestures_list.append(gesture_dict)
 
-                            # Match gesture
+                            # Match gesture - CRITICAL: Use return_best_candidate=True for false trigger tracking
                             matcher = get_gesture_matcher()
-                            result = matcher.match_gesture(frames, gestures_list)
+                            result = matcher.match_gesture(
+                                frames,
+                                gestures_list,
+                                user_id=user_id,
+                                return_best_candidate=True  # Get best match even if below threshold
+                            )
 
                             # Result is Optional[Tuple[Dict, float]]
                             if result:
                                 matched_gesture, similarity = result
 
-                                # CRITICAL FIX: Log match result FIRST, before action execution
-                                logger.info(f"")
-                                logger.info(f"{'='*60}")
-                                logger.info(f"✅ GESTURE MATCHED: {matched_gesture['name']}")
-                                logger.info(f"   Similarity: {similarity:.1%}")
-                                logger.info(f"   Gesture ID: {matched_gesture.get('id')}")
-                                logger.info(f"{'='*60}")
+                                # Get gesture-specific threshold
+                                gesture_threshold = matched_gesture.get('adaptive_threshold', matcher.similarity_threshold)
+                                is_true_match = similarity >= gesture_threshold
 
-                                # Get action details
-                                gesture_action = matched_gesture.get('action')
-                                gesture_app_context = matched_gesture.get('app_context')
-
-                                # Update gesture stats in database BEFORE action execution
-                                try:
-                                    gesture_record = db.query(Gesture).filter(Gesture.id == matched_gesture.get('id')).first()
-                                    if gesture_record:
-                                        gesture_record.total_similarity = (gesture_record.total_similarity or 0.0) + similarity
-                                        gesture_record.match_count = (gesture_record.match_count or 0) + 1
-                                        gesture_record.accuracy_score = gesture_record.total_similarity / gesture_record.match_count
-                                        db.commit()
-                                        logger.debug(f"📊 Updated gesture stats: match_count={gesture_record.match_count}, accuracy={gesture_record.accuracy_score:.1%}")
-                                except Exception as e:
-                                    logger.warning(f"Failed to update gesture stats: {e}")
-                                    db.rollback()
-
-                                # Execute action AFTER logging match result
-                                if gesture_action:
+                                if is_true_match:
+                                    # CRITICAL FIX: Log match result FIRST, before action execution
                                     logger.info(f"")
-                                    logger.info(f"🎬 Executing action: {gesture_action}")
-                                    logger.info(f"   App context: {gesture_app_context}")
-                                    logger.info(f"   Gesture: '{matched_gesture['name']}'")
+                                    logger.info(f"{'='*60}")
+                                    logger.info(f"✅ GESTURE MATCHED: {matched_gesture['name']}")
+                                    logger.info(f"   Similarity: {similarity:.1%}")
+                                    logger.info(f"   Gesture ID: {matched_gesture.get('id')}")
+                                    logger.info(f"{'='*60}")
 
-                                    # Import action executor
-                                    from app.services.action_executor import get_action_executor
+                                    # Get action details
+                                    gesture_action = matched_gesture.get('action')
+                                    gesture_app_context = matched_gesture.get('app_context')
 
-                                    # Execute the action
-                                    executor = get_action_executor()
-                                    action_result = executor.execute_action(
-                                        gesture_action,
-                                        gesture_app_context
-                                    )
+                                    # Update gesture stats in database BEFORE action execution
+                                    try:
+                                        gesture_record = db.query(Gesture).filter(Gesture.id == matched_gesture.get('id')).first()
+                                        if gesture_record:
+                                            gesture_record.total_similarity = (gesture_record.total_similarity or 0.0) + similarity
+                                            gesture_record.match_count = (gesture_record.match_count or 0) + 1
+                                            gesture_record.accuracy_score = gesture_record.total_similarity / gesture_record.match_count
+                                            db.commit()
+                                            logger.debug(f"📊 Updated gesture stats: match_count={gesture_record.match_count}, accuracy={gesture_record.accuracy_score:.1%}")
+                                    except Exception as e:
+                                        logger.warning(f"Failed to update gesture stats: {e}")
+                                        db.rollback()
 
-                                    if action_result.get("success"):
-                                        logger.info(f"✅ Action executed successfully: {gesture_action}")
-                                        logger.info(f"   Action name: {action_result.get('action_name')}")
-                                        logger.info(f"   Keyboard shortcut: {action_result.get('keyboard_shortcut')}")
-                                        if action_result.get('window_switched'):
-                                            logger.info(f"   Window switched to: {action_result.get('window_title')}")
+                                    # Execute action AFTER logging match result
+                                    if gesture_action:
+                                        logger.info(f"")
+                                        logger.info(f"🎬 Executing action: {gesture_action}")
+                                        logger.info(f"   App context: {gesture_app_context}")
+                                        logger.info(f"   Gesture: '{matched_gesture['name']}'")
+
+                                        # Import action executor
+                                        from app.services.action_executor import get_action_executor
+
+                                        # Execute the action
+                                        executor = get_action_executor()
+                                        action_result = executor.execute_action(
+                                            gesture_action,
+                                            gesture_app_context
+                                        )
+
+                                        if action_result.get("success"):
+                                            logger.info(f"✅ Action executed successfully: {gesture_action}")
+                                            logger.info(f"   Action name: {action_result.get('action_name')}")
+                                            logger.info(f"   Keyboard shortcut: {action_result.get('keyboard_shortcut')}")
+                                            if action_result.get('window_switched'):
+                                                logger.info(f"   Window switched to: {action_result.get('window_title')}")
+                                        else:
+                                            logger.error(f"❌ Action execution failed: {action_result.get('error')}")
+                                            if action_result.get('app_not_found'):
+                                                logger.error(f"   ⚠️ {gesture_app_context} application is not running!")
+
+                                        return {
+                                            "matched": True,
+                                            "gesture_name": matched_gesture['name'],
+                                            "gesture_id": matched_gesture.get('id'),
+                                            "similarity": similarity,
+                                            "action": gesture_action,
+                                            "action_executed": action_result.get("success", False),
+                                            "action_result": action_result
+                                        }
                                     else:
-                                        logger.error(f"❌ Action execution failed: {action_result.get('error')}")
-                                        if action_result.get('app_not_found'):
-                                            logger.error(f"   ⚠️ {gesture_app_context} application is not running!")
+                                        logger.warning(f"⚠️ Gesture '{matched_gesture['name']}' has no action assigned")
+                                        return {
+                                            "matched": True,
+                                            "gesture_name": matched_gesture['name'],
+                                            "gesture_id": matched_gesture.get('id'),
+                                            "similarity": similarity,
+                                            "action": None,
+                                            "action_executed": False,
+                                            "error": "No action assigned to gesture"
+                                        }
+                                else:
+                                    # FALSE TRIGGER: Similarity below threshold
+                                    # CRITICAL FIX: Track false triggers for analytics
+                                    logger.info(f"")
+                                    logger.info(f"{'='*60}")
+                                    logger.info(f"⚠️ FALSE TRIGGER DETECTED")
+                                    logger.info(f"   Closest gesture: {matched_gesture['name']}")
+                                    logger.info(f"   Similarity: {similarity:.1%}")
+                                    logger.info(f"   Threshold: {gesture_threshold:.1%}")
+                                    logger.info(f"   Delta: {(gesture_threshold - similarity):.1%}")
+                                    logger.info(f"{'='*60}")
+
+                                    # Increment false trigger count in database
+                                    try:
+                                        gesture_record = db.query(Gesture).filter(Gesture.id == matched_gesture.get('id')).first()
+                                        if gesture_record:
+                                            gesture_record.false_trigger_count = (gesture_record.false_trigger_count or 0) + 1
+                                            db.commit()
+                                            logger.info(f"📊 False trigger count updated: {gesture_record.false_trigger_count}")
+                                    except Exception as e:
+                                        logger.warning(f"Failed to update false trigger count: {e}")
+                                        db.rollback()
 
                                     return {
-                                        "matched": True,
-                                        "gesture_name": matched_gesture['name'],
+                                        "matched": False,
+                                        "false_trigger": True,
+                                        "closest_gesture": matched_gesture['name'],
                                         "gesture_id": matched_gesture.get('id'),
                                         "similarity": similarity,
-                                        "action": gesture_action,
-                                        "action_executed": action_result.get("success", False),
-                                        "action_result": action_result
-                                    }
-                                else:
-                                    logger.warning(f"⚠️ Gesture '{matched_gesture['name']}' has no action assigned")
-                                    return {
-                                        "matched": True,
-                                        "gesture_name": matched_gesture['name'],
-                                        "gesture_id": matched_gesture.get('id'),
-                                        "similarity": similarity,
-                                        "action": None,
-                                        "action_executed": False,
-                                        "error": "No action assigned to gesture"
+                                        "threshold": gesture_threshold,
+                                        "reason": f"Similarity {similarity:.1%} below threshold {gesture_threshold:.1%}"
                                     }
                             else:
-                                logger.debug("No gesture match found")
+                                logger.debug("No gesture match found (no candidates)")
                                 return {"matched": False, "similarity": 0.0}
 
                         finally:
