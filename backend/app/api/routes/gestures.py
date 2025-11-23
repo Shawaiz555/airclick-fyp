@@ -92,9 +92,65 @@ def record_gesture(
 
     logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
 
+    # CRITICAL FIX: Extract raw trajectory data BEFORE preprocessing destroys it
+    # This is needed for trajectory-based gesture discrimination (swipe vs static gestures)
+    raw_wrist_positions = []
+    for frame in gesture_data.frames:
+        if frame.landmarks and len(frame.landmarks) > 0:
+            wrist = frame.landmarks[0]  # Wrist is landmark 0
+            raw_wrist_positions.append({'x': wrist.x, 'y': wrist.y})
+
+    # Calculate raw trajectory (start to end position)
+    raw_trajectory = None
+    trajectory_classification = "unknown"
+    trajectory_quality = "unknown"
+
+    if len(raw_wrist_positions) >= 2:
+        start = raw_wrist_positions[0]
+        end = raw_wrist_positions[-1]
+        magnitude = ((end['x'] - start['x'])**2 + (end['y'] - start['y'])**2)**0.5
+
+        # CRITICAL: Classify trajectory for quality feedback
+        # These thresholds match gesture_matcher.py exactly
+        STATIONARY_THRESHOLD = 0.02  # Below this = definitely stationary
+        MOVEMENT_THRESHOLD = 0.05    # Above this = definitely moving
+
+        if magnitude < STATIONARY_THRESHOLD:
+            trajectory_classification = "stationary"
+            trajectory_quality = "good"  # Good for static gestures like screenshot
+            logger.info(f"📍 STATIONARY gesture detected (magnitude={magnitude:.4f} < {STATIONARY_THRESHOLD})")
+            logger.info(f"   ✅ Good for: Screenshot, Thumbs up, Peace sign, etc.")
+        elif magnitude > MOVEMENT_THRESHOLD:
+            trajectory_classification = "moving"
+            trajectory_quality = "good"  # Good for swipe/movement gestures
+            logger.info(f"📍 MOVING gesture detected (magnitude={magnitude:.4f} > {MOVEMENT_THRESHOLD})")
+            logger.info(f"   ✅ Good for: Swipe left/right/up/down, Wave, etc.")
+        else:
+            trajectory_classification = "ambiguous"
+            trajectory_quality = "warning"
+            logger.warning(f"⚠️ AMBIGUOUS movement detected (magnitude={magnitude:.4f})")
+            logger.warning(f"   Range: {STATIONARY_THRESHOLD} < {magnitude:.4f} < {MOVEMENT_THRESHOLD}")
+            logger.warning(f"   For SWIPE gestures: Move hand MORE (>5% of screen)")
+            logger.warning(f"   For STATIC gestures: Keep hand STILL (<2% movement)")
+
+        raw_trajectory = {
+            'start_x': start['x'],
+            'start_y': start['y'],
+            'end_x': end['x'],
+            'end_y': end['y'],
+            'delta_x': end['x'] - start['x'],
+            'delta_y': end['y'] - start['y'],
+            'magnitude': magnitude,
+            'classification': trajectory_classification,
+            'quality': trajectory_quality
+        }
+        logger.info(f"📍 Raw trajectory: ({raw_trajectory['delta_x']:.4f}, {raw_trajectory['delta_y']:.4f}), magnitude={magnitude:.4f}")
+
     # Convert to storable format
     landmark_data = {
         "frames": frames_dict,
+        "raw_trajectory": raw_trajectory,  # CRITICAL: Preserve trajectory for matching
+        "raw_wrist_positions": raw_wrist_positions,  # Full position history
         "metadata": {
             "total_frames": len(frames_dict),
             "duration": original_stats['duration_ms'] / 1000.0,
@@ -103,7 +159,7 @@ def record_gesture(
             "avg_confidence": original_stats['avg_confidence'],
             "handedness": original_stats['handedness'],
             "preprocessed": True,  # Mark that preprocessing was applied
-            "preprocessing_version": "v4_direction_aware"  # CRITICAL: Direction-aware preprocessing v2
+            "preprocessing_version": "v5_with_trajectory"  # Updated version with trajectory
         }
     }
 
@@ -256,9 +312,56 @@ def update_gesture(
 
         logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
 
+        # CRITICAL FIX: Extract raw trajectory data BEFORE preprocessing destroys it
+        raw_wrist_positions = []
+        for frame in gesture_data.frames:
+            if frame.landmarks and len(frame.landmarks) > 0:
+                wrist = frame.landmarks[0]  # Wrist is landmark 0
+                raw_wrist_positions.append({'x': wrist.x, 'y': wrist.y})
+
+        # Calculate raw trajectory with classification
+        raw_trajectory = None
+        trajectory_classification = "unknown"
+        trajectory_quality = "unknown"
+
+        STATIONARY_THRESHOLD = 0.02
+        MOVEMENT_THRESHOLD = 0.05
+
+        if len(raw_wrist_positions) >= 2:
+            start = raw_wrist_positions[0]
+            end = raw_wrist_positions[-1]
+            magnitude = ((end['x'] - start['x'])**2 + (end['y'] - start['y'])**2)**0.5
+
+            if magnitude < STATIONARY_THRESHOLD:
+                trajectory_classification = "stationary"
+                trajectory_quality = "good"
+                logger.info(f"📍 STATIONARY gesture (magnitude={magnitude:.4f})")
+            elif magnitude > MOVEMENT_THRESHOLD:
+                trajectory_classification = "moving"
+                trajectory_quality = "good"
+                logger.info(f"📍 MOVING gesture (magnitude={magnitude:.4f})")
+            else:
+                trajectory_classification = "ambiguous"
+                trajectory_quality = "warning"
+                logger.warning(f"⚠️ AMBIGUOUS movement (magnitude={magnitude:.4f})")
+
+            raw_trajectory = {
+                'start_x': start['x'],
+                'start_y': start['y'],
+                'end_x': end['x'],
+                'end_y': end['y'],
+                'delta_x': end['x'] - start['x'],
+                'delta_y': end['y'] - start['y'],
+                'magnitude': magnitude,
+                'classification': trajectory_classification,
+                'quality': trajectory_quality
+            }
+
         # Convert to storable format
         landmark_data = {
             "frames": frames_dict,
+            "raw_trajectory": raw_trajectory,
+            "raw_wrist_positions": raw_wrist_positions,
             "metadata": {
                 "total_frames": len(frames_dict),
                 "duration": original_stats['duration_ms'] / 1000.0,
@@ -266,8 +369,8 @@ def update_gesture(
                 "resampled": original_stats['frame_count'] != 60,
                 "avg_confidence": original_stats['avg_confidence'],
                 "handedness": original_stats['handedness'],
-                "preprocessed": True,  # Mark that preprocessing was applied
-                "preprocessing_version": "v4_direction_aware"  # CRITICAL: Direction-aware preprocessing v2
+                "preprocessed": True,
+                "preprocessing_version": "v5_with_trajectory"
             }
         }
         gesture.landmark_data = landmark_data

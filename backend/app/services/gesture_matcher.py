@@ -578,16 +578,16 @@ class GestureMatcher:
 
         return result
 
-    def _calculate_trajectory_penalty(
+    def _calculate_trajectory_penalty_from_raw_frames(
         self,
-        seq1: np.ndarray,
-        seq2: np.ndarray
+        input_frames: List[Dict],
+        stored_gesture: Dict
     ) -> float:
         """
-        Calculate trajectory penalty for gestures with opposite movement directions.
+        Calculate trajectory penalty using RAW trajectory data.
 
-        This is a CRITICAL fix to prevent matching gestures that have similar hand shapes
-        but completely different movement directions (e.g., swipe left vs swipe right).
+        CRITICAL FIX v5: Now uses stored raw_trajectory or raw_wrist_positions from
+        gesture recording, since Procrustes normalization destroys position info.
 
         The penalty is calculated by comparing the overall trajectory direction vectors:
         - If movements are in the same direction: penalty = 0.0 (no penalty)
@@ -595,80 +595,193 @@ class GestureMatcher:
         - If movements are opposite: penalty = 1.0 (maximum penalty)
 
         Args:
-            seq1: First sequence (num_frames, 63) - flattened landmarks
-            seq2: Second sequence (num_frames, 63) - flattened landmarks
+            input_frames: Raw input frames with landmarks
+            stored_gesture: Full gesture dict containing landmark_data with raw_trajectory
 
         Returns:
             Penalty value between 0.0 (same direction) and 1.0 (opposite direction)
         """
         try:
-            # Extract wrist positions from flattened features
-            # Wrist is landmark 0, so indices 0-2 are x, y, z
-            wrist1 = seq1[:, 0:3]  # Shape: (num_frames, 3)
-            wrist2 = seq2[:, 0:3]  # Shape: (num_frames, 3)
+            # Extract wrist positions from input frames (these ARE raw, not normalized)
+            def get_wrist_trajectory(frames: List[Dict], debug_name: str = "") -> np.ndarray:
+                """Extract wrist (x, y) positions from raw frames."""
+                positions = []
+                for i, frame in enumerate(frames):
+                    landmarks = frame.get('landmarks', [])
+                    if landmarks and len(landmarks) > 0:
+                        wrist = landmarks[0]  # Wrist is landmark 0
+                        # Handle both dict format {'x': ..., 'y': ...} and list format [x, y, z]
+                        if isinstance(wrist, dict):
+                            x = wrist.get('x', 0)
+                            y = wrist.get('y', 0)
+                        elif isinstance(wrist, (list, tuple)) and len(wrist) >= 2:
+                            x = wrist[0]
+                            y = wrist[1]
+                        else:
+                            x, y = 0, 0
+                            if i == 0:
+                                logger.warning(f"  {debug_name} frame 0 wrist has unexpected type: {type(wrist)}, value: {wrist}")
+                        positions.append([x, y])
+                    elif i == 0:
+                        logger.warning(f"  {debug_name} frame 0 has no landmarks or empty landmarks")
+                        positions.append([0, 0])
+                return np.array(positions)
 
-            # Calculate overall trajectory vectors (start to end)
-            if len(wrist1) < 2 or len(wrist2) < 2:
-                logger.debug(f"Trajectory penalty: Not enough frames")
-                return 0.0  # Not enough frames to calculate trajectory
+            # Get input trajectory from raw frames
+            wrist1 = get_wrist_trajectory(input_frames, "Input")
 
-            # IMPROVED: Use multiple trajectory segments for better accuracy
-            # Compare start→middle and middle→end trajectories
-            num_frames = len(wrist1)
-            mid_idx = num_frames // 2
+            # Get stored trajectory - PREFER raw_trajectory/raw_wrist_positions if available
+            landmark_data = stored_gesture.get('landmark_data', {})
+            raw_trajectory = landmark_data.get('raw_trajectory')
+            raw_wrist_positions = landmark_data.get('raw_wrist_positions', [])
 
-            # Calculate trajectories
-            trajectory1_first_half = wrist1[mid_idx] - wrist1[0]
-            trajectory1_second_half = wrist1[-1] - wrist1[mid_idx]
-            trajectory1_overall = wrist1[-1] - wrist1[0]
+            # Calculate stored trajectory from saved data
+            if raw_trajectory:
+                # Use pre-calculated trajectory
+                trajectory2 = np.array([raw_trajectory['delta_x'], raw_trajectory['delta_y']])
+                norm2 = raw_trajectory['magnitude']
+                wrist2_start = np.array([raw_trajectory['start_x'], raw_trajectory['start_y']])
+                wrist2_end = np.array([raw_trajectory['end_x'], raw_trajectory['end_y']])
+                logger.info(f"  Using stored raw_trajectory: delta=({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
+            elif raw_wrist_positions and len(raw_wrist_positions) >= 2:
+                # Calculate from raw positions
+                start = raw_wrist_positions[0]
+                end = raw_wrist_positions[-1]
+                wrist2_start = np.array([start['x'], start['y']])
+                wrist2_end = np.array([end['x'], end['y']])
+                trajectory2 = wrist2_end - wrist2_start
+                norm2 = np.linalg.norm(trajectory2)
+                logger.info(f"  Using raw_wrist_positions: delta=({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
+            else:
+                # Fallback: try to get from frames (will likely be 0 due to normalization)
+                stored_frames = landmark_data.get('frames', [])
+                wrist2 = get_wrist_trajectory(stored_frames, "Stored")
+                if len(wrist2) >= 2:
+                    wrist2_start = wrist2[0]
+                    wrist2_end = wrist2[-1]
+                    trajectory2 = wrist2_end - wrist2_start
+                    norm2 = np.linalg.norm(trajectory2)
+                    logger.info(f"  FALLBACK: Using normalized frames (likely 0): magnitude={norm2:.4f}")
+                else:
+                    logger.warning(f"  No trajectory data available for stored gesture")
+                    return 0.0
 
-            trajectory2_first_half = wrist2[mid_idx] - wrist2[0]
-            trajectory2_second_half = wrist2[-1] - wrist2[mid_idx]
-            trajectory2_overall = wrist2[-1] - wrist2[0]
-
-            # Calculate norms
-            norm1_overall = np.linalg.norm(trajectory1_overall)
-            norm2_overall = np.linalg.norm(trajectory2_overall)
-
-            logger.debug(f"Trajectory penalty debug:")
-            logger.debug(f"  Seq1 trajectory norm: {norm1_overall:.4f}")
-            logger.debug(f"  Seq2 trajectory norm: {norm2_overall:.4f}")
-
-            # CRITICAL: Lower threshold to detect even small movements
-            min_movement_threshold = 0.01  # Very low threshold
-
-            if norm1_overall < min_movement_threshold or norm2_overall < min_movement_threshold:
-                # One or both gestures are nearly stationary
-                logger.debug(f"  → Stationary gesture detected (below {min_movement_threshold})")
+            if len(wrist1) < 2:
+                logger.info(f"  Trajectory penalty: Not enough input frames ({len(wrist1)})")
                 return 0.0
 
-            # Normalize trajectories
-            trajectory1_norm = trajectory1_overall / norm1_overall
-            trajectory2_norm = trajectory2_overall / norm2_overall
+            # Calculate input trajectory vectors (start to end)
+            trajectory1 = wrist1[-1] - wrist1[0]  # (x, y) displacement
+            norm1 = np.linalg.norm(trajectory1)
+
+            # trajectory2 and norm2 already calculated above from stored data
+            # Just need to ensure they're numpy arrays for calculations
+            if not isinstance(trajectory2, np.ndarray):
+                trajectory2 = np.array(trajectory2)
+
+            logger.info(f"  Trajectory comparison:")
+            logger.info(f"    Input: start=({wrist1[0][0]:.3f}, {wrist1[0][1]:.3f}) → end=({wrist1[-1][0]:.3f}, {wrist1[-1][1]:.3f})")
+            logger.info(f"    Input trajectory: ({trajectory1[0]:.4f}, {trajectory1[1]:.4f}), magnitude={norm1:.4f}")
+            logger.info(f"    Stored trajectory: ({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
+
+            # CRITICAL FIX v6: Use TWO thresholds to distinguish gesture types
+            # - Stationary gestures: magnitude < 0.02 (hand barely moved)
+            # - Ambiguous range: 0.02 - 0.05 (small movement, could be noise or intent)
+            # - Movement gestures: magnitude > 0.05 (clear intentional movement)
+            stationary_threshold = 0.02  # Below this = definitely stationary
+            movement_threshold = 0.05    # Above this = definitely moving
+
+            # Classify input gesture
+            input_is_stationary = norm1 < stationary_threshold
+            input_is_moving = norm1 > movement_threshold
+            input_is_ambiguous = not input_is_stationary and not input_is_moving
+
+            # Classify stored gesture
+            stored_is_stationary = norm2 < stationary_threshold
+            stored_is_moving = norm2 > movement_threshold
+            stored_is_ambiguous = not stored_is_stationary and not stored_is_moving
+
+            logger.info(f"    Input classification: {'STATIONARY' if input_is_stationary else 'MOVING' if input_is_moving else 'AMBIGUOUS'} (magnitude={norm1:.4f})")
+            logger.info(f"    Stored classification: {'STATIONARY' if stored_is_stationary else 'MOVING' if stored_is_moving else 'AMBIGUOUS'} (magnitude={norm2:.4f})")
+
+            # CASE 1: Input is clearly moving
+            if input_is_moving:
+                if stored_is_stationary:
+                    # Moving input matched to stationary gesture - HIGH penalty
+                    logger.info(f"    → MOVING input vs STATIONARY stored - HIGH penalty")
+                    return 0.8
+                elif stored_is_ambiguous:
+                    # Moving input matched to ambiguous gesture - moderate penalty
+                    logger.info(f"    → MOVING input vs AMBIGUOUS stored - moderate penalty")
+                    return 0.4
+                # stored_is_moving - compare directions below
+
+            # CASE 2: Input is stationary
+            elif input_is_stationary:
+                if stored_is_moving:
+                    # Stationary input matched to moving gesture - HIGH penalty
+                    logger.info(f"    → STATIONARY input vs MOVING stored - HIGH penalty")
+                    return 0.8
+                elif stored_is_stationary:
+                    # Both stationary - no penalty
+                    logger.info(f"    → Both STATIONARY - no penalty")
+                    return 0.0
+                else:
+                    # stored_is_ambiguous - small penalty
+                    logger.info(f"    → STATIONARY input vs AMBIGUOUS stored - small penalty")
+                    return 0.2
+
+            # CASE 3: Input is in ambiguous range
+            else:  # input_is_ambiguous
+                if stored_is_stationary:
+                    # Ambiguous input vs stationary - moderate penalty
+                    logger.info(f"    → AMBIGUOUS input vs STATIONARY stored - moderate penalty")
+                    return 0.3
+                elif stored_is_moving:
+                    # Ambiguous input vs moving - moderate penalty
+                    logger.info(f"    → AMBIGUOUS input vs MOVING stored - moderate penalty")
+                    return 0.3
+                # Both ambiguous - compare magnitudes and directions
+
+            # CASE 4: Both have significant movement OR both are ambiguous
+            # Compare directions AND magnitude similarity
+            trajectory1_norm = trajectory1 / norm1
+            trajectory2_norm = trajectory2 / norm2
 
             # Calculate cosine similarity (-1 = opposite, 0 = perpendicular, 1 = same)
             cosine_sim = np.dot(trajectory1_norm, trajectory2_norm)
 
-            logger.debug(f"  Cosine similarity: {cosine_sim:.4f}")
-            logger.debug(f"  Trajectory1 direction: [{trajectory1_norm[0]:.3f}, {trajectory1_norm[1]:.3f}, {trajectory1_norm[2]:.3f}]")
-            logger.debug(f"  Trajectory2 direction: [{trajectory2_norm[0]:.3f}, {trajectory2_norm[1]:.3f}, {trajectory2_norm[2]:.3f}]")
+            # Calculate magnitude ratio (how similar are the movement sizes)
+            magnitude_ratio = min(norm1, norm2) / max(norm1, norm2)
 
-            # Convert to penalty (0 = same direction, 1 = opposite direction)
-            # Formula: penalty = (1 - cosine_sim) / 2
-            # cosine_sim = 1 → penalty = 0 (same direction, no penalty)
-            # cosine_sim = 0 → penalty = 0.5 (perpendicular, moderate penalty)
-            # cosine_sim = -1 → penalty = 1 (opposite, maximum penalty)
-            penalty = (1.0 - cosine_sim) / 2.0
+            logger.info(f"    Input direction: ({trajectory1_norm[0]:.3f}, {trajectory1_norm[1]:.3f})")
+            logger.info(f"    Stored direction: ({trajectory2_norm[0]:.3f}, {trajectory2_norm[1]:.3f})")
+            logger.info(f"    Cosine similarity: {cosine_sim:.4f}")
+            logger.info(f"    Magnitude ratio: {magnitude_ratio:.4f}")
 
-            logger.debug(f"  → Penalty: {penalty:.4f}")
+            # Direction penalty: penalize opposite/perpendicular movements
+            # cosine_sim = 1 → direction_penalty = 0 (same direction)
+            # cosine_sim = 0 → direction_penalty = 0.5 (perpendicular)
+            # cosine_sim = -1 → direction_penalty = 1 (opposite)
+            direction_penalty = (1.0 - cosine_sim) / 2.0
 
-            return max(0.0, min(1.0, penalty))  # Clamp to [0, 1]
+            # Magnitude penalty: penalize if magnitudes are very different
+            # This helps distinguish a big swipe from a tiny movement
+            magnitude_penalty = 1.0 - magnitude_ratio
+
+            # Combined penalty: weight direction more heavily
+            penalty = direction_penalty * 0.7 + magnitude_penalty * 0.3
+
+            logger.info(f"    → Direction penalty: {direction_penalty:.4f}, Magnitude penalty: {magnitude_penalty:.4f}")
+            logger.info(f"    → Combined trajectory penalty: {penalty:.4f}")
+
+            return max(0.0, min(1.0, penalty))
 
         except Exception as e:
             logger.warning(f"Error calculating trajectory penalty: {e}")
             import traceback
             logger.warning(traceback.format_exc())
-            return 0.0  # No penalty on error
+            return 0.0
 
     def _match_sequential(
         self,
@@ -729,16 +842,16 @@ class GestureMatcher:
                 # FIXED: Convert to similarity correctly
                 similarity = self.calculate_final_similarity(value, is_similarity)
 
-                # CRITICAL FIX v2: Apply trajectory consistency check
+                # CRITICAL FIX v5: Apply trajectory consistency check using stored raw_trajectory
                 # This prevents matching gestures with opposite movement directions
+                # Must use stored raw_trajectory because Procrustes normalization removes position info
                 logger.info(f"  Calculating trajectory penalty for '{gesture.get('name')}'...")
-                trajectory_penalty = self._calculate_trajectory_penalty(
-                    input_normalized, stored_normalized
+                trajectory_penalty = self._calculate_trajectory_penalty_from_raw_frames(
+                    input_frames, gesture  # Pass full gesture dict to access raw_trajectory
                 )
-                logger.info(f"  → Trajectory penalty: {trajectory_penalty:.4f}")
 
-                # Apply penalty to similarity (reduce by up to 30% for opposite movements)
-                adjusted_similarity = similarity * (1.0 - trajectory_penalty * 0.3)
+                # Apply penalty to similarity (reduce by up to 50% for movement mismatch)
+                adjusted_similarity = similarity * (1.0 - trajectory_penalty * 0.5)
 
                 # ✅ CRITICAL FIX #4: Enhanced logging with distance/similarity info
                 if is_similarity:
@@ -816,13 +929,13 @@ class GestureMatcher:
                 # Convert to similarity
                 similarity = self.calculate_final_similarity(value, is_similarity)
 
-                # CRITICAL FIX v2: Apply trajectory consistency check
-                trajectory_penalty = self._calculate_trajectory_penalty(
-                    input_normalized, stored_normalized
+                # CRITICAL FIX v5: Apply trajectory consistency check using stored raw_trajectory
+                trajectory_penalty = self._calculate_trajectory_penalty_from_raw_frames(
+                    input_frames, gesture  # Pass full gesture dict to access raw_trajectory
                 )
 
-                # Apply penalty to similarity
-                adjusted_similarity = similarity * (1.0 - trajectory_penalty * 0.3)
+                # Apply penalty to similarity (up to 50% reduction for movement mismatch)
+                adjusted_similarity = similarity * (1.0 - trajectory_penalty * 0.5)
 
                 return gesture, adjusted_similarity
 

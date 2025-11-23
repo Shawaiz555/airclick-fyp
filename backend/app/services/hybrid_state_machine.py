@@ -47,9 +47,10 @@ class HybridStateMachine:
         min_collection_frames: int = 10,             # CRITICAL FIX: Reduced to 10 frames minimum (allow quick gestures)
         idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
         velocity_threshold: float = 0.015,           # DECREASED: Movement threshold for stationary detection (more strict)
-        moving_velocity_threshold: float = 0.12,     # INCREASED: Minimum velocity for moving gesture detection (more intentional)
-        moving_duration_threshold: float = 0.5,      # INCREASED: Seconds of movement to trigger moving gesture (more deliberate)
-        gesture_end_stationary_duration: float = 0.5 # INCREASED: Seconds stationary to end gesture collection (ensure gesture is complete)
+        moving_velocity_threshold: float = 0.08,     # LOWERED: Minimum velocity for moving gesture detection (easier to trigger swipes)
+        moving_duration_threshold: float = 0.15,     # LOWERED: Seconds of movement to trigger moving gesture (faster swipe detection)
+        gesture_end_stationary_duration: float = 0.3,# LOWERED: Seconds stationary to end gesture collection (faster response)
+        min_movement_frames: int = 15                # NEW: Minimum frames to collect AFTER movement starts (for swipes)
     ):
         """
         Initialize the state machine.
@@ -75,6 +76,7 @@ class HybridStateMachine:
         self.moving_velocity_threshold = moving_velocity_threshold
         self.moving_duration_threshold = moving_duration_threshold
         self.gesture_end_stationary_duration = gesture_end_stationary_duration
+        self.min_movement_frames = min_movement_frames
 
         # State tracking
         self.stationary_start_time: Optional[float] = None
@@ -83,6 +85,7 @@ class HybridStateMachine:
         self.matching_start_time: Optional[float] = None
         self.idle_start_time: Optional[float] = None
         self.gesture_end_stationary_start: Optional[float] = None  # Track when hand stops during collection
+        self.movement_frame_count: int = 0  # NEW: Track frames collected AFTER movement starts
 
         # Frame collection
         self.collected_frames: List[Dict] = []
@@ -111,6 +114,7 @@ class HybridStateMachine:
         self.matching_start_time = None
         self.idle_start_time = None
         self.gesture_end_stationary_start = None  # Reset gesture end timer
+        self.movement_frame_count = 0  # Reset movement frame counter
         self.collected_frames = []
         self.previous_hand_position = None
         self.last_velocity = 0.0
@@ -274,8 +278,12 @@ class HybridStateMachine:
 
         Gesture ends when:
         1. Hand becomes stationary after moving (for moving gestures)
-        2. Hand starts moving significantly (for stationary gestures)
-        3. Minimum frames collected (5+ frames)
+        2. Hand starts moving AND then stops (for stationary gestures - captures the full movement)
+        3. Minimum frames collected
+
+        CRITICAL FIX: For stationary-triggered gestures that transition to movement (like swipes),
+        we now CONTINUE collecting through the movement and only end when hand stops again.
+        This ensures we capture the actual swipe movement, not just the stationary position.
 
         Args:
             landmarks: Current frame landmarks
@@ -294,10 +302,12 @@ class HybridStateMachine:
         velocity = self.calculate_hand_velocity(landmarks)
         self.last_velocity = velocity
 
+        # Track if hand is currently moving
+        is_moving = velocity > self.moving_velocity_threshold
+        is_stationary = velocity < self.velocity_threshold
+
         # For MOVING gestures: End when hand becomes stationary
         if self.trigger_type == "moving":
-            is_stationary = velocity < self.velocity_threshold
-
             if is_stationary:
                 if self.gesture_end_stationary_start is None:
                     self.gesture_end_stationary_start = time.time()
@@ -311,13 +321,49 @@ class HybridStateMachine:
                 # Hand still moving, reset timer
                 self.gesture_end_stationary_start = None
 
-        # For STATIONARY gestures: End when hand starts moving significantly
+        # For STATIONARY gestures: CRITICAL FIX - capture the movement, THEN end when stopped
         elif self.trigger_type == "stationary":
-            is_moving = velocity > self.moving_velocity_threshold
-
             if is_moving:
-                logger.info(f"✅ STATIONARY gesture ended: Hand started moving (velocity: {velocity:.4f}, {len(self.collected_frames)} frames)")
-                return True
+                # Hand is moving - count movement frames and reset end timer
+                self.movement_frame_count += 1
+                self.gesture_end_stationary_start = None
+                logger.debug(f"📍 Movement frame {self.movement_frame_count} (velocity: {velocity:.4f})")
+                return False  # Keep collecting movement frames
+
+            elif self.movement_frame_count > 0:
+                # Hand was moving but now stopped - check if we have enough movement frames
+                if self.movement_frame_count >= self.min_movement_frames:
+                    # We captured sufficient movement, now wait for hand to be stationary
+                    if is_stationary:
+                        if self.gesture_end_stationary_start is None:
+                            self.gesture_end_stationary_start = time.time()
+
+                        stationary_duration = time.time() - self.gesture_end_stationary_start
+
+                        if stationary_duration >= self.gesture_end_stationary_duration:
+                            logger.info(f"✅ STATIONARY→MOVING gesture ended: Captured {self.movement_frame_count} movement frames, hand stopped for {stationary_duration:.2f}s ({len(self.collected_frames)} total frames)")
+                            return True
+                else:
+                    # Not enough movement frames yet, but hand slowing down
+                    # Keep collecting until we get enough movement OR hand is clearly done
+                    if is_stationary:
+                        if self.gesture_end_stationary_start is None:
+                            self.gesture_end_stationary_start = time.time()
+
+                        stationary_duration = time.time() - self.gesture_end_stationary_start
+
+                        # Wait longer if we haven't collected enough movement
+                        extended_wait = self.gesture_end_stationary_duration * 2
+                        if stationary_duration >= extended_wait:
+                            logger.info(f"✅ STATIONARY gesture ended (insufficient movement): Only {self.movement_frame_count} movement frames ({len(self.collected_frames)} total)")
+                            return True
+                    else:
+                        self.gesture_end_stationary_start = None
+            else:
+                # No movement detected yet - just a stationary hold
+                # Only end if user hasn't moved for a while (they're holding still intentionally)
+                # This allows time for the user to start a swipe motion
+                pass  # Continue collecting, waiting for movement or timeout
 
         return False
 
@@ -356,6 +402,8 @@ class HybridStateMachine:
                 self.state = HybridState.COLLECTING
                 self.collection_start_time = current_time
                 self.collected_frames = [frame]
+                self.movement_frame_count = 0  # Reset movement counter for new gesture
+                self.gesture_end_stationary_start = None  # Reset end timer
                 logger.info("State: CURSOR_ONLY → COLLECTING")
 
         elif self.state == HybridState.COLLECTING:
@@ -374,6 +422,7 @@ class HybridStateMachine:
                     self.stationary_start_time = None
                     self.moving_start_time = None
                     self.gesture_end_stationary_start = None
+                    self.movement_frame_count = 0
                     self.trigger_type = None
                     logger.info("State: COLLECTING → CURSOR_ONLY (collection aborted)")
                     # Return early - don't continue processing
@@ -499,6 +548,7 @@ class HybridStateMachine:
                 self.stationary_start_time = None
                 self.moving_start_time = None  # Reset moving timer
                 self.gesture_end_stationary_start = None  # Reset gesture end timer
+                self.movement_frame_count = 0  # Reset movement frame counter
                 self.last_match_result = None
                 self.trigger_type = None  # Reset trigger type
                 # CRITICAL FIX: Reset position tracking for clean state
@@ -522,6 +572,7 @@ class HybridStateMachine:
             'moving_duration': round(self.get_moving_duration(), 2),  # NEW: Moving gesture duration
             'trigger_type': self.trigger_type,  # NEW: "stationary" or "moving"
             'collected_count': len(self.collected_frames),
+            'movement_frames': self.movement_frame_count,  # NEW: Frames collected during movement
             'target_frames': self.collection_frame_count,
             'match_result': self.last_match_result if self.state == HybridState.IDLE else None
         }
@@ -543,6 +594,7 @@ class HybridStateMachine:
             'idle': self.state == HybridState.IDLE,
             'collected_frames': len(self.collected_frames),
             'collected_count': len(self.collected_frames),  # Add this for consistency with update() metadata
+            'movement_frames': self.movement_frame_count,  # NEW: Frames collected during movement
             'target_frames': self.collection_frame_count,
             'progress': len(self.collected_frames) / self.collection_frame_count if self.state == HybridState.COLLECTING else 0,
             'velocity': round(self.last_velocity, 4),
