@@ -184,7 +184,7 @@ export default function AdminSidebar({ isOpen, onToggle }) {
         </div>
 
         <nav className="p-2 py-8 flex flex-col h-full">
-          <ul className="space-y-2 flex-1">
+          <ul className="space-y-3 flex-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;

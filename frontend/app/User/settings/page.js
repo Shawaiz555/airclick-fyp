@@ -32,10 +32,6 @@ const DEFAULT_SETTINGS = {
   gesture: {
     gesture_sensitivity: 0.75,
     gesture_hold_time: 1.5
-  },
-  display: {
-    show_skeleton: true,
-    high_contrast: false
   }
 };
 
@@ -279,30 +275,6 @@ export default function UserSettings() {
                     rightLabel="Slow (3.0s)"
                     description="How long to hold your hand still before gesture collection starts"
                     color="green"
-                  />
-                </SettingsSection>
-
-                {/* Display Settings Section */}
-                <SettingsSection
-                  title="Display & Feedback"
-                  description="Visual overlays and accessibility options"
-                  icon={Icons.display}
-                  color="amber"
-                >
-                  <FuturisticToggle
-                    label="Show Hand Skeleton"
-                    description="Display hand landmark visualization overlay"
-                    checked={settings.display.show_skeleton}
-                    onChange={(v) => updateSetting('display', 'show_skeleton', v)}
-                    color="amber"
-                  />
-
-                  <FuturisticToggle
-                    label="High Contrast Mode"
-                    description="Enhanced visibility for low vision users"
-                    checked={settings.display.high_contrast}
-                    onChange={(v) => updateSetting('display', 'high_contrast', v)}
-                    color="amber"
                   />
                 </SettingsSection>
 
