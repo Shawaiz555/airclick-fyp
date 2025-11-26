@@ -664,12 +664,40 @@ class HandTrackingService:
                 hybrid_mode = False
 
         try:
+            # FPS and latency tracking
+            import time
+            frame_times = []
+            last_frame_time = time.time()
+
             # Keep connection alive and send data
             while True:
+                # Track frame start time for latency calculation
+                frame_start = time.time()
+
                 # Process frame and get hand data
                 hand_data = self.process_frame()
 
+                # Calculate processing latency
+                processing_latency = int((time.time() - frame_start) * 1000)  # Convert to ms
+
                 if hand_data:
+                    # Calculate FPS (based on last 10 frames)
+                    current_time = time.time()
+                    frame_times.append(current_time)
+                    if len(frame_times) > 10:
+                        frame_times.pop(0)
+
+                    # Calculate FPS from frame times
+                    if len(frame_times) >= 2:
+                        time_diff = frame_times[-1] - frame_times[0]
+                        fps = int((len(frame_times) - 1) / time_diff) if time_diff > 0 else 0
+                    else:
+                        fps = 0
+
+                    # Add performance metrics to hand_data
+                    hand_data['fps'] = fps
+                    hand_data['latency'] = processing_latency
+
                     # Process with hybrid mode if enabled
                     if hybrid_mode and hybrid_controller:
                         try:

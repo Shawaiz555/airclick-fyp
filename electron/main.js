@@ -44,10 +44,10 @@ function createOverlay() {
     transparent: true,
     frame: false,
     alwaysOnTop: true,
-    skipTaskbar: true,
+    skipTaskbar: false, // Show in taskbar so it can be minimized/restored
     resizable: false,
     focusable: true, // Enabled for dragging - auto-blur implemented in overlay.html
-    minimizable: false,
+    minimizable: true, // Allow minimizing to taskbar
     maximizable: false,
     show: false, // Start hidden, show after ready
     webPreferences: {
