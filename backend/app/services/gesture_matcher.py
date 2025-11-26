@@ -5,7 +5,7 @@ AirClick - Gesture Matching Service (DIRECTION-AWARE VERSION v2)
 FIXES APPLIED:
 1. ✅ Auto-calculated max_distance (150 instead of 1000)
 2. ✅ Removed double conversion bug (ensemble similarity used directly)
-3. ✅ Lowered default threshold (65% → 75% for stricter matching)
+3. ✅ Lowered default threshold (75% → 70% for stricter matching)
 4. ✅ Added support for multi-template matching
 5. ✅ Added gesture-specific adaptive thresholds
 6. ✅ CRITICAL v2: Direction-focused DTW weights (50% direction, 30% multi-feature, 20% standard)
@@ -52,7 +52,7 @@ class GestureMatcher:
 
     def __init__(
         self,
-        similarity_threshold: float = 0.75,  # UPDATED: Raised to 0.75 (75%) for stricter matching
+        similarity_threshold: float = 0.70,  # OPTIMIZED: Lowered to 0.70 (70%) for better matching with hand removal compensation
         enable_preprocessing: bool = True,
         enable_smoothing: bool = True,
         enable_enhanced_dtw: bool = True,
@@ -514,6 +514,104 @@ class GestureMatcher:
                 logger.info("Large database detected (>500), enabling strict filtering")
                 self.indexer.strict_filtering = True
 
+        # PHASE 2: Hand Pose Filtering - NEW! (IMPROVED v2)
+        # Pre-filter candidates by hand pose signature (which fingers are extended)
+        # This prevents peace sign (2 fingers) from matching swipe (5 fingers)
+        # BUT only applies as a SOFT filter - doesn't completely reject
+        from app.services.hand_pose_fingerprint import calculate_pose_signature, calculate_pose_distance
+
+        pose_filtered_candidates = []
+        input_pose_signature = None
+        pose_filter_applied = False
+
+        try:
+            # Calculate input pose signature from first frame
+            if input_frames and len(input_frames) > 0:
+                first_frame_landmarks = input_frames[0].get('landmarks', [])
+                if first_frame_landmarks:
+                    input_pose_data = calculate_pose_signature(first_frame_landmarks)
+                    input_pose_signature = input_pose_data['signature']
+
+                    logger.info(f"\n{'='*60}")
+                    logger.info(f"POSE FILTERING:")
+                    logger.info(f"  Input pose: {input_pose_signature} ({input_pose_data['extended_count']} fingers)")
+                    logger.info(f"  Gesture hint: {input_pose_data['gesture_hint']}")
+                    logger.info(f"{'='*60}\n")
+
+                    # Filter candidates by pose compatibility
+                    strict_matches = []  # Pose matches perfectly (hamming <= 1)
+                    moderate_matches = []  # Pose similar (hamming = 2)
+                    weak_matches = []  # Pose different but could be detection error (hamming >= 3)
+
+                    for candidate in candidates:
+                        stored_pose = candidate.get('landmark_data', {}).get('pose_signature')
+
+                        if not stored_pose:
+                            # Legacy gesture without pose signature - include it (backward compatible)
+                            strict_matches.append(candidate)
+                            logger.debug(f"  ℹ️ '{candidate.get('name')}': No pose signature (legacy), including")
+                            continue
+
+                        # Calculate Hamming distance (number of different fingers)
+                        hamming_dist = calculate_pose_distance(input_pose_signature, stored_pose)
+                        stored_hint = candidate.get('landmark_data', {}).get('gesture_hint', 'Unknown')
+
+                        # Categorize by pose similarity
+                        if hamming_dist <= 1:
+                            # Very similar pose - include in strict matches
+                            strict_matches.append(candidate)
+                            logger.info(f"  ✅ '{candidate.get('name')}': STRONG pose match "
+                                      f"(stored={stored_pose}, hamming={hamming_dist}) - {stored_hint}")
+                        elif hamming_dist == 2:
+                            # Moderately similar - might be detection error
+                            moderate_matches.append(candidate)
+                            logger.info(f"  ⚠️ '{candidate.get('name')}': MODERATE pose match "
+                                      f"(stored={stored_pose}, hamming={hamming_dist}) - {stored_hint}")
+                        else:
+                            # Very different pose - likely incompatible
+                            weak_matches.append(candidate)
+                            logger.info(f"  ❌ '{candidate.get('name')}': WEAK pose match "
+                                      f"(stored={stored_pose}, hamming={hamming_dist}) - {stored_hint}")
+
+                    # Smart filtering strategy:
+                    # 1. If we have strict matches, use only those (best case)
+                    # 2. If no strict matches, include moderate matches (detection errors)
+                    # 3. If still nothing, include weak matches (fallback, but trajectory penalty will filter)
+                    if strict_matches:
+                        pose_filtered_candidates = strict_matches
+                        logger.info(f"\n✅ Using {len(strict_matches)} STRONG pose matches\n")
+                        pose_filter_applied = True
+                    elif moderate_matches:
+                        pose_filtered_candidates = moderate_matches
+                        logger.warning(f"\n⚠️ No strong matches, using {len(moderate_matches)} MODERATE matches\n")
+                        pose_filter_applied = True
+                    elif weak_matches:
+                        pose_filtered_candidates = weak_matches
+                        logger.warning(f"\n⚠️ No strong/moderate matches, using {len(weak_matches)} WEAK matches (trajectory penalty will filter)\n")
+                        pose_filter_applied = True
+                    else:
+                        # This should never happen, but fallback to all candidates
+                        pose_filtered_candidates = candidates
+                        logger.warning(f"\n⚠️ Pose filtering produced no matches, using all {len(candidates)} candidates\n")
+
+                    logger.info(f"Pose filtering: {len(candidates)} → {len(pose_filtered_candidates)} candidates\n")
+                    candidates = pose_filtered_candidates
+
+                else:
+                    logger.warning("  ⚠️ No landmarks in first frame, skipping pose filtering")
+
+        except Exception as e:
+            logger.warning(f"⚠️ Pose filtering failed: {e}, continuing without pose filter")
+            import traceback
+            logger.warning(traceback.format_exc())
+            # Continue with original candidates if pose filtering fails
+            pose_filter_applied = False
+
+        # Ensure we still have candidates - if pose filtering eliminated everything, restore originals
+        if not candidates:
+            logger.warning("⚠️ No candidates remaining after pose filtering, restoring original candidates")
+            candidates = stored_gestures  # Restore all gestures as fallback
+
         # Find best match
         best_match = None
         best_similarity = 0.0
@@ -526,22 +624,42 @@ class GestureMatcher:
             best_match, best_similarity = self._match_parallel(
                 input_normalized,
                 candidates,
-                input_frames
+                input_frames,
+                input_pose_signature  # Pass pose signature for penalty calculation
             )
         else:
             # Sequential matching (original method)
             best_match, best_similarity = self._match_sequential(
                 input_normalized,
                 candidates,
-                input_frames
+                input_frames,
+                input_pose_signature  # Pass pose signature for penalty calculation
             )
 
         # Calculate total time
         total_time = (time.time() - start_time) * 1000
 
-        # FIXED: Use gesture-specific adaptive threshold if available
+        # IMPROVED v2: Dynamic adaptive threshold based on pose match quality
         if best_match:
+            # Start with gesture-specific threshold or default
             gesture_threshold = best_match.get('adaptive_threshold', self.similarity_threshold)
+
+            # BONUS: If pose filter resulted in STRONG match (hamming <= 1), be more lenient
+            # This means hand pose is nearly identical, so allow lower similarity threshold
+            if pose_filter_applied and input_pose_signature:
+                stored_pose = best_match.get('landmark_data', {}).get('pose_signature')
+                if stored_pose:
+                    from app.services.hand_pose_fingerprint import calculate_pose_distance
+                    hamming_dist = calculate_pose_distance(input_pose_signature, stored_pose)
+
+                    if hamming_dist == 0:
+                        # Perfect pose match - reduce threshold by 10%
+                        gesture_threshold *= 0.90
+                        logger.info(f"  🎯 Perfect pose match bonus: threshold reduced to {gesture_threshold:.2%}")
+                    elif hamming_dist == 1:
+                        # Strong pose match - reduce threshold by 5%
+                        gesture_threshold *= 0.95
+                        logger.info(f"  🎯 Strong pose match bonus: threshold reduced to {gesture_threshold:.2%}")
         else:
             gesture_threshold = self.similarity_threshold
 
@@ -684,12 +802,68 @@ class GestureMatcher:
             logger.info(f"    Input trajectory: ({trajectory1[0]:.4f}, {trajectory1[1]:.4f}), magnitude={norm1:.4f}")
             logger.info(f"    Stored trajectory: ({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
 
-            # CRITICAL FIX v6: Use TWO thresholds to distinguish gesture types
-            # - Stationary gestures: magnitude < 0.02 (hand barely moved)
-            # - Ambiguous range: 0.02 - 0.05 (small movement, could be noise or intent)
-            # - Movement gestures: magnitude > 0.05 (clear intentional movement)
-            stationary_threshold = 0.02  # Below this = definitely stationary
-            movement_threshold = 0.05    # Above this = definitely moving
+            # CRITICAL FIX v14: Smarter hand removal detection
+            # Distinguish between hand removal and intentional gesture movement
+            input_y_movement = abs(trajectory1[1]) if len(trajectory1) > 1 else 0
+            input_x_movement = abs(trajectory1[0]) if len(trajectory1) > 0 else 0
+
+            # Hand removal criteria (ALL must be true):
+            # 1. Y-movement dominates (>85% of total, not 60%)
+            # 2. X-movement is minimal (<0.05, not significant horizontal movement)
+            # 3. Stored gesture is also stationary (not a swipe gesture)
+            # 4. Total magnitude is significant (>0.08)
+
+            y_dominance = input_y_movement / (norm1 + 1e-6)
+            is_y_dominant = y_dominance > 0.85  # Raised from 0.6
+            is_x_minimal = input_x_movement < 0.05  # Must have minimal horizontal movement
+            is_stored_stationary = norm2 < 0.05  # Stored gesture must be stationary
+            is_significant_movement = norm1 > 0.08
+
+            is_hand_removal = (is_y_dominant and is_x_minimal and
+                             is_stored_stationary and is_significant_movement)
+
+            logger.info(f"    Movement analysis:")
+            logger.info(f"       X-movement: {input_x_movement:.4f}, Y-movement: {input_y_movement:.4f}")
+            logger.info(f"       Y-dominance: {y_dominance*100:.1f}%, X-minimal: {is_x_minimal}")
+            logger.info(f"       Stored stationary: {is_stored_stationary} (magnitude={norm2:.4f})")
+
+            if is_hand_removal:
+                logger.info(f"    ⚠️ HAND REMOVAL DETECTED")
+                logger.info(f"       Treating input as STATIONARY for matching purposes")
+                # Override norm1 to treat as stationary
+                norm1_original = norm1
+                norm1 = norm2  # Use stored gesture's magnitude
+                trajectory1 = trajectory2  # Use stored gesture's direction
+                logger.info(f"       Adjusted input magnitude: {norm1_original:.4f} → {norm1:.4f}")
+            else:
+                logger.info(f"    ✅ INTENTIONAL GESTURE MOVEMENT (not hand removal)")
+
+            # CRITICAL FIX v7: Hand-size relative thresholds
+            # Small hands need smaller thresholds, large hands need larger thresholds
+            # This prevents false "ambiguous" classifications across different hand sizes
+            from app.services.hand_pose_fingerprint import estimate_hand_size
+
+            # Get hand size from input frames (first frame)
+            input_hand_size = 0.15  # Default average hand size
+            try:
+                if input_frames and len(input_frames) > 0:
+                    input_landmarks = input_frames[0].get('landmarks', [])
+                    if input_landmarks:
+                        input_hand_size = estimate_hand_size(input_landmarks)
+            except Exception as e:
+                logger.debug(f"Could not estimate hand size, using default: {e}")
+
+            # Scale thresholds relative to hand size (0.15 is average)
+            # Small hand (0.10): thresholds become 0.013 / 0.033
+            # Average hand (0.15): thresholds remain 0.02 / 0.05
+            # Large hand (0.20): thresholds become 0.027 / 0.067
+            hand_size_scale = input_hand_size / 0.15
+
+            stationary_threshold = 0.02 * hand_size_scale  # Below this = definitely stationary
+            movement_threshold = 0.05 * hand_size_scale    # Above this = definitely moving
+
+            logger.info(f"    Hand size: {input_hand_size:.4f}, scale: {hand_size_scale:.2f}")
+            logger.info(f"    Adaptive thresholds: stationary={stationary_threshold:.4f}, moving={movement_threshold:.4f}")
 
             # Classify input gesture
             input_is_stationary = norm1 < stationary_threshold
@@ -759,10 +933,22 @@ class GestureMatcher:
             logger.info(f"    Cosine similarity: {cosine_sim:.4f}")
             logger.info(f"    Magnitude ratio: {magnitude_ratio:.4f}")
 
+            # CRITICAL FIX v11: Softened direction threshold
+            # Only reject if directions are VERY different (>85° apart)
+            # This prevents false rejections while still catching obvious mismatches
+            DIRECTION_HARD_THRESHOLD = 0.0  # ~90° angle difference (perpendicular)
+
+            # Only apply hard reject for truly opposite/perpendicular directions
+            # AND only if both gestures are clearly moving (not stationary or ambiguous)
+            if cosine_sim < DIRECTION_HARD_THRESHOLD and norm1 > movement_threshold and norm2 > movement_threshold:
+                logger.info(f"    ⛔ HARD REJECT: Opposite directions (cosine={cosine_sim:.3f} < {DIRECTION_HARD_THRESHOLD})")
+                logger.info(f"       Both gestures moving but in opposite directions → Incompatible")
+                return 0.95  # Very high penalty but not maximum (allows some flexibility)
+
             # Direction penalty: penalize opposite/perpendicular movements
             # cosine_sim = 1 → direction_penalty = 0 (same direction)
-            # cosine_sim = 0 → direction_penalty = 0.5 (perpendicular)
-            # cosine_sim = -1 → direction_penalty = 1 (opposite)
+            # cosine_sim = 0.3 → direction_penalty = 0.35 (threshold, now allowed)
+            # cosine_sim = -1 → direction_penalty = 1 (opposite, would have been rejected above)
             direction_penalty = (1.0 - cosine_sim) / 2.0
 
             # Magnitude penalty: penalize if magnitudes are very different
@@ -787,7 +973,8 @@ class GestureMatcher:
         self,
         input_normalized: np.ndarray,
         candidates: List[Dict],
-        input_frames: List[Dict]
+        input_frames: List[Dict],
+        input_pose_signature: Optional[str] = None
     ) -> Tuple[Optional[Dict], float]:
         """
         Sequential matching (original method).
@@ -798,6 +985,7 @@ class GestureMatcher:
             input_normalized: Normalized input features
             candidates: Candidate gestures
             input_frames: Original input frames (for caching)
+            input_pose_signature: Input pose signature for penalty calculation
 
         Returns:
             Tuple of (best_match, best_similarity)
@@ -850,8 +1038,38 @@ class GestureMatcher:
                     input_frames, gesture  # Pass full gesture dict to access raw_trajectory
                 )
 
-                # Apply penalty to similarity (reduce by up to 50% for movement mismatch)
-                adjusted_similarity = similarity * (1.0 - trajectory_penalty * 0.5)
+                # CRITICAL FIX v15: Combined trajectory + pose penalty
+                # Apply trajectory penalty first
+                if trajectory_penalty > 0.75:
+                    # Very high penalty: likely different gesture types
+                    penalty_weight = 0.5
+                    adjusted_similarity = similarity * (1.0 - trajectory_penalty * penalty_weight)
+                    logger.info(f"    High trajectory mismatch (penalty={trajectory_penalty:.2f}) → using 50% weight")
+                elif trajectory_penalty > 0.4:
+                    # Moderate penalty: some trajectory differences
+                    penalty_weight = 0.4
+                    adjusted_similarity = similarity * (1.0 - trajectory_penalty * penalty_weight)
+                    logger.info(f"    Moderate trajectory mismatch (penalty={trajectory_penalty:.2f}) → using 40% weight")
+                else:
+                    # Low penalty: trajectories are compatible
+                    penalty_weight = 0.3
+                    adjusted_similarity = similarity * (1.0 - trajectory_penalty * penalty_weight)
+                    logger.info(f"    Low trajectory mismatch (penalty={trajectory_penalty:.2f}) → using 30% weight")
+
+                # CRITICAL FIX v15: Apply pose penalty for WEAK matches
+                # If this was a WEAK pose match (hamming >= 3), apply additional penalty
+                if input_pose_signature:
+                    stored_pose = gesture.get('landmark_data', {}).get('pose_signature')
+                    if stored_pose:
+                        from app.services.hand_pose_fingerprint import calculate_pose_distance
+                        hamming_dist = calculate_pose_distance(input_pose_signature, stored_pose)
+
+                        if hamming_dist >= 3:
+                            # WEAK pose match - heavily penalize
+                            pose_penalty = 0.25 * hamming_dist  # 25% per finger difference
+                            adjusted_similarity *= (1.0 - min(pose_penalty, 0.7))  # Max 70% penalty
+                            logger.info(f"    ⚠️ WEAK pose match penalty: hamming={hamming_dist} → additional {pose_penalty:.1%} penalty")
+                            logger.info(f"       Final adjusted similarity: {adjusted_similarity:.2%}")
 
                 # ✅ CRITICAL FIX #4: Enhanced logging with distance/similarity info
                 if is_similarity:
@@ -877,7 +1095,8 @@ class GestureMatcher:
         self,
         input_normalized: np.ndarray,
         candidates: List[Dict],
-        input_frames: List[Dict]
+        input_frames: List[Dict],
+        input_pose_signature: Optional[str] = None
     ) -> Tuple[Optional[Dict], float]:
         """
         Parallel matching using ThreadPoolExecutor.
@@ -888,6 +1107,7 @@ class GestureMatcher:
             input_normalized: Normalized input features
             candidates: Candidate gestures
             input_frames: Original input frames (for caching)
+            input_pose_signature: Input pose signature for penalty calculation
 
         Returns:
             Tuple of (best_match, best_similarity)

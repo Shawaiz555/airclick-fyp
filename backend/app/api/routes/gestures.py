@@ -146,11 +146,34 @@ def record_gesture(
         }
         logger.info(f"📍 Raw trajectory: ({raw_trajectory['delta_x']:.4f}, {raw_trajectory['delta_y']:.4f}), magnitude={magnitude:.4f}")
 
+    # PHASE 1: Calculate hand pose signature from first frame
+    # This enables pose-based filtering to prevent mismatches like peace sign vs swipe
+    from app.services.hand_pose_fingerprint import calculate_pose_signature
+
+    pose_signature_data = None
+    try:
+        if frames_dict and len(frames_dict) > 0:
+            # Extract landmarks from first frame (most representative pose)
+            first_frame_landmarks = frames_dict[0]['landmarks']
+
+            # Calculate pose signature (which fingers are extended)
+            pose_signature_data = calculate_pose_signature(first_frame_landmarks)
+
+            logger.info(f"✋ Hand pose: {pose_signature_data['signature']} "
+                       f"({pose_signature_data['extended_count']} fingers) - {pose_signature_data['gesture_hint']}")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not calculate pose signature: {e}")
+        # Continue without pose signature (backward compatible)
+
     # Convert to storable format
     landmark_data = {
         "frames": frames_dict,
         "raw_trajectory": raw_trajectory,  # CRITICAL: Preserve trajectory for matching
         "raw_wrist_positions": raw_wrist_positions,  # Full position history
+        "pose_signature": pose_signature_data['signature'] if pose_signature_data else None,  # NEW: e.g., "0,1,1,0,0"
+        "extended_fingers": pose_signature_data['extended_count'] if pose_signature_data else None,  # NEW: e.g., 2
+        "hand_size": pose_signature_data['hand_size'] if pose_signature_data else None,  # NEW: for adaptive thresholds
+        "gesture_hint": pose_signature_data['gesture_hint'] if pose_signature_data else None,  # NEW: human-readable
         "metadata": {
             "total_frames": len(frames_dict),
             "duration": original_stats['duration_ms'] / 1000.0,
@@ -159,7 +182,7 @@ def record_gesture(
             "avg_confidence": original_stats['avg_confidence'],
             "handedness": original_stats['handedness'],
             "preprocessed": True,  # Mark that preprocessing was applied
-            "preprocessing_version": "v5_with_trajectory"  # Updated version with trajectory
+            "preprocessing_version": "v6_with_pose_fingerprint"  # Updated version
         }
     }
 
