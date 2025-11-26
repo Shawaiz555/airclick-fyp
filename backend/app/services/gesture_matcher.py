@@ -5,7 +5,7 @@ AirClick - Gesture Matching Service (DIRECTION-AWARE VERSION v2)
 FIXES APPLIED:
 1. ✅ Auto-calculated max_distance (150 instead of 1000)
 2. ✅ Removed double conversion bug (ensemble similarity used directly)
-3. ✅ Lowered default threshold (75% → 70% for stricter matching)
+3. ✅ Default threshold set to 75% for balanced matching
 4. ✅ Added support for multi-template matching
 5. ✅ Added gesture-specific adaptive thresholds
 6. ✅ CRITICAL v2: Direction-focused DTW weights (50% direction, 30% multi-feature, 20% standard)
@@ -52,7 +52,7 @@ class GestureMatcher:
 
     def __init__(
         self,
-        similarity_threshold: float = 0.70,  # OPTIMIZED: Lowered to 0.70 (70%) for better matching with hand removal compensation
+        similarity_threshold: float = 0.75,  # Changed to 0.75 (75%) per user request
         enable_preprocessing: bool = True,
         enable_smoothing: bool = True,
         enable_enhanced_dtw: bool = True,
