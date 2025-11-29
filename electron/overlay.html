@@ -22,14 +22,16 @@
         justify-content: flex-start;
         width: 100vw;
         height: 100vh;
+        min-height: 580px;
+        max-height: 580px;
         padding: 0;
         margin: 0;
       }
 
       #overlay-container {
-        width: 440px;
+        width: 430px;
         opacity: 85%;
-        height: 100%;
+        height: 600px;
         background: rgba(17, 24, 39, 0.98);
         backdrop-filter: blur(20px);
         border: 3px solid rgba(6, 182, 212, 0.6);
@@ -37,7 +39,7 @@
         overflow: hidden;
         box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
           0 0 50px rgba(6, 182, 212, 0.3);
-        transition: all 0.3s ease;
+        transition: border-color 0.3s ease, box-shadow 0.3s ease;
       }
 
       #overlay-container.recording {
@@ -942,8 +944,14 @@
         const newX = windowStartX + deltaX;
         const newY = windowStartY + deltaY;
 
-        // Move the window
-        currentWindow.setPosition(newX, newY);
+        // Move the window (using setBounds to preserve size)
+        const currentBounds = currentWindow.getBounds();
+        currentWindow.setBounds({
+          x: Math.round(newX),
+          y: Math.round(newY),
+          width: currentBounds.width,
+          height: currentBounds.height
+        });
 
         // CRITICAL: Detect if cursor has stopped moving (stationary detection)
         // This indicates user released the click gesture
@@ -990,8 +998,14 @@
         const newX = windowStartX + deltaX;
         const newY = windowStartY + deltaY;
 
-        // Move the window
-        currentWindow.setPosition(newX, newY);
+        // Move the window (using setBounds to preserve size)
+        const currentBounds = currentWindow.getBounds();
+        currentWindow.setBounds({
+          x: Math.round(newX),
+          y: Math.round(newY),
+          width: currentBounds.width,
+          height: currentBounds.height
+        });
 
         console.log('🖱️ [Event] Dragging to', { x: newX, y: newY, deltaX, deltaY });
       }
