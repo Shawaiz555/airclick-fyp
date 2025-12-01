@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { User, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ConfirmModal from './ConfirmModal';
@@ -11,6 +11,7 @@ export default function UserHeader() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const { logout } = useAuth();
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     // Get user data from localStorage
@@ -23,6 +24,25 @@ export default function UserHeader() {
       }
     }
   }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+
+    // Add event listener when dropdown is open
+    if (showDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    // Cleanup event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDropdown]);
 
   const handleLogout = () => {
     logout();
@@ -38,7 +58,7 @@ export default function UserHeader() {
     <>
       <div className="lg:ml-64 bg-transparent backdrop-blur-md border-b border-cyan-500/20 sticky top-0 z-30">
         <div className="px-4 md:px-6 py-2 flex justify-end items-center">
-          <div className="relative">
+          <div className="relative" ref={dropdownRef}>
             {/* User Info Button */}
             <button
               onClick={() => setShowDropdown(!showDropdown)}
@@ -78,15 +98,7 @@ export default function UserHeader() {
 
             {/* Dropdown Menu */}
             {showDropdown && (
-              <>
-                {/* Backdrop to close dropdown */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowDropdown(false)}
-                />
-
-                {/* Dropdown Content */}
-                <div className="absolute right-0 mt-2 w-73 bg-gray-800/95 backdrop-blur-lg rounded-lg border border-cyan-500/30 shadow-2xl z-20">
+              <div className="absolute right-0 mt-2 w-73 bg-gray-800/95 backdrop-blur-lg rounded-lg border border-cyan-500/30 shadow-2xl z-20">
                   {/* User Info Section */}
                   <div className="px-4 py-3 border-b border-cyan-500/20">
                     <div className="flex items-center gap-3 mb-2">
@@ -110,20 +122,19 @@ export default function UserHeader() {
                     </div>
                   </div>
 
-                  {/* Logout Button */}
-                  <div className='w-full flex justify-center'>
-                    <div className='w-[80%] flex justify-center py-3 lg:w-[60%]'>
-                      <button
-                        onClick={handleLogout}
-                        className="w-auto hover:cursor-pointer flex items-center space-x-3 px-8 py-2 font-bold rounded-lg bg-cyan-500 hover:bg-cyan-600 transition-colors"
-                      >
-                        <LogOut className="h-5 w-5" />
-                        <span>Logout</span>
-                      </button>
-                    </div>
+                {/* Logout Button */}
+                <div className='w-full flex justify-center'>
+                  <div className='w-[80%] flex justify-center py-3 lg:w-[60%]'>
+                    <button
+                      onClick={handleLogout}
+                      className="w-auto hover:cursor-pointer flex items-center space-x-3 px-8 py-2 font-bold rounded-lg bg-cyan-500 hover:bg-cyan-600 transition-colors"
+                    >
+                      <LogOut className="h-5 w-5" />
+                      <span>Logout</span>
+                    </button>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>

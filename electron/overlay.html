@@ -31,8 +31,6 @@
         border: 3px solid rgba(6, 182, 212, 0.6);
         border-radius: 24px;
         overflow: hidden;
-        /* box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
-          0 0 50px rgba(6, 182, 212, 0.3); */
         transition: border-color 0.3s ease, box-shadow 0.3s ease;
       }
 
@@ -159,6 +157,8 @@
         width: 100%;
         height: 100%;
         object-fit: contain;
+        position: relative;
+        z-index: 1;
       }
 
       /* No hand detected overlay */
@@ -172,11 +172,13 @@
         background: rgba(17, 24, 39, 0.8);
         backdrop-filter: blur(10px);
         transition: opacity 0.3s;
+        z-index: 5;
       }
 
       .no-hand-overlay.hidden {
         opacity: 0;
         pointer-events: none;
+        visibility: hidden;
       }
 
       .hand-icon {
@@ -1215,6 +1217,7 @@
 
             // Draw hand skeleton
             if (handsDetected && data.hands && data.hands.length > 0) {
+              console.log('👋 Drawing hand with', data.hands.length, 'hand(s)');
               drawHand(data);
               noHandOverlay.classList.add("hidden");
 
