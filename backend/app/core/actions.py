@@ -55,13 +55,7 @@ POWERPOINT_ACTIONS = {
         "keyboard_shortcut": ["home"],
         "icon": "⇤"
     },
-    "ppt_last_slide": {
-        "name": "Last Slide",
-        "description": "Jump to the last slide",
-        "category": ActionCategory.NAVIGATION,
-        "keyboard_shortcut": ["end"],
-        "icon": "⇥"
-    },
+   
     "ppt_start_presentation": {
         "name": "Start Presentation",
         "description": "Start slideshow from current slide",
@@ -77,43 +71,6 @@ POWERPOINT_ACTIONS = {
         "icon": "◼"
     },
 
-    # Presentation Tools
-    "ppt_toggle_laser": {
-        "name": "Toggle Laser Pointer",
-        "description": "Toggle laser pointer on/off",
-        "category": ActionCategory.SYSTEM,
-        "keyboard_shortcut": ["ctrl", "l"],
-        "icon": "🔦"
-    },
-    "ppt_toggle_pen": {
-        "name": "Toggle Pen",
-        "description": "Toggle pen drawing mode",
-        "category": ActionCategory.EDITING,
-        "keyboard_shortcut": ["ctrl", "p"],
-        "icon": "✏️"
-    },
-    "ppt_erase_annotations": {
-        "name": "Erase Annotations",
-        "description": "Clear all ink annotations",
-        "category": ActionCategory.EDITING,
-        "keyboard_shortcut": ["e"],
-        "icon": "🧹"
-    },
-    "ppt_blank_screen": {
-        "name": "Blank Screen",
-        "description": "Toggle blank screen (black)",
-        "category": ActionCategory.SYSTEM,
-        "keyboard_shortcut": ["b"],
-        "icon": "⬛"
-    },
-    "ppt_white_screen": {
-        "name": "White Screen",
-        "description": "Toggle white screen",
-        "category": ActionCategory.SYSTEM,
-        "keyboard_shortcut": ["w"],
-        "icon": "⬜"
-    },
-
     # Slide Management (Edit Mode)
     "ppt_new_slide": {
         "name": "New Slide",
@@ -121,13 +78,6 @@ POWERPOINT_ACTIONS = {
         "category": ActionCategory.EDITING,
         "keyboard_shortcut": ["ctrl", "m"],
         "icon": "➕"
-    },
-    "ppt_duplicate_slide": {
-        "name": "Duplicate Slide",
-        "description": "Duplicate current slide",
-        "category": ActionCategory.EDITING,
-        "keyboard_shortcut": ["ctrl", "d"],
-        "icon": "📋"
     },
     "ppt_delete_slide": {
         "name": "Delete Slide",
@@ -156,20 +106,6 @@ WORD_ACTIONS = {
         "keyboard_shortcut": ["pageup"],
         "icon": "↑"
     },
-    "word_doc_start": {
-        "name": "Document Start",
-        "description": "Go to document beginning",
-        "category": ActionCategory.NAVIGATION,
-        "keyboard_shortcut": ["ctrl", "home"],
-        "icon": "⇤"
-    },
-    "word_doc_end": {
-        "name": "Document End",
-        "description": "Go to document end",
-        "category": ActionCategory.NAVIGATION,
-        "keyboard_shortcut": ["ctrl", "end"],
-        "icon": "⇥"
-    },
 
     # Text Formatting
     "word_bold": {
@@ -179,13 +115,6 @@ WORD_ACTIONS = {
         "keyboard_shortcut": ["ctrl", "b"],
         "icon": "B"
     },
-    "word_italic": {
-        "name": "Italic",
-        "description": "Toggle italic formatting",
-        "category": ActionCategory.FORMATTING,
-        "keyboard_shortcut": ["ctrl", "i"],
-        "icon": "I"
-    },
     "word_underline": {
         "name": "Underline",
         "description": "Toggle underline formatting",
@@ -193,51 +122,6 @@ WORD_ACTIONS = {
         "keyboard_shortcut": ["ctrl", "u"],
         "icon": "U"
     },
-    "word_increase_font": {
-        "name": "Increase Font Size",
-        "description": "Increase font size",
-        "category": ActionCategory.FORMATTING,
-        "keyboard_shortcut": ["ctrl", "shift", ">"],
-        "icon": "A+"
-    },
-    "word_decrease_font": {
-        "name": "Decrease Font Size",
-        "description": "Decrease font size",
-        "category": ActionCategory.FORMATTING,
-        "keyboard_shortcut": ["ctrl", "shift", "<"],
-        "icon": "A-"
-    },
-
-    # Text Alignment
-    "word_align_left": {
-        "name": "Align Left",
-        "description": "Align text to left",
-        "category": ActionCategory.FORMATTING,
-        "keyboard_shortcut": ["ctrl", "l"],
-        "icon": "⬅"
-    },
-    "word_align_center": {
-        "name": "Align Center",
-        "description": "Center align text",
-        "category": ActionCategory.FORMATTING,
-        "keyboard_shortcut": ["ctrl", "e"],
-        "icon": "⬌"
-    },
-    "word_align_right": {
-        "name": "Align Right",
-        "description": "Align text to right",
-        "category": ActionCategory.FORMATTING,
-        "keyboard_shortcut": ["ctrl", "r"],
-        "icon": "➡"
-    },
-    "word_justify": {
-        "name": "Justify",
-        "description": "Justify text alignment",
-        "category": ActionCategory.FORMATTING,
-        "keyboard_shortcut": ["ctrl", "j"],
-        "icon": "⬍"
-    },
-
     # Editing Actions
     "word_undo": {
         "name": "Undo",
@@ -259,13 +143,6 @@ WORD_ACTIONS = {
         "category": ActionCategory.NAVIGATION,
         "keyboard_shortcut": ["ctrl", "f"],
         "icon": "🔍"
-    },
-    "word_replace": {
-        "name": "Find & Replace",
-        "description": "Open find and replace dialog",
-        "category": ActionCategory.EDITING,
-        "keyboard_shortcut": ["ctrl", "h"],
-        "icon": "🔄"
     },
 
     # Document Management
@@ -360,13 +237,6 @@ GLOBAL_ACTIONS = {
         "category": ActionCategory.SYSTEM,
         "keyboard_shortcut": ["alt", "f4"],
         "icon": "✖"
-    },
-    "task_view": {
-        "name": "Task View",
-        "description": "Open Windows task view",
-        "category": ActionCategory.SYSTEM,
-        "keyboard_shortcut": ["win", "tab"],
-        "icon": "🗔"
     },
 }
 

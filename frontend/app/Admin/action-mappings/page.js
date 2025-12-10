@@ -453,7 +453,7 @@ export default function ActionMappingsManagement() {
               <LoadingSpinner message="Loading actions..." size="lg" />
             </div>
           ) : (
-            <div className="max-w-7xl">
+            <div className="max-w-8xl">
               {/* Header */}
               <div className="mb-8">
                 <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
