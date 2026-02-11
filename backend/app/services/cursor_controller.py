@@ -296,6 +296,22 @@ class CursorController:
         # Map to screen coordinates
         screen_x, screen_y = self.map_to_screen(filtered_x, filtered_y)
 
+        # PHASE 4 FIX: Detect if cursor actually moved (for gesture collection guard)
+        # Check if cursor moved more than a minimum threshold
+        # IMPORTANT: High threshold (30px) to ignore hand jitter and only count intentional cursor movements
+        cursor_moved = False
+        if self.last_screen_position is not None:
+            movement_distance = np.sqrt(
+                (screen_x - self.last_screen_position[0])**2 +
+                (screen_y - self.last_screen_position[1])**2
+            )
+            # Consider movement if cursor moved more than 30 pixels (significant intentional movement)
+            # This ignores small jitter/tremor that happens during gestures
+            cursor_moved = movement_distance > 30.0
+        else:
+            # First cursor position - don't count as movement to allow gestures on startup
+            cursor_moved = False
+
         # Move cursor
         success = False
         if self.cursor_enabled:
@@ -324,6 +340,7 @@ class CursorController:
         return {
             'success': bool(success),
             'cursor_enabled': bool(self.cursor_enabled),
+            'moved': bool(cursor_moved and success),  # PHASE 4 FIX: Report if cursor actually moved
             'hand_position': {
                 'raw': {'x': float(hand_x), 'y': float(hand_y), 'z': float(hand_z)},
                 'smoothed': {'x': float(smoothed_x), 'y': float(smoothed_y)},

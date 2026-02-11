@@ -162,6 +162,12 @@ class HybridModeController:
                     result['state_machine']['is_recording'] = False  # Not recording
                     self.stats['cursor_updates'] += 1
 
+                    # PHASE 4 FIX: Update state machine cursor activity if cursor moved
+                    # This prevents gesture collection from starting when user is actively using cursor
+                    if cursor_result.get('success') and cursor_result.get('moved', False):
+                        self.state_machine.update_cursor_activity()
+                        logger.debug("🖱️ Cursor moved - updated state machine activity guard")
+
                     # Detect and execute clicks
                     click_result = self.hand_pose_detector.detect_clicks(landmarks)
                     result['clicks'] = click_result
@@ -170,6 +176,11 @@ class HybridModeController:
                         self.hand_pose_detector.execute_click(click_result['click_type'])
                         self.stats['clicks_detected'] += 1
                         logger.debug(f"Click executed: {click_result['click_type']}")
+
+                        # PHASE 4.1 FIX: Update state machine click activity
+                        # This prevents gesture collection during multi-click workflows
+                        self.state_machine.update_click_activity()
+                        logger.debug("👆 Click detected - updated state machine click guard")
                 else:
                     # Cursor disabled - user is recording a gesture
                     result['cursor_enabled'] = False

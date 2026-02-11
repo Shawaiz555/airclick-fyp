@@ -42,7 +42,7 @@ class HybridStateMachine:
 
     def __init__(
         self,
-        stationary_duration_threshold: float = 1.5,  # CRITICAL FIX: 1.5 seconds hand must be still before starting gesture collection
+        stationary_duration_threshold: float = 2.0,  # PHASE 4.1: Increased to 2.0 seconds (was 1.5) - more deliberate gesture trigger
         collection_frame_count: int = 90,            # MAX frames to collect for gesture
         min_collection_frames: int = 10,             # CRITICAL FIX: Reduced to 10 frames minimum (allow quick gestures)
         idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
@@ -103,6 +103,16 @@ class HybridStateMachine:
         # Gesture trigger type tracking
         self.trigger_type: Optional[str] = None  # "stationary" or "moving"
 
+        # Cursor activity tracking (NEW - PHASE 4 FIX)
+        # Tracks when cursor was last moved to prevent gesture collection during active cursor usage
+        self.last_cursor_movement_time: Optional[float] = None
+        self.cursor_activity_guard_duration: float = 1.0  # Seconds after cursor movement to block gesture collection (reduced from 2.0 since we only track significant movements)
+
+        # Click activity tracking (PHASE 4.1 - CLICK-AWARE FIX)
+        # Tracks click events to intelligently block gestures during clicking workflows
+        self.last_click_time: Optional[float] = None
+        self.click_guard_duration: float = 2.5  # Seconds after click to block gesture collection (allows multi-click workflows)
+
         logger.info(f"Hybrid state machine initialized in {self.state.value} state")
 
     def reset(self):
@@ -120,6 +130,8 @@ class HybridStateMachine:
         self.last_velocity = 0.0
         self.last_match_result = None
         self.trigger_type = None  # NEW: Reset trigger type
+        self.last_cursor_movement_time = None  # NEW: Reset cursor activity tracking
+        self.last_click_time = None  # PHASE 4.1: Reset click activity tracking
         logger.info("State machine reset to CURSOR_ONLY")
 
     def calculate_hand_velocity(self, landmarks: List[Dict]) -> float:
@@ -225,6 +237,7 @@ class HybridStateMachine:
 
         SECURITY FIX: Check authentication before starting collection.
         IDLE FIX: Only allow collection in CURSOR_ONLY state (not during cooldown).
+        PHASE 4 FIX: Cursor activity guard prevents collection during active cursor usage.
 
         Args:
             landmarks: Current frame landmarks
@@ -239,6 +252,30 @@ class HybridStateMachine:
             self.stationary_start_time = None
             self.moving_start_time = None
             return False
+
+        # PHASE 4 FIX: CURSOR ACTIVITY GUARD
+        # Prevent gesture collection if cursor has been recently used
+        # This solves the issue where users pause to click and system starts collecting frames
+        if self.last_cursor_movement_time is not None:
+            time_since_cursor_move = time.time() - self.last_cursor_movement_time
+            if time_since_cursor_move < self.cursor_activity_guard_duration:
+                # Reset timers - cursor is actively being used
+                self.stationary_start_time = None
+                self.moving_start_time = None
+                logger.debug(f"⏸️ Blocking gesture collection - cursor moved {time_since_cursor_move:.1f}s ago (guard: {self.cursor_activity_guard_duration}s)")
+                return False
+
+        # PHASE 4.1 FIX: CLICK ACTIVITY GUARD (Click-Aware System)
+        # Prevent gesture collection after clicks to allow multi-click workflows
+        # User might click, wait, click again - we don't want gestures triggering between clicks
+        if self.last_click_time is not None:
+            time_since_click = time.time() - self.last_click_time
+            if time_since_click < self.click_guard_duration:
+                # Reset timers - user might be in clicking workflow (double-click, multi-select, etc.)
+                self.stationary_start_time = None
+                self.moving_start_time = None
+                logger.debug(f"⏸️ Blocking gesture collection - click detected {time_since_click:.1f}s ago (click guard: {self.click_guard_duration}s)")
+                return False
 
         # SECURITY: Check authentication BEFORE collecting frames
         if self.auth_check_callback:
@@ -617,6 +654,54 @@ class HybridStateMachine:
         """
         self.auth_check_callback = callback
         logger.info("Authentication check callback registered")
+
+    def update_cursor_activity(self):
+        """
+        Update cursor activity timestamp to indicate cursor is being actively used.
+
+        PHASE 4 FIX: Call this whenever cursor moves to prevent gesture collection
+        during active cursor usage. This solves the issue where users pause to click
+        and the system incorrectly starts collecting frames for gesture matching.
+
+        This method:
+        1. Records the current time as last cursor movement
+        2. Resets stationary/moving timers to prevent immediate gesture triggers
+        3. Ensures gesture collection only starts after cursor has been idle
+        """
+        self.last_cursor_movement_time = time.time()
+
+        # Reset gesture trigger timers since user is actively using cursor
+        # This prevents the stationary trigger from activating while cursor is in use
+        if self.stationary_start_time is not None or self.moving_start_time is not None:
+            logger.debug("🖱️ Cursor moved - resetting gesture trigger timers")
+        self.stationary_start_time = None
+        self.moving_start_time = None
+
+    def update_click_activity(self):
+        """
+        Update click activity timestamp to indicate user is in clicking workflow.
+
+        PHASE 4.1 FIX: Call this whenever a click is detected to prevent gesture collection
+        during multi-click workflows (double-click, triple-click, multiple selections, etc.)
+
+        This method:
+        1. Records the current time as last click
+        2. Resets stationary/moving timers to prevent gesture triggers
+        3. Ensures gesture collection only starts after 2.5s of no clicking
+
+        Usage Pattern:
+        - User clicks → Guard active for 2.5s
+        - User clicks again within 2.5s → Guard resets, active for another 2.5s
+        - User stops clicking for 2.5s → Guard expires, gestures allowed
+        """
+        self.last_click_time = time.time()
+
+        # Reset gesture trigger timers since user is clicking
+        # This prevents gestures from triggering between clicks in multi-click workflows
+        if self.stationary_start_time is not None or self.moving_start_time is not None:
+            logger.debug("👆 Click detected - resetting gesture trigger timers")
+        self.stationary_start_time = None
+        self.moving_start_time = None
 
     def handle_no_hand_detected(self, match_callback: Optional[callable] = None) -> Dict:
         """
