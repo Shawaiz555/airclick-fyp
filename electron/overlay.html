@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -12,31 +12,35 @@
       }
 
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-          "Oxygen", "Ubuntu", "Cantarell", sans-serif;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+          "Ubuntu", "Cantarell", sans-serif;
         overflow: hidden;
         user-select: none;
-        width: 430px;
-        height: 600px;
+        width: 520px;
+        height: 650px;
         padding: 0;
         margin: 0;
       }
 
       #overlay-container {
-        width: 430px;
-        opacity: 85%;
-        height: 600px;
-        background: rgba(17, 24, 39, 0.98);
+        width: 520px;
+        opacity: 60%;
+        height: 650px;
+        background: rgba(17, 24, 39, 0.6);
         backdrop-filter: blur(20px);
         border: 3px solid rgba(6, 182, 212, 0.6);
         border-radius: 24px;
         overflow: hidden;
-        transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        transition:
+          border-color 0.3s ease,
+          box-shadow 0.3s ease;
       }
 
       #overlay-container.recording {
         border-color: rgba(239, 68, 68, 0.9);
-        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+        box-shadow:
+          0 25px 80px rgba(0, 0, 0, 0.8),
           0 0 60px rgba(239, 68, 68, 0.5);
         animation: pulse-border 1.5s infinite;
       }
@@ -53,7 +57,8 @@
 
       #overlay-container.matched {
         border-color: rgba(34, 197, 94, 0.9);
-        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.8),
+        box-shadow:
+          0 25px 80px rgba(0, 0, 0, 0.8),
           0 0 60px rgba(34, 197, 94, 0.5);
       }
 
@@ -141,7 +146,7 @@
       .canvas-container {
         position: relative;
         width: 100%;
-        height: 370px;
+        height: 420px;
         background: linear-gradient(
           135deg,
           rgba(17, 24, 39, 0.95),
@@ -608,7 +613,7 @@
 
       <!-- Canvas Container -->
       <div class="canvas-container">
-        <canvas id="handCanvas" width="640" height="480"></canvas>
+        <canvas id="handCanvas" width="520" height="420"></canvas>
 
         <!-- No Hand Overlay -->
         <div class="no-hand-overlay" id="noHandOverlay">
@@ -687,7 +692,7 @@
         </div>
 
         <!-- PHASE 3 & 4: State Machine Status -->
-        <div class="status-row" id="stateMachineRow" style="display: none;">
+        <div class="status-row" id="stateMachineRow" style="display: none">
           <span class="status-label">State Machine</span>
           <span class="status-value" id="stateMachineStatus">
             <span class="state-indicator disabled">
@@ -823,14 +828,14 @@
         // Minimize the overlay window instead of closing it
         const currentWindow = remote.getCurrentWindow();
         currentWindow.minimize();
-        console.log('🔽 Overlay minimized');
+        console.log("🔽 Overlay minimized");
       });
 
       // ==================== CUSTOM DRAG HANDLING ====================
       // Manual drag implementation using mouse position tracking
       // Works with both physical mouse AND cursor control system
 
-      const header = document.querySelector('.header');
+      const header = document.querySelector(".header");
       let isDragging = false;
       let dragStartX = 0;
       let dragStartY = 0;
@@ -842,7 +847,7 @@
       const MIN_DRAG_DURATION = 100; // Minimum 100ms before allowing mouseup
 
       // Get current window position using Electron remote
-      const remote = require('@electron/remote');
+      const remote = require("@electron/remote");
       const currentWindow = remote.getCurrentWindow();
 
       // CRITICAL: Make window click-through by default (so it doesn't block your apps)
@@ -871,14 +876,15 @@
           x: windowBounds.x + headerRect.left,
           y: windowBounds.y + headerRect.top,
           width: headerRect.width,
-          height: headerRect.height
+          height: headerRect.height,
         };
 
         // Check if cursor is within header bounds
-        const isOver = cursorPoint.x >= headerBounds.x &&
-                      cursorPoint.x <= headerBounds.x + headerBounds.width &&
-                      cursorPoint.y >= headerBounds.y &&
-                      cursorPoint.y <= headerBounds.y + headerBounds.height;
+        const isOver =
+          cursorPoint.x >= headerBounds.x &&
+          cursorPoint.x <= headerBounds.x + headerBounds.width &&
+          cursorPoint.y >= headerBounds.y &&
+          cursorPoint.y <= headerBounds.y + headerBounds.height;
 
         // ALWAYS update click-through state based on cursor position
         // Don't skip during drag - we need to maintain state
@@ -888,11 +894,11 @@
           if (isOver) {
             // Cursor over header - MUST capture events
             currentWindow.setIgnoreMouseEvents(false);
-            console.log('🎯 Cursor over header - interactions enabled');
+            console.log("🎯 Cursor over header - interactions enabled");
           } else if (!isDragging) {
             // Cursor left header and not dragging - restore click-through
             currentWindow.setIgnoreMouseEvents(true, { forward: true });
-            console.log('🔓 Cursor left header - click-through restored');
+            console.log("🔓 Cursor left header - click-through restored");
           }
         }
 
@@ -909,8 +915,12 @@
 
       // Set initial state to click-through
       currentWindow.setIgnoreMouseEvents(true, { forward: true });
-      console.log('🔓 Window set to click-through mode (won\'t block your apps)');
-      console.log('🔄 Active cursor polling enabled (checking every 16ms = 60fps)');
+      console.log(
+        "🔓 Window set to click-through mode (won't block your apps)",
+      );
+      console.log(
+        "🔄 Active cursor polling enabled (checking every 16ms = 60fps)",
+      );
 
       // ALTERNATIVE: Use polling for drag instead of mousemove events
       // This is more reliable for gesture-controlled cursors
@@ -946,12 +956,13 @@
           x: Math.round(newX),
           y: Math.round(newY),
           width: currentBounds.width,
-          height: currentBounds.height
+          height: currentBounds.height,
         });
 
         // CRITICAL: Detect if cursor has stopped moving (stationary detection)
         // This indicates user released the click gesture
-        const cursorMoved = (cursorPoint.x !== lastCursorX || cursorPoint.y !== lastCursorY);
+        const cursorMoved =
+          cursorPoint.x !== lastCursorX || cursorPoint.y !== lastCursorY;
 
         if (cursorMoved) {
           // Cursor is moving - reset stationary counter
@@ -967,17 +978,24 @@
           // Only auto-release if:
           // 1. Cursor has been stationary for STATIONARY_THRESHOLD polls
           // 2. User has been dragging for at least MIN_DRAG_TIME_FOR_AUTO_RELEASE
-          if (stationaryCount >= STATIONARY_THRESHOLD && dragDuration >= MIN_DRAG_TIME_FOR_AUTO_RELEASE) {
-            console.log(`🛑 Cursor stationary for ${stationaryCount} polls (${stationaryCount * 20}ms) - auto-releasing drag`);
-            handleMouseUp({ target: { tagName: 'AUTO_RELEASE' } });
+          if (
+            stationaryCount >= STATIONARY_THRESHOLD &&
+            dragDuration >= MIN_DRAG_TIME_FOR_AUTO_RELEASE
+          ) {
+            console.log(
+              `🛑 Cursor stationary for ${stationaryCount} polls (${stationaryCount * 20}ms) - auto-releasing drag`,
+            );
+            handleMouseUp({ target: { tagName: "AUTO_RELEASE" } });
             return;
           } else if (stationaryCount % 5 === 0) {
             // Log every 5 polls for debugging
-            console.log(`⏸️ Cursor stationary: ${stationaryCount}/${STATIONARY_THRESHOLD} polls (dragDuration: ${dragDuration}ms)`);
+            console.log(
+              `⏸️ Cursor stationary: ${stationaryCount}/${STATIONARY_THRESHOLD} polls (dragDuration: ${dragDuration}ms)`,
+            );
           }
         }
 
-        console.log('🖱️ Dragging to', { x: newX, y: newY, deltaX, deltaY });
+        console.log("🖱️ Dragging to", { x: newX, y: newY, deltaX, deltaY });
       }
 
       // Mouse move handler (kept as backup)
@@ -1000,29 +1018,36 @@
           x: Math.round(newX),
           y: Math.round(newY),
           width: currentBounds.width,
-          height: currentBounds.height
+          height: currentBounds.height,
         });
 
-        console.log('🖱️ [Event] Dragging to', { x: newX, y: newY, deltaX, deltaY });
+        console.log("🖱️ [Event] Dragging to", {
+          x: newX,
+          y: newY,
+          deltaX,
+          deltaY,
+        });
       }
 
       // Mouse up handler
       function handleMouseUp(e) {
         const dragDuration = Date.now() - dragStartTime;
-        console.log('🖱️ mouseup event fired!', {
+        console.log("🖱️ mouseup event fired!", {
           isDragging,
           dragDuration: `${dragDuration}ms`,
-          target: e?.target?.tagName || 'unknown'
+          target: e?.target?.tagName || "unknown",
         });
 
         // CRITICAL: Always honor AUTO_RELEASE (from stationary detection)
         // Only apply MIN_DRAG_DURATION check to regular mouse events
-        const isAutoRelease = e?.target?.tagName === 'AUTO_RELEASE';
+        const isAutoRelease = e?.target?.tagName === "AUTO_RELEASE";
 
         // Ignore mouseup if drag duration is too short (accidental release)
         // BUT always allow auto-release from stationary detection
         if (!isAutoRelease && isDragging && dragDuration < MIN_DRAG_DURATION) {
-          console.log(`⏱️ Drag too short (${dragDuration}ms < ${MIN_DRAG_DURATION}ms) - ignoring mouseup, continuing drag`);
+          console.log(
+            `⏱️ Drag too short (${dragDuration}ms < ${MIN_DRAG_DURATION}ms) - ignoring mouseup, continuing drag`,
+          );
           return; // Keep dragging
         }
 
@@ -1034,34 +1059,36 @@
           if (dragPollInterval) {
             clearInterval(dragPollInterval);
             dragPollInterval = null;
-            console.log('⏹️ Drag polling stopped');
+            console.log("⏹️ Drag polling stopped");
           }
 
           // Remove global listeners
-          document.removeEventListener('mousemove', handleMouseMove, true);
-          document.removeEventListener('mouseup', handleMouseUp, true);
+          document.removeEventListener("mousemove", handleMouseMove, true);
+          document.removeEventListener("mouseup", handleMouseUp, true);
 
           // CRITICAL: Re-enable click-through mode immediately
           currentWindow.setIgnoreMouseEvents(true, { forward: true });
-          console.log('🔓 Click-through re-enabled - your apps are now clickable again');
+          console.log(
+            "🔓 Click-through re-enabled - your apps are now clickable again",
+          );
 
           // Blur window to release focus completely
           window.blur();
-          console.log('✅ Window blurred - focus returned to previous app');
+          console.log("✅ Window blurred - focus returned to previous app");
         }
       }
 
       // Detect when drag starts
-      header.addEventListener('mousedown', (e) => {
-        console.log('🖱️ mousedown event fired on header!', {
+      header.addEventListener("mousedown", (e) => {
+        console.log("🖱️ mousedown event fired on header!", {
           target: e.target.tagName,
           screenX: e.screenX,
-          screenY: e.screenY
+          screenY: e.screenY,
         });
 
         // Only handle drag on header area (not on close button)
-        if (e.target.closest('.close-btn')) {
-          console.log('❌ Click on close button - ignoring drag');
+        if (e.target.closest(".close-btn")) {
+          console.log("❌ Click on close button - ignoring drag");
           return; // Don't interfere with close button
         }
 
@@ -1076,7 +1103,7 @@
 
         // CRITICAL: Disable click-through during drag so we can capture events
         currentWindow.setIgnoreMouseEvents(false);
-        console.log('🔒 Click-through FORCEFULLY disabled for dragging');
+        console.log("🔒 Click-through FORCEFULLY disabled for dragging");
 
         // Store initial mouse position (screen coordinates)
         dragStartX = e.screenX;
@@ -1087,17 +1114,20 @@
         windowStartX = bounds.x;
         windowStartY = bounds.y;
 
-        console.log('🖱️ Drag started at', { screenX: dragStartX, screenY: dragStartY });
-        console.log('📍 Window position', { x: windowStartX, y: windowStartY });
+        console.log("🖱️ Drag started at", {
+          screenX: dragStartX,
+          screenY: dragStartY,
+        });
+        console.log("📍 Window position", { x: windowStartX, y: windowStartY });
 
         // CRITICAL: Start polling cursor position for drag (20ms = 50fps)
         // This works better than events for gesture control
         dragPollInterval = setInterval(pollDragPosition, 20);
-        console.log('▶️ Drag polling started (50fps)');
+        console.log("▶️ Drag polling started (50fps)");
 
         // Add global mouse move and mouse up listeners (capture phase) as backup
-        document.addEventListener('mousemove', handleMouseMove, true);
-        document.addEventListener('mouseup', handleMouseUp, true);
+        document.addEventListener("mousemove", handleMouseMove, true);
+        document.addEventListener("mouseup", handleMouseUp, true);
 
         // Safety timeout: If drag hangs, restore click-through after 5 seconds
         if (dragTimeout) {
@@ -1105,7 +1135,7 @@
         }
         dragTimeout = setTimeout(() => {
           if (isDragging) {
-            console.warn('⚠️ Drag timeout - forcing click-through re-enable');
+            console.warn("⚠️ Drag timeout - forcing click-through re-enable");
             handleMouseUp();
           }
         }, 5000);
@@ -1115,14 +1145,16 @@
         e.stopPropagation();
       });
 
-      console.log('✅ Custom drag handling initialized (click-through enabled)');
+      console.log(
+        "✅ Custom drag handling initialized (click-through enabled)",
+      );
 
       // Initialize hybrid mode from file (source of truth)
       function initializeHybridMode() {
         try {
           const hybridModeFile = path.join(
             os.homedir(),
-            ".airclick-hybridmode"
+            ".airclick-hybridmode",
           );
 
           // CRITICAL FIX: Always default to TRUE for cursor control to work
@@ -1132,12 +1164,11 @@
           // Always write/overwrite the file to ensure it's set to true
           try {
             fs.writeFileSync(hybridModeFile, "true", "utf8");
-            console.log("🔧 Hybrid mode initialized: true (cursor control ENABLED by default)");
-          } catch (err) {
-            console.warn(
-              "⚠️ Could not write hybrid mode file:",
-              err.message
+            console.log(
+              "🔧 Hybrid mode initialized: true (cursor control ENABLED by default)",
             );
+          } catch (err) {
+            console.warn("⚠️ Could not write hybrid mode file:", err.message);
           }
         } catch (error) {
           console.error("Error initializing hybrid mode:", error);
@@ -1164,7 +1195,7 @@
             ws.readyState === WebSocket.CONNECTING
           ) {
             console.log(
-              "🔌 Closing existing WebSocket connection for mode switch"
+              "🔌 Closing existing WebSocket connection for mode switch",
             );
             ws.close();
             // Wait for connection to close before reconnecting
@@ -1217,13 +1248,14 @@
 
             // Draw hand skeleton
             if (handsDetected && data.hands && data.hands.length > 0) {
-              console.log('👋 Drawing hand with', data.hands.length, 'hand(s)');
+              console.log("👋 Drawing hand with", data.hands.length, "hand(s)");
               drawHand(data);
               noHandOverlay.classList.add("hidden");
 
               // FIX: Only use legacy matching when hybrid mode is OFF
               // When hybrid mode is ON, the backend state machine handles matching
-              const hybridModeActive = data.hybrid && data.hybrid.hybrid_mode_enabled;
+              const hybridModeActive =
+                data.hybrid && data.hybrid.hybrid_mode_enabled;
 
               if (!hybridModeActive) {
                 // LEGACY MODE: Manual frame collection and matching (gesture-only mode)
@@ -1241,17 +1273,20 @@
 
                   // Keep only MAX frames
                   if (recognitionFrames.length > MAX_GESTURE_FRAMES) {
-                    recognitionFrames = recognitionFrames.slice(-MAX_GESTURE_FRAMES);
+                    recognitionFrames =
+                      recognitionFrames.slice(-MAX_GESTURE_FRAMES);
                   }
 
                   // Update recording indicator
                   updateRecording(
                     recognitionFrames.length > 0,
-                    recognitionFrames.length
+                    recognitionFrames.length,
                   );
 
                   // Calculate hand movement to detect when gesture ends
-                  const movement = calculateHandMovement(data.hands[0].landmarks);
+                  const movement = calculateHandMovement(
+                    data.hands[0].landmarks,
+                  );
                   const MOVEMENT_THRESHOLD = 0.02; // Threshold for "hand stopped"
 
                   // Clear existing timer if hand is still moving
@@ -1262,7 +1297,11 @@
                     }
                   } else {
                     // Hand stopped moving - start/continue timer
-                    if (!gestureEndTimer && recognitionFrames.length >= MIN_GESTURE_FRAMES && !matchCooldown) {
+                    if (
+                      !gestureEndTimer &&
+                      recognitionFrames.length >= MIN_GESTURE_FRAMES &&
+                      !matchCooldown
+                    ) {
                       gestureEndTimer = setTimeout(() => {
                         checkGestureEnd();
                         gestureEndTimer = null;
@@ -1271,12 +1310,17 @@
                   }
 
                   // Auto-match when we have MAX frames and not in cooldown (fallback)
-                  if (recognitionFrames.length === MAX_GESTURE_FRAMES && !matchCooldown) {
+                  if (
+                    recognitionFrames.length === MAX_GESTURE_FRAMES &&
+                    !matchCooldown
+                  ) {
                     if (gestureEndTimer) {
                       clearTimeout(gestureEndTimer);
                       gestureEndTimer = null;
                     }
-                    console.log(`⏱️ Max frames reached (${MAX_GESTURE_FRAMES}) - matching now`);
+                    console.log(
+                      `⏱️ Max frames reached (${MAX_GESTURE_FRAMES}) - matching now`,
+                    );
                     matchGesture(recognitionFrames);
                     recognitionFrames = []; // Clear after matching
                     lastHandPosition = null;
@@ -1301,10 +1345,17 @@
 
               // FIX: Don't show "no hand" overlay if hybrid mode is active and state is MATCHING or IDLE
               // In these states, we want to show the match result without requiring hand to be present
-              const hybridModeActive = data.hybrid && data.hybrid.hybrid_mode_enabled;
-              const currentState = data.hybrid && data.hybrid.state_machine ? data.hybrid.state_machine.state : null;
+              const hybridModeActive =
+                data.hybrid && data.hybrid.hybrid_mode_enabled;
+              const currentState =
+                data.hybrid && data.hybrid.state_machine
+                  ? data.hybrid.state_machine.state
+                  : null;
 
-              if (hybridModeActive && (currentState === 'matching' || currentState === 'idle')) {
+              if (
+                hybridModeActive &&
+                (currentState === "matching" || currentState === "idle")
+              ) {
                 // Keep overlay hidden - we're processing/showing results
                 noHandOverlay.classList.add("hidden");
               } else {
@@ -1377,7 +1428,7 @@
           }
 
           console.log(
-            `🔄 Hybrid mode changed (storage event): ${newValue} - Reconnecting WebSocket...`
+            `🔄 Hybrid mode changed (storage event): ${newValue} - Reconnecting WebSocket...`,
           );
 
           // Update local state
@@ -1411,7 +1462,7 @@
 
           if (currentHybridMode !== lastHybridMode) {
             console.log(
-              `🔄 Hybrid mode changed (file polling): ${lastHybridMode} → ${currentHybridMode} - Reconnecting WebSocket...`
+              `🔄 Hybrid mode changed (file polling): ${lastHybridMode} → ${currentHybridMode} - Reconnecting WebSocket...`,
             );
             hybridModeEnabled = currentHybridMode;
             lastHybridMode = currentHybridMode;
@@ -1431,13 +1482,15 @@
         try {
           let currentRecordingState = false;
           if (fs.existsSync(recordingStateFile)) {
-            const fileContent = fs.readFileSync(recordingStateFile, "utf8").trim();
+            const fileContent = fs
+              .readFileSync(recordingStateFile, "utf8")
+              .trim();
             currentRecordingState = fileContent === "true";
           }
 
           if (currentRecordingState !== lastRecordingState) {
             console.log(
-              `📹 Recording state changed: ${lastRecordingState} → ${currentRecordingState}`
+              `📹 Recording state changed: ${lastRecordingState} → ${currentRecordingState}`,
             );
             isRecordingGesture = currentRecordingState;
             lastRecordingState = currentRecordingState;
@@ -1445,26 +1498,35 @@
             // CRITICAL FIX: Update UI when recording state changes
             // Backend auth check will handle blocking gesture collection
             if (isRecordingGesture) {
-              console.log("⚠️ GESTURE MATCHING PAUSED - User is recording/updating a gesture in web UI");
+              console.log(
+                "⚠️ GESTURE MATCHING PAUSED - User is recording/updating a gesture in web UI",
+              );
 
               // Update UI to show gesture matching is disabled while recording
-              authStatus.innerHTML = '<span class="status-badge" style="background: #f59e0b;" title="Gesture matching paused while recording">DISABLED (Recording)</span>';
+              authStatus.innerHTML =
+                '<span class="status-badge" style="background: #f59e0b;" title="Gesture matching paused while recording">DISABLED (Recording)</span>';
 
               // CRITICAL: Don't reconnect WebSocket - let backend auth check handle blocking
               // The existing connection will continue but backend will block collection via auth callback
-              console.log("💡 Backend auth check will block gesture collection while recording");
+              console.log(
+                "💡 Backend auth check will block gesture collection while recording",
+              );
             } else {
               console.log("✅ GESTURE MATCHING RESUMED - Recording complete");
 
               // Restore gesture matching status based on authentication
               if (isAuthenticated) {
-                authStatus.innerHTML = '<span class="status-badge success">ENABLED</span>';
+                authStatus.innerHTML =
+                  '<span class="status-badge success">ENABLED</span>';
               } else {
-                authStatus.innerHTML = '<span class="status-badge error">DISABLED (Login Required)</span>';
+                authStatus.innerHTML =
+                  '<span class="status-badge error">DISABLED (Login Required)</span>';
               }
 
               // No need to reconnect - backend auth check will allow collection again
-              console.log("💡 Backend auth check will allow gesture collection again");
+              console.log(
+                "💡 Backend auth check will allow gesture collection again",
+              );
             }
           }
         } catch (err) {
@@ -1492,15 +1554,14 @@
             : null;
 
           // Check if file was deleted or token content changed
-          const tokenChanged = currentFileExists !== lastTokenFileExists ||
-                              currentTokenContent !== lastTokenContent;
+          const tokenChanged =
+            currentFileExists !== lastTokenFileExists ||
+            currentTokenContent !== lastTokenContent;
 
           if (tokenChanged) {
+            console.log(`🔑 Token file changed - Reconnecting WebSocket...`);
             console.log(
-              `🔑 Token file changed - Reconnecting WebSocket...`
-            );
-            console.log(
-              `   File exists: ${lastTokenFileExists} → ${currentFileExists}`
+              `   File exists: ${lastTokenFileExists} → ${currentFileExists}`,
             );
             if (currentTokenContent !== lastTokenContent) {
               console.log(`   Token content changed`);
@@ -1517,19 +1578,25 @@
           // If token exists, check gesture count changes
           if (currentFileExists && currentTokenContent) {
             try {
-              const response = await fetch('http://localhost:8000/api/gestures/', {
-                headers: {
-                  'Authorization': `Bearer ${currentTokenContent}`
-                }
-              });
+              const response = await fetch(
+                "http://localhost:8000/api/gestures/",
+                {
+                  headers: {
+                    Authorization: `Bearer ${currentTokenContent}`,
+                  },
+                },
+              );
 
               if (response.ok) {
                 const gestures = await response.json();
                 const currentGestureCount = gestures.length;
 
-                if (lastGestureCount !== null && currentGestureCount !== lastGestureCount) {
+                if (
+                  lastGestureCount !== null &&
+                  currentGestureCount !== lastGestureCount
+                ) {
                   console.log(
-                    `📊 Gesture count changed: ${lastGestureCount} → ${currentGestureCount} - Reconnecting...`
+                    `📊 Gesture count changed: ${lastGestureCount} → ${currentGestureCount} - Reconnecting...`,
                   );
 
                   // Reconnect to get updated status
@@ -1540,7 +1607,7 @@
               }
             } catch (err) {
               // Silently ignore gesture count check errors
-              console.debug('Could not check gesture count:', err.message);
+              console.debug("Could not check gesture count:", err.message);
             }
           } else {
             lastGestureCount = null;
@@ -1548,7 +1615,7 @@
         } catch (err) {
           console.warn("⚠️ Error checking token file:", err.message);
         }
-      },5000); // Increased from 2000ms to 5000ms (5 seconds)
+      }, 5000); // Increased from 2000ms to 5000ms (5 seconds)
 
       // Initial connection
       connectWebSocket();
@@ -1652,7 +1719,7 @@
             ctx.fillText(
               `${hand.handedness} (${(hand.confidence * 100).toFixed(0)}%)`,
               wristX + 15,
-              wristY - 15
+              wristY - 15,
             );
             ctx.shadowBlur = 0;
           }
@@ -1731,13 +1798,19 @@
         const state = stateMachine.state;
 
         // DEBUG: Log state transitions
-        if (!window.lastStateMachineState || window.lastStateMachineState !== state) {
-          console.log(`🔄 State Machine: ${window.lastStateMachineState || 'initial'} → ${state}`, {
-            collected: stateMachine.collected_count,
-            target: stateMachine.target_frames,
-            velocity: stateMachine.velocity,
-            trigger_type: stateMachine.trigger_type
-          });
+        if (
+          !window.lastStateMachineState ||
+          window.lastStateMachineState !== state
+        ) {
+          console.log(
+            `🔄 State Machine: ${window.lastStateMachineState || "initial"} → ${state}`,
+            {
+              collected: stateMachine.collected_count,
+              target: stateMachine.target_frames,
+              velocity: stateMachine.velocity,
+              trigger_type: stateMachine.trigger_type,
+            },
+          );
           window.lastStateMachineState = state;
         }
 
@@ -1750,7 +1823,7 @@
           collecting: "Collecting Frames",
           matching: "Matching Gesture",
           idle: "Cooldown",
-          disabled: "Disabled"
+          disabled: "Disabled",
         };
 
         // CRITICAL FIX: Check if cursor is actually enabled (not just state)
@@ -1779,7 +1852,8 @@
 
         // Update recording indicator based on state
         if (state === "collecting") {
-          const progress = (stateMachine.collected_count / stateMachine.target_frames) * 100;
+          const progress =
+            (stateMachine.collected_count / stateMachine.target_frames) * 100;
           updateRecording(true, stateMachine.collected_count);
           recText.textContent = `COLLECTING (${stateMachine.collected_count}/${stateMachine.target_frames})`;
         } else if (state === "matching") {
@@ -1801,14 +1875,15 @@
             matchStatusIcon.textContent = "✓";
             matchStatusText.textContent = `MATCHED: ${matchResult.gesture_name}`;
 
-            console.log(`✅ Gesture matched: ${matchResult.gesture_name} (${(matchResult.similarity * 100).toFixed(1)}%)`);
+            console.log(
+              `✅ Gesture matched: ${matchResult.gesture_name} (${(matchResult.similarity * 100).toFixed(1)}%)`,
+            );
 
             // Auto-hide after 2 seconds (FASTER feedback)
             setTimeout(() => {
               matchStatusBanner.classList.remove("visible");
               container.classList.remove("matched");
             }, 2000);
-
           } else if (matchResult.authenticated === false) {
             // Not authenticated - show login required
             matchStatusBanner.classList.add("visible", "no-match");
@@ -1820,7 +1895,6 @@
             setTimeout(() => {
               matchStatusBanner.classList.remove("visible", "no-match");
             }, 2000);
-
           } else {
             // No match found
             matchStatusBanner.classList.add("visible", "no-match");
@@ -1837,7 +1911,9 @@
 
         // Log state changes
         if (window.lastStateMachineState !== state) {
-          console.log(`🔄 State Machine: ${window.lastStateMachineState || "N/A"} → ${state}`);
+          console.log(
+            `🔄 State Machine: ${window.lastStateMachineState || "N/A"} → ${state}`,
+          );
           window.lastStateMachineState = state;
         }
       }
@@ -1951,17 +2027,22 @@
             case "no_gestures":
               badgeText = "DISABLED (No Gestures)";
               tooltipText = "Record gestures in the web app to enable matching";
-              console.log(`⚠️ Gesture matching disabled: No gestures recorded (count: ${data.gesture_count || 0})`);
+              console.log(
+                `⚠️ Gesture matching disabled: No gestures recorded (count: ${data.gesture_count || 0})`,
+              );
               break;
             case "not_authenticated":
               badgeText = "DISABLED (Login Required)";
-              tooltipText = "Log in through the web app to enable gesture matching";
+              tooltipText =
+                "Log in through the web app to enable gesture matching";
               console.log("⚠️ Gesture matching disabled: Not authenticated");
               break;
             case "invalid_token":
               badgeText = "DISABLED (Invalid Token)";
               tooltipText = "Please log in again";
-              console.log("⚠️ Gesture matching disabled: Invalid or expired token");
+              console.log(
+                "⚠️ Gesture matching disabled: Invalid or expired token",
+              );
               break;
             case "error":
               badgeText = "DISABLED (Error)";
@@ -1972,12 +2053,13 @@
 
           // Update UI
           authStatus.innerHTML = `<span class="status-badge error" title="${tooltipText}">${badgeText}</span>`;
-
         } else if (data.status === "enabled") {
           // Hybrid mode enabled successfully
           isAuthenticated = true;
           const gestureCount = data.gesture_count || "?";
-          console.log(`✅ Gesture matching enabled with ${gestureCount} gesture(s)`);
+          console.log(
+            `✅ Gesture matching enabled with ${gestureCount} gesture(s)`,
+          );
 
           authStatus.innerHTML = `<span class="status-badge success" title="${gestureCount} gesture(s) available">ENABLED</span>`;
         }
@@ -2016,10 +2098,10 @@
           if (!token) {
             isAuthenticated = false;
             console.log(
-              "❌ No auth token found - Gesture matching DISABLED (Cursor control still works)"
+              "❌ No auth token found - Gesture matching DISABLED (Cursor control still works)",
             );
             console.log(
-              "💡 To enable gesture matching, please log in through the web app"
+              "💡 To enable gesture matching, please log in through the web app",
             );
             authStatus.innerHTML =
               '<span class="status-badge" style="background: #dc2626;">DISABLED (Login Required)</span>';
@@ -2041,7 +2123,7 @@
             const userData = await response.json();
             isAuthenticated = true;
             console.log(
-              `✅ User authenticated: ${userData.email} - Gesture matching ENABLED`
+              `✅ User authenticated: ${userData.email} - Gesture matching ENABLED`,
             );
             authStatus.innerHTML =
               '<span class="status-badge success">ENABLED</span>';
@@ -2050,7 +2132,7 @@
             isAuthenticated = false;
             const status = response.status;
             console.log(
-              `❌ Token validation failed (HTTP ${status}) - Gesture matching DISABLED`
+              `❌ Token validation failed (HTTP ${status}) - Gesture matching DISABLED`,
             );
             console.log("💡 Please log in again through the web app");
             authStatus.innerHTML =
@@ -2101,8 +2183,13 @@
 
       // Check if hand has stopped moving and trigger match
       function checkGestureEnd() {
-        if (recognitionFrames.length >= MIN_GESTURE_FRAMES && recognitionFrames.length < MAX_GESTURE_FRAMES) {
-          console.log(`✅ Gesture ended: Hand stopped moving (${recognitionFrames.length} frames collected)`);
+        if (
+          recognitionFrames.length >= MIN_GESTURE_FRAMES &&
+          recognitionFrames.length < MAX_GESTURE_FRAMES
+        ) {
+          console.log(
+            `✅ Gesture ended: Hand stopped moving (${recognitionFrames.length} frames collected)`,
+          );
           matchGesture([...recognitionFrames]); // Copy array
           recognitionFrames = [];
           lastHandPosition = null;
@@ -2111,7 +2198,9 @@
 
       async function matchGesture(frames) {
         if (frames.length < MIN_GESTURE_FRAMES) {
-          console.warn(`Not enough frames to match (need at least ${MIN_GESTURE_FRAMES}, got ${frames.length})`);
+          console.warn(
+            `Not enough frames to match (need at least ${MIN_GESTURE_FRAMES}, got ${frames.length})`,
+          );
           return;
         }
 
@@ -2129,7 +2218,7 @@
               const path = require("path");
               const tokenPath = path.join(
                 require("os").homedir(),
-                ".airclick-token"
+                ".airclick-token",
               );
 
               if (fs.existsSync(tokenPath)) {
@@ -2168,7 +2257,7 @@
                 Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify(frames),
-            }
+            },
           );
 
           console.log("📥 Response status:", response.status);

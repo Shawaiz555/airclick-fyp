@@ -16,10 +16,10 @@ class CursorSettings(BaseModel):
     Controls how hand movements translate to cursor movement.
     """
     cursor_speed: float = Field(
-        default=1.5,
+        default=1.0,
         ge=0.5,
         le=4.0,
-        description="Cursor movement multiplier (0.5 = slow, 4.0 = fast)"
+        description="Cursor movement multiplier (0.5 = slow, 4.0 = fast). 1.0 = full camera view maps to full screen (optimal)"
     )
     smoothing_level: float = Field(
         default=0.5,
@@ -70,10 +70,10 @@ class GestureSettings(BaseModel):
         description="Matching threshold (0.5 = lenient, 0.95 = strict)"
     )
     gesture_hold_time: float = Field(
-        default=1.5,
+        default=2.0,
         ge=0.5,
-        le=3.0,
-        description="Time hand must be still before gesture starts collecting (seconds)"
+        le=4.0,
+        description="Time hand must be still before gesture starts collecting (seconds). Increased to 2.0 to prevent interference with cursor control"
     )
 
 
@@ -144,7 +144,7 @@ class UserSettingsUpdateResponse(BaseModel):
 # Default settings for new users or reset
 DEFAULT_USER_SETTINGS = UserSettings(
     cursor=CursorSettings(
-        cursor_speed=1.5,
+        cursor_speed=1.0,  # 1:1 mapping = full camera view controls full screen
         smoothing_level=0.5,
         dead_zone=0.0,
         cursor_enabled=True
@@ -155,7 +155,7 @@ DEFAULT_USER_SETTINGS = UserSettings(
     ),
     gesture=GestureSettings(
         gesture_sensitivity=0.75,
-        gesture_hold_time=1.5
+        gesture_hold_time=2.0  # Increased from 1.5 to prevent cursor-gesture interference
     ),
     display=DisplaySettings(
         show_skeleton=True,

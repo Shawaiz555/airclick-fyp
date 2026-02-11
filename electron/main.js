@@ -32,15 +32,16 @@ let overlayEnabled = true;
 function createOverlay() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
-  // Larger overlay for hand skeleton visualization
-  const overlayWidth = 480;
-  const overlayHeight = 580;
+  // BALANCED SIZE: Clear visibility without hiding info panel
+  // Note: Canvas size doesn't affect cursor control range (controlled by cursor_speed setting in backend)
+  const overlayWidth = 520;   // Balanced size - clear hand skeleton without hiding info
+  const overlayHeight = 620;  // Includes canvas + visible status info panel
 
   overlayWindow = new BrowserWindow({
     width: overlayWidth,
     height: overlayHeight,
-    x: 20, // Top-left corner (20px from left)
-    y: 20, // Top-left corner (20px from top)
+    x: 20, // Top-left (20px from left edge)
+    y: 20, // Top of screen (20px from top edge)
     transparent: true,
     frame: false,
     alwaysOnTop: true,
