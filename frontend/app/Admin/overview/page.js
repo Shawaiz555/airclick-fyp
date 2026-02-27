@@ -166,44 +166,48 @@ export default function AdminOverview() {
       value: stats.total_users.toLocaleString(),
       change: `${stats.total_users} registered`,
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
         </svg>
       ),
-      color: 'from-cyan-500 to-blue-500'
+      color: 'from-cyan-500 to-blue-600',
+      shadowColor: 'cyan-500/20'
     },
     {
       title: 'Active Users',
       value: stats.active_users.toLocaleString(),
       change: `${((stats.active_users / Math.max(stats.total_users, 1)) * 100).toFixed(1)}% of total`,
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       ),
-      color: 'from-purple-500 to-pink-500'
+      color: 'from-purple-500 to-pink-600',
+      shadowColor: 'purple-500/20'
     },
     {
       title: 'Gesture Accuracy',
       value: `${(stats.average_gesture_accuracy * 100).toFixed(1)}%`,
       change: stats.average_gesture_accuracy > 0 ? 'Average across all gestures' : 'No data yet',
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       ),
-      color: 'from-emerald-500 to-teal-500'
+      color: 'from-emerald-500 to-teal-600',
+      shadowColor: 'emerald-500/20'
     },
     {
       title: 'False Triggers',
       value: stats.total_false_triggers.toLocaleString(),
       change: 'Total count',
       icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       ),
-      color: 'from-amber-500 to-orange-500'
+      color: 'from-amber-500 to-orange-600',
+      shadowColor: 'amber-500/20'
     }
   ];
 
@@ -241,21 +245,24 @@ export default function AdminOverview() {
               {statsCards.map((stat, index) => (
                 <div
                   key={index}
-                  className={`bg-gray-800/30 hover:cursor-pointer backdrop-blur-sm rounded-2xl p-6 py-10 border border-cyan-500/20 transform transition-all duration-500 hover:scale-[1.02] hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+                  className={`bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                     }`}
                   style={{ transitionDelay: `${index * 100}ms` }}
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-cyan-200 text-lg font-semibold mb-1">{stat.title}</p>
-                      <p className="text-2xl font-bold mb-2">{stat.value}</p>
-                      <p className="text-sm text-gray-400">
-                        {stat.change}
-                      </p>
-                    </div>
-                    <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} opacity-100`}>
+                  {/* Icon Container - Centered */}
+                  <div className="flex items-center justify-center mb-3">
+                    <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg shadow-${stat.shadowColor}`}>
                       {stat.icon}
                     </div>
+                  </div>
+
+                  {/* Text Content - Centered */}
+                  <div className='text-center'>
+                    <p className="text-2xl text-white font-bold mb-1">{stat.title}</p>
+                    <p className="text-3xl font-bold text-purple-300/80 mb-2">{stat.value}</p>
+                    <p className="text-sm text-gray-400">
+                      {stat.change}
+                    </p>
                   </div>
                 </div>
               ))}

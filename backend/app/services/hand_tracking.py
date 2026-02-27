@@ -57,13 +57,14 @@ class HandTrackingService:
         self.mp_drawing_styles = mp.solutions.drawing_styles
 
         # Configure MediaPipe Hands with optimal settings
+        # CRITICAL: max_num_hands=1 to prevent two-hand detection issues
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
-            max_num_hands=2,
+            max_num_hands=1,  # FIXED: Only detect ONE hand to avoid confusion
             min_detection_confidence=0.5,
             min_tracking_confidence=0.5
         )
-        logger.info("✅ MediaPipe Hands loaded successfully")
+        logger.info("✅ MediaPipe Hands loaded successfully (single-hand mode)")
 
         # Store camera index
         self.camera_index = camera_index
@@ -176,9 +177,15 @@ class HandTrackingService:
             Dictionary containing:
             - timestamp: Current time
             - hands: List of detected hands with landmarks
+            - hand_count: Number of hands detected
+            - too_many_hands: Boolean flag if >1 hand detected
             - frame_size: Original frame dimensions
         """
         hands_data = []
+        hand_count = len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
+
+        # NOTE: With max_num_hands=1, we will never detect >1 hand
+        # This is the intended behavior to prevent confusion
 
         # Process each detected hand
         for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
@@ -208,7 +215,7 @@ class HandTrackingService:
         return {
             'timestamp': datetime.now().isoformat(),
             'hands': hands_data,
-            'hand_count': len(hands_data),
+            'hand_count': hand_count,
             'frame_size': {
                 'width': frame_shape[1],
                 'height': frame_shape[0]

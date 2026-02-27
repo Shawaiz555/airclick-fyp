@@ -40,6 +40,26 @@ def record_gesture(
     logger.info(f"GESTURE RECORDING - User: {current_user.email}")
     logger.info(f"{'='*60}")
 
+    # CRITICAL FIX: Check for duplicate gesture name
+    existing_gesture = db.query(Gesture).filter(
+        Gesture.user_id == current_user.id,
+        Gesture.name == gesture_data.name
+    ).first()
+
+    if existing_gesture:
+        logger.warning(f"⚠️ Duplicate gesture name: '{gesture_data.name}' already exists for user {current_user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A gesture with the name '{gesture_data.name}' already exists. Please choose a different name."
+        )
+
+    logger.info(f"✅ Gesture name '{gesture_data.name}' is unique - proceeding with recording")
+
+    # CRITICAL FIX: Check for duplicate gesture landmarks (same gesture, different name)
+    # This prevents users from storing essentially the same gesture multiple times
+    # We'll check this AFTER preprocessing to compare apples-to-apples
+    duplicate_gesture_check_enabled = True  # Set to False to disable this check
+
     # Validate frames have 21 landmarks each
     for frame in gesture_data.frames:
         if len(frame.landmarks) != 21:
@@ -91,6 +111,135 @@ def record_gesture(
     frames_dict = convert_features_to_frames(features, frames_dict)
 
     logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
+
+    # CRITICAL FIX #2: Check for duplicate gesture landmarks (same gesture, different name)
+    # This prevents users from storing essentially the same gesture multiple times
+    if duplicate_gesture_check_enabled:
+        logger.info(f"\n{'='*60}")
+        logger.info(f"DUPLICATE GESTURE CHECK - Comparing landmarks with existing gestures")
+        logger.info(f"{'='*60}")
+
+        # Get all existing gestures for this user
+        existing_gestures = db.query(Gesture).filter(Gesture.user_id == current_user.id).all()
+
+        if existing_gestures:
+            logger.info(f"Found {len(existing_gestures)} existing gesture(s) to compare")
+
+            # Use gesture matcher to compare
+            matcher = get_gesture_matcher()
+
+            # Convert existing gestures to list format for matcher
+            existing_gestures_list = []
+            for g in existing_gestures:
+                gesture_dict = {
+                    'id': g.id,
+                    'name': g.name,
+                    'action': g.action,
+                    'app_context': g.app_context,
+                    'landmark_data': g.landmark_data
+                }
+                existing_gestures_list.append(gesture_dict)
+
+            # Convert new gesture frames to matching format
+            new_gesture_frames = [
+                {
+                    "timestamp": frame.timestamp,
+                    "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
+                    "handedness": frame.handedness,
+                    "confidence": frame.confidence
+                }
+                for frame in gesture_data.frames
+            ]
+
+            # Match against existing gestures
+            match_result = matcher.match_gesture(
+                new_gesture_frames,
+                existing_gestures_list,
+                user_id=current_user.id,
+                return_best_candidate=True  # Get best match even if below threshold
+            )
+
+            if match_result:
+                matched_gesture, similarity = match_result
+
+                # CRITICAL: Define strict duplicate thresholds to prevent same gesture storage
+                # After testing, peace signs were showing 85-92% similarity
+                # Old threshold of 95% was TOO HIGH - allowing duplicates through
+                #
+                # NEW THRESHOLDS (stricter to prevent conflicts):
+                # 0.85 = 85% similar = DEFINITE duplicate (reject)
+                # 0.78 = 78% similar = VERY similar (reject with warning)
+                # Below 78% = Different enough (allow)
+                DUPLICATE_THRESHOLD_HIGH = 0.85  # Definite duplicate - REJECT
+                DUPLICATE_THRESHOLD_MEDIUM = 0.78  # Very similar - REJECT with warning
+
+                logger.info(f"")
+                logger.info(f"{'='*60}")
+                logger.info(f"SIMILARITY CHECK RESULT:")
+                logger.info(f"   New gesture vs '{matched_gesture['name']}'")
+                logger.info(f"   Similarity: {similarity:.1%}")
+                logger.info(f"   High threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
+                logger.info(f"   Medium threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
+                logger.info(f"{'='*60}")
+
+                if similarity >= DUPLICATE_THRESHOLD_HIGH:
+                    # Definite duplicate - REJECT
+                    logger.warning(f"")
+                    logger.warning(f"{'='*60}")
+                    logger.warning(f"⚠️ DUPLICATE GESTURE DETECTED!")
+                    logger.warning(f"   New gesture is {similarity:.1%} similar to existing gesture")
+                    logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
+                    logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
+                    logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
+                    logger.warning(f"   REJECTING - This is essentially the same gesture")
+                    logger.warning(f"{'='*60}")
+
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "type": "duplicate_gesture",
+                            "message": f"This gesture is too similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a different gesture to avoid conflicts.",
+                            "existing_gesture_name": matched_gesture['name'],
+                            "existing_action": matched_gesture.get('action', 'Unknown'),
+                            "similarity": round(similarity * 100, 1),
+                            "threshold": round(DUPLICATE_THRESHOLD_HIGH * 100, 1)
+                        }
+                    )
+                elif similarity >= DUPLICATE_THRESHOLD_MEDIUM:
+                    # Very similar - REJECT with detailed warning
+                    logger.warning(f"")
+                    logger.warning(f"{'='*60}")
+                    logger.warning(f"⚠️ VERY SIMILAR GESTURE DETECTED!")
+                    logger.warning(f"   New gesture is {similarity:.1%} similar to existing gesture")
+                    logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
+                    logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
+                    logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
+                    logger.warning(f"   REJECTING - Too similar, will cause recognition conflicts")
+                    logger.warning(f"{'='*60}")
+
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail={
+                            "type": "duplicate_gesture",
+                            "message": f"This gesture is very similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a more distinct gesture to avoid recognition conflicts.",
+                            "existing_gesture_name": matched_gesture['name'],
+                            "existing_action": matched_gesture.get('action', 'Unknown'),
+                            "similarity": round(similarity * 100, 1),
+                            "threshold": round(DUPLICATE_THRESHOLD_MEDIUM * 100, 1)
+                        }
+                    )
+                else:
+                    # Different enough - ALLOW
+                    logger.info(f"✅ New gesture is UNIQUE enough")
+                    logger.info(f"   Best match: {similarity:.1%} similar to '{matched_gesture['name']}'")
+                    logger.info(f"   Well below threshold of {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
+                    logger.info(f"   Safe to store!")
+            else:
+                logger.info(f"✅ New gesture is COMPLETELY UNIQUE (no similar gestures found)")
+        else:
+            logger.info(f"✅ This is the user's first gesture - no duplicates possible")
+
+        logger.info(f"{'='*60}\n")
 
     # CRITICAL FIX: Extract raw trajectory data BEFORE preprocessing destroys it
     # This is needed for trajectory-based gesture discrimination (swipe vs static gestures)
@@ -279,6 +428,21 @@ def update_gesture(
             detail="Gesture not found"
         )
 
+    # CRITICAL FIX: Check for duplicate name (if name is changing)
+    if gesture_data.name != gesture.name:
+        existing_gesture = db.query(Gesture).filter(
+            Gesture.user_id == current_user.id,
+            Gesture.name == gesture_data.name,
+            Gesture.id != gesture_id  # Exclude current gesture
+        ).first()
+
+        if existing_gesture:
+            logger.warning(f"⚠️ Duplicate gesture name: '{gesture_data.name}' already exists for user")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"A gesture with the name '{gesture_data.name}' already exists. Please choose a different name."
+            )
+
     # Update basic fields
     gesture.name = gesture_data.name
     gesture.action = gesture_data.action
@@ -334,6 +498,132 @@ def update_gesture(
         frames_dict = convert_features_to_frames(features, frames_dict)
 
         logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
+
+        # CRITICAL FIX #2: Check for duplicate gesture landmarks when updating
+        # Only check if frames are being updated
+        duplicate_gesture_check_enabled = True  # Set to False to disable
+
+        if duplicate_gesture_check_enabled:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"DUPLICATE GESTURE CHECK - Comparing updated landmarks")
+            logger.info(f"{'='*60}")
+
+            # Get all existing gestures EXCEPT the one being updated
+            existing_gestures = db.query(Gesture).filter(
+                Gesture.user_id == current_user.id,
+                Gesture.id != gesture_id  # Exclude current gesture
+            ).all()
+
+            if existing_gestures:
+                logger.info(f"Found {len(existing_gestures)} other gesture(s) to compare")
+
+                matcher = get_gesture_matcher()
+
+                # Convert existing gestures to list format
+                existing_gestures_list = []
+                for g in existing_gestures:
+                    gesture_dict = {
+                        'id': g.id,
+                        'name': g.name,
+                        'action': g.action,
+                        'app_context': g.app_context,
+                        'landmark_data': g.landmark_data
+                    }
+                    existing_gestures_list.append(gesture_dict)
+
+                # Convert updated gesture frames to matching format
+                updated_gesture_frames = [
+                    {
+                        "timestamp": frame.timestamp,
+                        "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
+                        "handedness": frame.handedness,
+                        "confidence": frame.confidence
+                    }
+                    for frame in gesture_data.frames
+                ]
+
+                # Match against existing gestures
+                match_result = matcher.match_gesture(
+                    updated_gesture_frames,
+                    existing_gestures_list,
+                    user_id=current_user.id,
+                    return_best_candidate=True
+                )
+
+                if match_result:
+                    matched_gesture, similarity = match_result
+
+                    # CRITICAL: Same strict thresholds as CREATE endpoint
+                    DUPLICATE_THRESHOLD_HIGH = 0.85  # Definite duplicate - REJECT
+                    DUPLICATE_THRESHOLD_MEDIUM = 0.78  # Very similar - REJECT with warning
+
+                    logger.info(f"")
+                    logger.info(f"{'='*60}")
+                    logger.info(f"SIMILARITY CHECK RESULT (UPDATE):")
+                    logger.info(f"   Updated gesture vs '{matched_gesture['name']}'")
+                    logger.info(f"   Similarity: {similarity:.1%}")
+                    logger.info(f"   High threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
+                    logger.info(f"   Medium threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
+                    logger.info(f"{'='*60}")
+
+                    if similarity >= DUPLICATE_THRESHOLD_HIGH:
+                        # Definite duplicate - REJECT
+                        logger.warning(f"")
+                        logger.warning(f"{'='*60}")
+                        logger.warning(f"⚠️ DUPLICATE GESTURE DETECTED IN UPDATE!")
+                        logger.warning(f"   Updated gesture is {similarity:.1%} similar to existing gesture")
+                        logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
+                        logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
+                        logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
+                        logger.warning(f"   REJECTING - This is essentially the same gesture")
+                        logger.warning(f"{'='*60}")
+
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "type": "duplicate_gesture",
+                                "message": f"This gesture is too similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a different gesture to avoid conflicts.",
+                                "existing_gesture_name": matched_gesture['name'],
+                                "existing_action": matched_gesture.get('action', 'Unknown'),
+                                "similarity": round(similarity * 100, 1),
+                                "threshold": round(DUPLICATE_THRESHOLD_HIGH * 100, 1)
+                            }
+                        )
+                    elif similarity >= DUPLICATE_THRESHOLD_MEDIUM:
+                        # Very similar - REJECT with detailed warning
+                        logger.warning(f"")
+                        logger.warning(f"{'='*60}")
+                        logger.warning(f"⚠️ VERY SIMILAR GESTURE DETECTED IN UPDATE!")
+                        logger.warning(f"   Updated gesture is {similarity:.1%} similar to existing gesture")
+                        logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
+                        logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
+                        logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
+                        logger.warning(f"   REJECTING - Too similar, will cause recognition conflicts")
+                        logger.warning(f"{'='*60}")
+
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail={
+                                "type": "duplicate_gesture",
+                                "message": f"This gesture is very similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a more distinct gesture to avoid recognition conflicts.",
+                                "existing_gesture_name": matched_gesture['name'],
+                                "existing_action": matched_gesture.get('action', 'Unknown'),
+                                "similarity": round(similarity * 100, 1),
+                                "threshold": round(DUPLICATE_THRESHOLD_MEDIUM * 100, 1)
+                            }
+                        )
+                    else:
+                        # Different enough - ALLOW
+                        logger.info(f"✅ Updated gesture is UNIQUE enough")
+                        logger.info(f"   Best match: {similarity:.1%} similar to '{matched_gesture['name']}'")
+                        logger.info(f"   Well below threshold of {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
+                        logger.info(f"   Safe to update!")
+                else:
+                    logger.info(f"✅ Updated gesture is COMPLETELY UNIQUE (no similar gestures found)")
+            else:
+                logger.info(f"✅ This is the user's only gesture - no duplicates possible")
+
+            logger.info(f"{'='*60}\n")
 
         # CRITICAL FIX: Extract raw trajectory data BEFORE preprocessing destroys it
         raw_wrist_positions = []

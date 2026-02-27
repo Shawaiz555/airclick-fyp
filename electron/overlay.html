@@ -806,6 +806,8 @@
       let authChecked = false; // Track if we've checked auth yet
       let backendStatusReceived = false; // Track if backend sent status message
       let isRecordingGesture = false; // Track if user is recording a gesture in web UI
+      let lastShownMatchResult = null; // Track last shown match result to prevent blinking
+      let matchBannerTimeout = null; // Track timeout for hiding match banner
 
       // Gesture end detection
       let lastHandPosition = null;
@@ -1863,49 +1865,100 @@
           updateRecording(false, 0);
         }
 
-        // Show match result if in IDLE state (FIXED - proper display)
+        // Show match result if in IDLE state (FIXED - prevent blinking AND auto-hide)
         if (state === "idle" && stateMachine.match_result) {
           const matchResult = stateMachine.match_result;
 
-          if (matchResult.matched) {
-            // Matched gesture - show success banner
-            container.classList.add("matched");
-            matchStatusBanner.classList.add("visible");
-            matchStatusBanner.classList.remove("no-match");
-            matchStatusIcon.textContent = "✓";
-            matchStatusText.textContent = `MATCHED: ${matchResult.gesture_name}`;
+          // CRITICAL FIX: Only show banner if this is a NEW match result
+          // Create a unique key for this match result to prevent re-showing the same result
+          const matchResultKey = JSON.stringify({
+            matched: matchResult.matched,
+            gesture_name: matchResult.gesture_name,
+            similarity: matchResult.similarity,
+            authenticated: matchResult.authenticated,
+            timestamp: Math.floor(Date.now() / 1000) // Round to second to group similar results
+          });
 
-            console.log(
-              `✅ Gesture matched: ${matchResult.gesture_name} (${(matchResult.similarity * 100).toFixed(1)}%)`,
-            );
+          // Only show if this is a different result than last shown
+          if (lastShownMatchResult !== matchResultKey) {
+            lastShownMatchResult = matchResultKey;
 
-            // Auto-hide after 2 seconds (FASTER feedback)
-            setTimeout(() => {
-              matchStatusBanner.classList.remove("visible");
-              container.classList.remove("matched");
-            }, 2000);
-          } else if (matchResult.authenticated === false) {
-            // Not authenticated - show login required
-            matchStatusBanner.classList.add("visible", "no-match");
-            matchStatusIcon.textContent = "🔒";
-            matchStatusText.textContent = "LOGIN REQUIRED";
+            // Clear any existing timeout to prevent multiple hide timers
+            if (matchBannerTimeout) {
+              clearTimeout(matchBannerTimeout);
+              matchBannerTimeout = null;
+            }
 
-            console.log("❌ Not authenticated - login required");
+            if (matchResult.matched) {
+              // Matched gesture - show success banner
+              container.classList.add("matched");
+              matchStatusBanner.classList.add("visible");
+              matchStatusBanner.classList.remove("no-match");
+              matchStatusIcon.textContent = "✓";
+              matchStatusText.textContent = `MATCHED: ${matchResult.gesture_name}`;
 
-            setTimeout(() => {
-              matchStatusBanner.classList.remove("visible", "no-match");
-            }, 2000);
-          } else {
-            // No match found
-            matchStatusBanner.classList.add("visible", "no-match");
-            matchStatusIcon.textContent = "✗";
-            matchStatusText.textContent = "NO MATCH";
+              console.log(
+                `✅ Gesture matched: ${matchResult.gesture_name} (${(matchResult.similarity * 100).toFixed(1)}%)`,
+              );
 
-            console.log("❌ No gesture match found");
+              // Auto-hide after 1.5 seconds - FASTER for better UX
+              matchBannerTimeout = setTimeout(() => {
+                matchStatusBanner.classList.remove("visible");
+                container.classList.remove("matched");
+                lastShownMatchResult = null; // Reset after hiding to allow new gestures
+                matchBannerTimeout = null;
+                console.log("✅ Success banner auto-hidden - ready for new gesture");
+              }, 1500);
+            } else if (matchResult.authenticated === false) {
+              // Not authenticated - show login required
+              matchStatusBanner.classList.add("visible", "no-match");
+              matchStatusIcon.textContent = "🔒";
+              matchStatusText.textContent = "LOGIN REQUIRED";
 
-            setTimeout(() => {
-              matchStatusBanner.classList.remove("visible", "no-match");
-            }, 1500);
+              console.log("❌ Not authenticated - login required");
+
+              // Auto-hide after 1.5 seconds
+              matchBannerTimeout = setTimeout(() => {
+                matchStatusBanner.classList.remove("visible", "no-match");
+                lastShownMatchResult = null; // Reset after hiding
+                matchBannerTimeout = null;
+                console.log("🔒 Login banner auto-hidden - ready for new gesture");
+              }, 1500);
+            } else {
+              // No match found
+              matchStatusBanner.classList.add("visible", "no-match");
+              matchStatusIcon.textContent = "✗";
+              matchStatusText.textContent = "NO MATCH";
+
+              console.log("❌ No gesture match found");
+
+              // CRITICAL FIX: Auto-hide after 1.5 seconds to allow fresh gesture
+              matchBannerTimeout = setTimeout(() => {
+                matchStatusBanner.classList.remove("visible", "no-match");
+                lastShownMatchResult = null; // CRITICAL: Reset to allow new gesture
+                matchBannerTimeout = null;
+                console.log("✅ NO MATCH banner auto-hidden - ready for new gesture");
+              }, 1500);
+            }
+          }
+        } else if (state !== "idle") {
+          // CRITICAL FIX: Immediately hide banner and reset when leaving IDLE state
+          // This ensures banner disappears when user starts a new gesture
+          if (lastShownMatchResult !== null) {
+            // Immediately hide any visible banner
+            matchStatusBanner.classList.remove("visible", "no-match");
+            container.classList.remove("matched");
+
+            // Reset tracking
+            lastShownMatchResult = null;
+
+            // Clear any pending hide timeout
+            if (matchBannerTimeout) {
+              clearTimeout(matchBannerTimeout);
+              matchBannerTimeout = null;
+            }
+
+            console.log("🔄 Left IDLE state - banner hidden, ready for new gesture");
           }
         }
 

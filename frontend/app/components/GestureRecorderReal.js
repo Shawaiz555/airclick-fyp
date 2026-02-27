@@ -536,6 +536,44 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
       }
 
       if (!response.ok) {
+        // CRITICAL FIX: Handle duplicate errors with clear user feedback
+        if (response.status === 409) {
+          // Conflict - duplicate name or duplicate gesture
+          const errorData = await response.json();
+
+          // Check if it's a duplicate gesture (landmarks) or duplicate name
+          if (typeof errorData.detail === 'object' && errorData.detail.type === 'duplicate_gesture') {
+            // Duplicate gesture landmarks detected
+            const similarity = errorData.detail.similarity || 95;
+            const existingName = errorData.detail.existing_gesture_name || 'an existing gesture';
+            const existingAction = errorData.detail.existing_action || 'Unknown action';
+
+            // Format action name to be more readable
+            const formattedAction = existingAction
+              .split('_')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+
+            setValidationMessage(
+              `⚠️ Duplicate Gesture Detected!\n\n` +
+              `This gesture is too similar (${similarity}%) to your existing gesture:\n\n` +
+              `📌 Gesture: "${existingName}"\n` +
+              `🎯 Action: ${formattedAction}\n\n` +
+              `Please perform a different gesture to avoid conflicts.`
+            );
+          } else {
+            // Duplicate name
+            const message = typeof errorData.detail === 'string'
+              ? errorData.detail
+              : errorData.detail.message || 'A gesture with this name already exists';
+
+            setValidationMessage(`⚠️ ${message}\n\nPlease choose a different name.`);
+          }
+          setIsProcessing(false);
+          return; // Don't throw, just show validation message
+        }
+
+        // Other errors - throw generic message
         throw new Error(isEditMode ? 'Failed to update gesture' : 'Failed to save gesture');
       }
 
@@ -759,14 +797,56 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
             </div>
           </div>
 
-          {/* Validation Message */}
+          {/* Validation Message - ENHANCED for better visibility */}
           {validationMessage && (
-            <div className={`p-3 rounded-lg text-center ${
+            <div className={`p-4 rounded-lg border-2 ${
               validationMessage.includes('success')
-                ? 'bg-green-500/20 text-green-300'
-                : 'bg-amber-500/20 text-amber-300'
+                ? 'bg-green-500/20 border-green-500/40 text-green-300'
+                : validationMessage.includes('Duplicate Gesture')
+                  ? 'bg-red-500/20 border-red-500/60 text-red-300'  // Strong red for duplicate gestures
+                  : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
             }`}>
-              {validationMessage}
+              <div className="flex items-start gap-3">
+                {/* Icon */}
+                {validationMessage.includes('Duplicate Gesture') ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                ) : validationMessage.includes('success') ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+
+                {/* Message */}
+                <div className="flex-1">
+                  <div className="font-semibold mb-1">
+                    {validationMessage.includes('Duplicate Gesture')
+                      ? 'Duplicate Gesture Detected'
+                      : validationMessage.includes('success')
+                        ? 'Success'
+                        : 'Validation Error'}
+                  </div>
+                  <div className="text-sm whitespace-pre-line leading-relaxed">
+                    {validationMessage}
+                  </div>
+                </div>
+
+                {/* Close button */}
+                <button
+                  onClick={() => setValidationMessage('')}
+                  className="p-1 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
+                  title="Dismiss"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
           )}
 

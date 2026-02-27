@@ -333,64 +333,64 @@ export default function CustomGestureManagement() {
               </div>
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {/* Total Gestures */}
                 <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                       </svg>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{stats.total}</p>
-                      <p className="text-xs text-purple-200/70">Total Gestures</p>
-                    </div>
+                  </div>
+                  <div className='text-center'>
+                    <p className="text-2xl text-white font-bold">Total Gestures</p>
+                    <p className="text-3xl font-bold text-purple-300/80">{stats.total}</p>
                   </div>
                 </div>
 
                 {/* Global Gestures */}
                 <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-amber-500/40 transition-all duration-300">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{stats.global}</p>
-                      <p className="text-xs text-purple-200/70">Global</p>
-                    </div>
+                  </div>
+                  <div className='text-center'>
+                    <p className="text-2xl text-white font-bold">Global</p>
+                    <p className="text-3xl font-bold text-purple-300/80">{stats.global}</p>
                   </div>
                 </div>
 
                 {/* App-Specific */}
                 <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-purple-500/40 transition-all duration-300">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                       </svg>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{stats.total - stats.global}</p>
-                      <p className="text-xs text-purple-200/70">App-Specific</p>
-                    </div>
+                  </div>
+                  <div className='text-center'>
+                    <p className="text-2xl text-white font-bold">App-Specific</p>
+                    <p className="text-3xl font-bold text-purple-300/80">{stats.total - stats.global}</p>
                   </div>
                 </div>
 
                 {/* Total Frames */}
                 <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-emerald-500/40 transition-all duration-300">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" />
                       </svg>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{stats.totalFrames}</p>
-                      <p className="text-xs text-purple-200/70">Total Frames</p>
-                    </div>
+                  </div>
+                  <div className='text-center'>
+                    <p className="text-2xl text-white font-bold">Total Frames</p>
+                    <p className="text-3xl font-bold text-purple-300/80">{stats.totalFrames}</p>
                   </div>
                 </div>
               </div>
@@ -441,11 +441,10 @@ export default function CustomGestureManagement() {
                           <button
                             key={context}
                             onClick={() => setFilterContext(context)}
-                            className={`px-4 py-2 rounded-xl font-medium text-sm transition-all duration-300 hover:cursor-pointer ${
-                              filterContext === context
-                                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
-                                : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-cyan-500/20'
-                            }`}
+                            className={`px-4 py-2 rounded-xl font-medium text-sm transition-all duration-300 hover:cursor-pointer ${filterContext === context
+                              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+                              : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-cyan-500/20'
+                              }`}
                           >
                             {context}
                             <span className="ml-2 text-xs opacity-75">({count})</span>
@@ -458,11 +457,10 @@ export default function CustomGestureManagement() {
                     <div className="flex gap-1 bg-gray-700/50 rounded-xl p-1 w-full sm:w-auto justify-center border border-cyan-500/20">
                       <button
                         onClick={() => setViewMode('grid')}
-                        className={`flex-1 sm:flex-none p-2.5 rounded-lg hover:cursor-pointer transition-all duration-300 ${
-                          viewMode === 'grid'
-                            ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-600/50'
-                        }`}
+                        className={`flex-1 sm:flex-none p-2.5 rounded-lg hover:cursor-pointer transition-all duration-300 ${viewMode === 'grid'
+                          ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-600/50'
+                          }`}
                         title="Grid view"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -471,11 +469,10 @@ export default function CustomGestureManagement() {
                       </button>
                       <button
                         onClick={() => setViewMode('list')}
-                        className={`flex-1 sm:flex-none p-2.5 rounded-lg hover:cursor-pointer transition-all duration-300 ${
-                          viewMode === 'list'
-                            ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
-                            : 'text-gray-400 hover:text-white hover:bg-gray-600/50'
-                        }`}
+                        className={`flex-1 sm:flex-none p-2.5 rounded-lg hover:cursor-pointer transition-all duration-300 ${viewMode === 'list'
+                          ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-600/50'
+                          }`}
                         title="List view"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -592,8 +589,8 @@ export default function CustomGestureManagement() {
                                     <span className="text-xs text-gray-400">Recorded Frames</span>
                                     <p className="text-sm text-white">
                                       {gesture.landmark_data?.metadata?.original_frame_count ??
-                                       gesture.landmark_data?.frames?.length ??
-                                       'N/A'}
+                                        gesture.landmark_data?.frames?.length ??
+                                        'N/A'}
                                     </p>
                                   </div>
                                 </div>
@@ -685,8 +682,8 @@ export default function CustomGestureManagement() {
                                     </svg>
                                     <span className="text-gray-400">
                                       {gesture.landmark_data?.metadata?.original_frame_count ??
-                                       gesture.landmark_data?.frames?.length ??
-                                       'N/A'} frames
+                                        gesture.landmark_data?.frames?.length ??
+                                        'N/A'} frames
                                     </span>
                                   </div>
                                 </div>
@@ -741,8 +738,8 @@ export default function CustomGestureManagement() {
                                       </svg>
                                       <span>
                                         {gesture.landmark_data?.metadata?.original_frame_count ??
-                                         gesture.landmark_data?.frames?.length ??
-                                         'N/A'} frames
+                                          gesture.landmark_data?.frames?.length ??
+                                          'N/A'} frames
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-2">

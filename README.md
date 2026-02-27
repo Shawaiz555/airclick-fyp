@@ -125,42 +125,103 @@ npm install
 
 ## 🚀 Running the Application
 
-### Option 1: Manual Start (3 Terminals)
+### Option 1: Quick Start (Recommended)
 
-**Terminal 1 - Python MediaPipe Service:**
+**Start All Services:**
+
+Windows:
 ```bash
-cd backend_mediapipe
-python hand_tracking_service.py
+start-all.bat
 ```
 
-**Terminal 2 - FastAPI Backend:**
+Linux/Mac:
 ```bash
-cd backend
-uvicorn app.main:app --reload
+./start-all.sh
 ```
 
-**Terminal 3 - Next.js Frontend:**
+This will open separate windows for:
+1. Backend Server (FastAPI + MediaPipe)
+2. Electron Overlay
+
+Each service runs independently and can be closed separately.
+
+---
+
+### Option 2: Manual Start (Independent Services)
+
+**Start Backend Server:**
+
+Windows:
 ```bash
+start-backend.bat
+```
+
+Linux/Mac:
+```bash
+./start-backend.sh
+```
+
+**Start Electron Overlay (AFTER backend is running):**
+
+Windows:
+```bash
+start-electron.bat
+```
+
+Linux/Mac:
+```bash
+./start-electron.sh
+```
+
+**Start Next.js Frontend (Optional - for dashboard/settings):**
+```bash
+cd frontend
 npm run dev
 ```
 
-### Option 2: Windows Batch Scripts
+---
 
-Double-click to start each service:
-- `start_mediapipe.bat` - Start hand tracking service
-- `start_backend.bat` - Start FastAPI backend
-- `start_frontend.bat` - Start Next.js frontend
+### Option 3: Advanced - Manual Terminal Commands
+
+**Terminal 1 - Backend Server:**
+```bash
+cd backend
+source venv/bin/activate  # Mac/Linux
+venv\Scripts\activate     # Windows
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**Terminal 2 - Electron Overlay:**
+```bash
+cd electron
+npm start
+```
+
+**Terminal 3 - Next.js Frontend (Optional):**
+```bash
+cd frontend
+npm run dev
+```
 
 ## 🌐 Access Points
 
-- **Frontend:** http://localhost:3000
+- **Electron Overlay:** Automatically appears on screen (system tray icon)
 - **Backend API:** http://localhost:8000
 - **API Docs:** http://localhost:8000/docs
-- **WebSocket:** ws://localhost:8765
+- **WebSocket:** ws://localhost:8000/ws/hand-tracking
+- **Frontend Dashboard (Optional):** http://localhost:3000
 
 ### Default Credentials
 - **Email:** `admin@airclick.com`
 - **Password:** `admin123`
+
+### Service Independence
+
+✅ **Backend and Electron are now independent:**
+- Backend can run without Electron
+- Electron can be closed/restarted without affecting backend
+- Each service has its own startup script
+- Services communicate via WebSocket (backend stays running)
 
 ## 📚 Documentation
 

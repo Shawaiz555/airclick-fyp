@@ -305,52 +305,56 @@ export default function UserManagement() {
             </div>
 
             {/* Statistics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-              <div className="bg-gray-800/30 hover:cursor-pointer backdrop-blur-lg rounded-2xl p-6 py-10 border border-cyan-500/20 transition-all duration-300 hover:scale-105 hover:border-cyan-500/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-lg font-medium text-cyan-200">Total Users</p>
-                    <p className="text-3xl font-bold mt-2">{stats.total}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              {/* Total Users */}
+              <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                    <UsersIcon className="h-8 w-8 text-white" />
                   </div>
-                  <div className="p-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500">
-                    <UsersIcon className="h-6 w-6" />
-                  </div>
+                </div>
+                <div className='text-center'>
+                  <p className="text-2xl text-white font-bold">Total Users</p>
+                  <p className="text-3xl font-bold text-purple-300/80">{stats.total}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-800/30 hover:cursor-pointer backdrop-blur-lg rounded-2xl p-6 py-10 border border-green-500/20 transition-all duration-300 hover:scale-105 hover:border-green-500/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-lg font-medium text-green-200">Active Users</p>
-                    <p className="text-3xl font-bold mt-2 text-green-400">{stats.active}</p>
+              {/* Active Users */}
+              <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-green-500/40 transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/20">
+                    <UserCheck className="h-8 w-8 text-white" />
                   </div>
-                  <div className="p-3 rounded-xl bg-green-500/20">
-                    <UserCheck className="h-6 w-6 text-green-400" />
-                  </div>
+                </div>
+                <div className='text-center'>
+                  <p className="text-2xl text-white font-bold">Active Users</p>
+                  <p className="text-3xl font-bold text-purple-300/80">{stats.active}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-800/30 hover:cursor-pointer backdrop-blur-lg rounded-2xl p-6 py-10 border border-amber-500/20 transition-all duration-300 hover:scale-105 hover:border-amber-500/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-lg font-medium text-amber-200">Inactive Users</p>
-                    <p className="text-3xl font-bold mt-2 text-amber-400">{stats.inactive}</p>
+              {/* Inactive Users */}
+              <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-amber-500/40 transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <UserX className="h-8 w-8 text-white" />
                   </div>
-                  <div className="p-3 rounded-xl bg-amber-500/20">
-                    <UserX className="h-6 w-6 text-amber-400" />
-                  </div>
+                </div>
+                <div className='text-center'>
+                  <p className="text-2xl text-white font-bold">Inactive Users</p>
+                  <p className="text-3xl font-bold text-purple-300/80">{stats.inactive}</p>
                 </div>
               </div>
 
-              <div className="bg-gray-800/30 hover:cursor-pointer backdrop-blur-lg rounded-2xl p-6 py-10 border border-purple-500/20 transition-all duration-300 hover:scale-105 hover:border-purple-500/40">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-lg font-medium text-purple-200">Administrators</p>
-                    <p className="text-3xl font-bold mt-2 text-purple-400">{stats.admins}</p>
+              {/* Administrators */}
+              <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-purple-500/40 transition-all duration-300">
+                <div className="flex items-center justify-center mb-3">
+                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                    <UsersIcon className="h-8 w-8 text-white" />
                   </div>
-                  <div className="p-3 rounded-xl bg-purple-500/20">
-                    <UsersIcon className="h-6 w-6 text-purple-400" />
-                  </div>
+                </div>
+                <div className='text-center'>
+                  <p className="text-2xl text-white font-bold">Administrators</p>
+                  <p className="text-3xl font-bold text-purple-300/80">{stats.admins}</p>
                 </div>
               </div>
             </div>
