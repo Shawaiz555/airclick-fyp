@@ -233,134 +233,134 @@ export default function AdminOverview() {
               <LoadingSpinner message="Loading dashboard..." size="lg" />
             </div>
           ) : (
-          <div className="max-w-8xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                System Overview
-              </h1>
-              <p className="text-purple-200">Monitor system performance and key metrics</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {statsCards.map((stat, index) => (
-                <div
-                  key={index}
-                  className={`bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-                    }`}
-                  style={{ transitionDelay: `${index * 100}ms` }}
-                >
-                  {/* Icon Container - Centered */}
-                  <div className="flex items-center justify-center mb-3">
-                    <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg shadow-${stat.shadowColor}`}>
-                      {stat.icon}
-                    </div>
-                  </div>
-
-                  {/* Text Content - Centered */}
-                  <div className='text-center'>
-                    <p className="text-2xl text-white font-bold mb-1">{stat.title}</p>
-                    <p className="text-3xl font-bold text-purple-300/80 mb-2">{stat.value}</p>
-                    <p className="text-sm text-gray-400">
-                      {stat.change}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
-                <h3 className="text-xl font-semibold mb-4 text-cyan-200">Monthly User Growth</h3>
-                <div className="h-88">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={userGrowthData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
-                      <XAxis dataKey="name" stroke="#9ca3af" />
-                      <YAxis stroke="#9ca3af" />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'rgba(30, 41, 59, 0.8)',
-                          borderColor: 'rgba(6, 182, 212, 0.3)',
-                          borderRadius: '0.5rem'
-                        }}
-                        labelStyle={{ color: '#06b6d4' }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="users"
-                        stroke="#06b6d4"
-                        strokeWidth={2}
-                        dot={{ stroke: '#06b6d4', strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6, stroke: '#0891b2' }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+            <div className="max-w-8xl mx-auto">
+              <div className="mb-8">
+                <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                  System Overview
+                </h1>
+                <p className="text-purple-200">Monitor system performance and key metrics</p>
               </div>
 
-              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
-                <h3 className="text-xl font-semibold mb-4 text-emerald-200">Monthly Gesture Accuracy</h3>
-                <div className="h-88">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={accuracyData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
-                      <XAxis dataKey="name" stroke="#9ca3af" />
-                      <YAxis stroke="#9ca3af" domain={[0, 100]} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: 'rgba(30, 41, 59, 0.8)',
-                          borderColor: 'rgba(16, 185, 129, 0.3)',
-                          borderRadius: '0.5rem',
-                          boxShadow: 'none',
-                        }}
-                        labelStyle={{ color: '#10b981' }}
-                        itemStyle={{ color: '#d1fae5' }}
-                        wrapperStyle={{
-                          backgroundColor: 'transparent',
-                          boxShadow: 'none',
-                          border: 'none',
-                        }}
-                        cursor={{ fill: 'rgba(255,255,255,0)' }}
-                      />
-                      <Bar
-                        dataKey="accuracy"
-                        fill="#10b981"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 px-10 border border-cyan-500/20">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-cyan-200">Real-time Status Logs</h3>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                  <span className="text-sm text-green-400">Live</span>
-                </div>
-              </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
-                {logs.map((log,index) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {statsCards.map((stat, index) => (
                   <div
-                    key={`${index}`}
-                    className={`p-4 rounded-lg border-l-4 ${log.type === 'warning'
-                      ? 'bg-amber-500/10 border-amber-500/50'
-                      : 'bg-cyan-500/10 border-cyan-500/50'
+                    key={index}
+                    className={`bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 transition-all duration-300 hover:border-cyan-500/40 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                       }`}
+                    style={{ transitionDelay: `${index * 100}ms` }}
                   >
-                    <div className="flex justify-between">
-                      <p className={log.type === 'warning' ? 'text-amber-300' : 'text-cyan-300'}>
-                        {log.message}
+                    {/* Icon Container - Centered */}
+                    <div className="flex items-center justify-center mb-3">
+                      <div className={`w-13 h-13 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center shadow-lg shadow-${stat.shadowColor}`}>
+                        {stat.icon}
+                      </div>
+                    </div>
+
+                    {/* Text Content - Centered */}
+                    <div className='text-center'>
+                      <p className="text-xl text-white font-bold mb-1">{stat.title}</p>
+                      <p className="text-2xl font-bold text-purple-300/80 mb-2">{stat.value}</p>
+                      <p className="text-sm text-gray-400">
+                        {stat.change}
                       </p>
-                      <span className="text-xs text-gray-400">{log.timestamp}</span>
                     </div>
                   </div>
                 ))}
               </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
+                  <h3 className="text-xl font-semibold mb-4 text-cyan-200">Monthly User Growth</h3>
+                  <div className="h-88">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={userGrowthData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
+                        <XAxis dataKey="name" stroke="#9ca3af" />
+                        <YAxis stroke="#9ca3af" />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(30, 41, 59, 0.8)',
+                            borderColor: 'rgba(6, 182, 212, 0.3)',
+                            borderRadius: '0.5rem'
+                          }}
+                          labelStyle={{ color: '#06b6d4' }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="users"
+                          stroke="#06b6d4"
+                          strokeWidth={2}
+                          dot={{ stroke: '#06b6d4', strokeWidth: 2, r: 4 }}
+                          activeDot={{ r: 6, stroke: '#0891b2' }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
+                  <h3 className="text-xl font-semibold mb-4 text-emerald-200">Monthly Gesture Accuracy</h3>
+                  <div className="h-88">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={accuracyData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#4b5563" />
+                        <XAxis dataKey="name" stroke="#9ca3af" />
+                        <YAxis stroke="#9ca3af" domain={[0, 100]} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(30, 41, 59, 0.8)',
+                            borderColor: 'rgba(16, 185, 129, 0.3)',
+                            borderRadius: '0.5rem',
+                            boxShadow: 'none',
+                          }}
+                          labelStyle={{ color: '#10b981' }}
+                          itemStyle={{ color: '#d1fae5' }}
+                          wrapperStyle={{
+                            backgroundColor: 'transparent',
+                            boxShadow: 'none',
+                            border: 'none',
+                          }}
+                          cursor={{ fill: 'rgba(255,255,255,0)' }}
+                        />
+                        <Bar
+                          dataKey="accuracy"
+                          fill="#10b981"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-800/30 backdrop-blur-sm rounded-2xl p-6 px-10 border border-cyan-500/20">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-semibold text-cyan-200">Real-time Status Logs</h3>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span className="text-sm text-green-400">Live</span>
+                  </div>
+                </div>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {logs.map((log, index) => (
+                    <div
+                      key={`${index}`}
+                      className={`p-4 rounded-lg border-l-4 ${log.type === 'warning'
+                        ? 'bg-amber-500/10 border-amber-500/50'
+                        : 'bg-cyan-500/10 border-cyan-500/50'
+                        }`}
+                    >
+                      <div className="flex justify-between">
+                        <p className={log.type === 'warning' ? 'text-amber-300' : 'text-cyan-300'}>
+                          {log.message}
+                        </p>
+                        <span className="text-xs text-gray-400">{log.timestamp}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
           )}
         </main>
       </div>

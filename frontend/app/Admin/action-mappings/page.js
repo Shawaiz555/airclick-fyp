@@ -468,62 +468,62 @@ export default function ActionMappingsManagement() {
               {statistics && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   {/* Total Actions */}
-                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
+                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-10 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
                     <div className="flex items-center justify-center mb-3">
-                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                       </div>
                     </div>
                     <div className='text-center'>
-                      <p className="text-2xl text-white font-bold">Total Actions</p>
-                      <p className="text-3xl font-bold text-purple-300/80">{statistics.total}</p>
+                      <p className="text-xl text-white font-bold">Total Actions</p>
+                      <p className="text-2xl font-bold text-purple-300/80">{statistics.total}</p>
                     </div>
                   </div>
 
                   {/* Active */}
-                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-emerald-500/40 transition-all duration-300">
+                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-10 border border-cyan-500/20 hover:border-emerald-500/40 transition-all duration-300">
                     <div className="flex items-center justify-center mb-3">
-                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </div>
                     </div>
                     <div className='text-center'>
-                      <p className="text-2xl text-white font-bold">Active</p>
-                      <p className="text-3xl font-bold text-purple-300/80">{statistics.active}</p>
+                      <p className="text-xl text-white font-bold">Active</p>
+                      <p className="text-2xl font-bold text-purple-300/80">{statistics.active}</p>
                     </div>
                   </div>
 
                   {/* Inactive */}
-                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-amber-500/40 transition-all duration-300">
+                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-10 border border-cyan-500/20 hover:border-amber-500/40 transition-all duration-300">
                     <div className="flex items-center justify-center mb-3">
-                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                         </svg>
                       </div>
                     </div>
                     <div className='text-center'>
-                      <p className="text-2xl text-white font-bold">Inactive</p>
-                      <p className="text-3xl font-bold text-purple-300/80">{statistics.inactive}</p>
+                      <p className="text-xl text-white font-bold">Inactive</p>
+                      <p className="text-2xl font-bold text-purple-300/80">{statistics.inactive}</p>
                     </div>
                   </div>
 
                   {/* Contexts */}
-                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-purple-500/40 transition-all duration-300">
+                  <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-10 border border-cyan-500/20 hover:border-purple-500/40 transition-all duration-300">
                     <div className="flex items-center justify-center mb-3">
-                      <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                         </svg>
                       </div>
                     </div>
                     <div className='text-center'>
-                      <p className="text-2xl text-white font-bold">Contexts</p>
-                      <p className="text-3xl font-bold text-purple-300/80">{Object.keys(statistics.by_context || {}).length}</p>
+                      <p className="text-xl text-white font-bold">Contexts</p>
+                      <p className="text-2xl font-bold text-purple-300/80">{Object.keys(statistics.by_context || {}).length}</p>
                     </div>
                   </div>
                 </div>
@@ -566,11 +566,10 @@ export default function ActionMappingsManagement() {
                         <button
                           key={context}
                           onClick={() => setFilterContext(context)}
-                          className={`px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-300 hover:cursor-pointer ${
-                            filterContext === context
-                              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
-                              : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50'
-                          }`}
+                          className={`px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-300 hover:cursor-pointer ${filterContext === context
+                            ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white'
+                            : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50'
+                            }`}
                         >
                           {context}
                         </button>
@@ -583,11 +582,10 @@ export default function ActionMappingsManagement() {
                         <button
                           key={status}
                           onClick={() => setFilterStatus(status)}
-                          className={`px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-300 hover:cursor-pointer ${
-                            filterStatus === status
-                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                              : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50'
-                          }`}
+                          className={`px-3 md:px-4 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-300 hover:cursor-pointer ${filterStatus === status
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                            : 'bg-gray-800/50 text-gray-300 hover:bg-gray-700/50'
+                            }`}
                         >
                           {status}
                         </button>
@@ -672,11 +670,10 @@ export default function ActionMappingsManagement() {
                               <td className="p-4 text-center">
                                 <button
                                   onClick={() => handleToggleStatus(action)}
-                                  className={`inline-block px-3 py-1 rounded-full text-xs font-medium hover:cursor-pointer transition-all ${
-                                    action.is_active
-                                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
-                                      : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30'
-                                  }`}
+                                  className={`inline-block px-3 py-1 rounded-full text-xs font-medium hover:cursor-pointer transition-all ${action.is_active
+                                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30'
+                                    }`}
                                 >
                                   {action.is_active ? 'Active' : 'Inactive'}
                                 </button>
@@ -805,9 +802,8 @@ function ActionMappingModal({
                 onChange={(e) => onInputChange('action_id', e.target.value)}
                 disabled={isEditing}
                 placeholder="e.g., custom_action"
-                className={`w-full bg-gray-800/50 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-500 ${
-                  formErrors.action_id ? 'border-red-500' : 'border-cyan-500/30'
-                } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`w-full bg-gray-800/50 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-500 ${formErrors.action_id ? 'border-red-500' : 'border-cyan-500/30'
+                  } ${isEditing ? 'opacity-50 cursor-not-allowed' : ''}`}
               />
               {formErrors.action_id && (
                 <p className="mt-1 text-sm text-red-400">{formErrors.action_id}</p>
@@ -827,9 +823,8 @@ function ActionMappingModal({
                 value={formData.name}
                 onChange={(e) => onInputChange('name', e.target.value)}
                 placeholder="e.g., Next Slide"
-                className={`w-full bg-gray-800/50 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-500 ${
-                  formErrors.name ? 'border-red-500' : 'border-cyan-500/30'
-                }`}
+                className={`w-full bg-gray-800/50 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-500 ${formErrors.name ? 'border-red-500' : 'border-cyan-500/30'
+                  }`}
               />
               {formErrors.name && (
                 <p className="mt-1 text-sm text-red-400">{formErrors.name}</p>
@@ -890,9 +885,8 @@ function ActionMappingModal({
                       value={key}
                       onChange={(e) => onKeyChange(index, e.target.value)}
                       placeholder={`Key ${index + 1} (e.g., ctrl, shift, p)`}
-                      className={`flex-1 bg-gray-800/50 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-500 ${
-                        formErrors.keyboard_keys ? 'border-red-500' : 'border-cyan-500/30'
-                      }`}
+                      className={`flex-1 bg-gray-800/50 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-500 ${formErrors.keyboard_keys ? 'border-red-500' : 'border-cyan-500/30'
+                        }`}
                     />
                     {formData.keyboard_keys.length > 1 && (
                       <button

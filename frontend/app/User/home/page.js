@@ -667,21 +667,21 @@ export default function Home() {
               </div>
 
               {/* Stats Row */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                 {/* Camera Status */}
-                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-6 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300">
                   {/* Icon Container - Centered */}
                   <div className="flex items-center justify-center mb-3">
-                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </div>
                   </div>
                   {/* Text Content - Centered */}
                   <div className='text-center'>
-                    <p className="text-2xl text-white font-bold mb-1">Camera</p>
-                    <p className="text-lg font-bold text-purple-300/80 mb-2">{isConnected ? 'Active' : 'Inactive'}</p>
+                    <p className="text-xl text-white font-bold mb-1">Camera</p>
+                    <p className="text-md font-bold text-purple-300/80 mb-2">{isConnected ? 'Active' : 'Inactive'}</p>
                     <div className="flex items-center justify-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
                       <p className="text-xs text-gray-400">{isConnected ? 'Connected' : 'Disconnected'}</p>
@@ -690,19 +690,19 @@ export default function Home() {
                 </div>
 
                 {/* Hand Detection */}
-                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-6 border border-cyan-500/20 hover:border-purple-500/40 transition-all duration-300">
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-purple-500/40 transition-all duration-300">
                   {/* Icon Container - Centered */}
                   <div className="flex items-center justify-center mb-3">
-                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11" />
                       </svg>
                     </div>
                   </div>
                   {/* Text Content - Centered */}
                   <div className='text-center'>
-                    <p className="text-2xl text-white font-bold mb-1">Hand</p>
-                    <p className="text-lg font-bold text-purple-300/80 mb-2">{handDetected ? 'Detected' : 'No Hand'}</p>
+                    <p className="text-xl text-white font-bold mb-1">Hand</p>
+                    <p className="text-md font-bold text-purple-300/80 mb-2">{handDetected ? 'Detected' : 'No Hand'}</p>
                     <div className="flex items-center justify-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${handDetected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
                       <p className="text-xs text-gray-400">{handDetected ? 'Tracking' : 'Waiting'}</p>
@@ -711,37 +711,37 @@ export default function Home() {
                 </div>
 
                 {/* Loaded Gestures */}
-                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-6 border border-cyan-500/20 hover:border-amber-500/40 transition-all duration-300">
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-amber-500/40 transition-all duration-300">
                   {/* Icon Container - Centered */}
                   <div className="flex items-center justify-center mb-3">
-                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                       </svg>
                     </div>
                   </div>
                   {/* Text Content - Centered */}
                   <div className='text-center'>
-                    <p className="text-2xl text-white font-bold mb-1">Gestures</p>
-                    <p className="text-3xl font-bold text-purple-300/80 mb-2">{userGestures.length}</p>
+                    <p className="text-xl text-white font-bold mb-1">Gestures</p>
+                    <p className="text-2xl font-bold text-purple-300/80 mb-2">{userGestures.length}</p>
                     <p className="text-xs text-gray-400">Loaded</p>
                   </div>
                 </div>
 
                 {/* Context */}
-                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-6 border border-cyan-500/20 hover:border-emerald-500/40 transition-all duration-300">
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 py-8 border border-cyan-500/20 hover:border-emerald-500/40 transition-all duration-300">
                   {/* Icon Container - Centered */}
                   <div className="flex items-center justify-center mb-3">
-                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
                     </div>
                   </div>
                   {/* Text Content - Centered */}
                   <div className='text-center'>
-                    <p className="text-2xl text-white font-bold mb-1">Context</p>
-                    <p className="text-lg font-bold text-purple-300/80 mb-2 truncate">{activeApp}</p>
+                    <p className="text-xl text-white font-bold mb-1">Context</p>
+                    <p className="text-md font-bold text-purple-300/80 mb-2 truncate">{activeApp}</p>
                     <p className="text-xs text-gray-400">Active</p>
                   </div>
                 </div>
