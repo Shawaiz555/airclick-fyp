@@ -507,15 +507,23 @@ class HandTrackingService:
                         try:
                             # Import here to avoid circular dependency
                             from app.models.gesture import Gesture
+                            import time as perf_time
+
+                            # PHASE 1 OPTIMIZATION: Load gestures with performance tracking
+                            db_start = perf_time.time()
 
                             # Get ONLY the authenticated user's gestures (SECURITY FIX)
                             gestures = db.query(Gesture).filter(Gesture.user_id == user_id).all()
+
+                            db_time = (perf_time.time() - db_start) * 1000
+                            logger.info(f"📊 Database query completed in {db_time:.1f}ms ({len(gestures)} gestures)")
 
                             if not gestures:
                                 logger.warning("No gestures found for matching")
                                 return {"matched": False, "reason": "No gestures in database"}
 
-                            # Convert to list format for matcher
+                            # PHASE 1 OPTIMIZATION: Convert to list format with performance tracking
+                            convert_start = perf_time.time()
                             gestures_list = []
                             for g in gestures:
                                 gesture_dict = {
@@ -523,18 +531,28 @@ class HandTrackingService:
                                     'name': g.name,
                                     'action': g.action,  # Include action for execution
                                     'app_context': g.app_context,  # Include app context
-                                    'landmark_data': g.landmark_data  # Should contain 'frames' key
+                                    'landmark_data': g.landmark_data,  # Should contain 'frames' key
+                                    'adaptive_threshold': g.adaptive_threshold,  # PHASE 1: Include adaptive threshold
+                                    'template_index': g.template_index  # PHASE 1: Include template index
                                 }
                                 gestures_list.append(gesture_dict)
 
+                            convert_time = (perf_time.time() - convert_start) * 1000
+                            logger.info(f"📊 Gesture conversion completed in {convert_time:.1f}ms")
+
                             # Match gesture - CRITICAL: Use return_best_candidate=True for false trigger tracking
                             matcher = get_gesture_matcher()
+
+                            # PHASE 1 OPTIMIZATION: Track matching performance
+                            match_start = perf_time.time()
                             result = matcher.match_gesture(
                                 frames,
                                 gestures_list,
                                 user_id=user_id,
                                 return_best_candidate=True  # Get best match even if below threshold
                             )
+                            match_time = (perf_time.time() - match_start) * 1000
+                            logger.info(f"📊 Gesture matching completed in {match_time:.1f}ms")
 
                             # Result is Optional[Tuple[Dict, float]]
                             if result:
@@ -557,15 +575,24 @@ class HandTrackingService:
                                     gesture_action = matched_gesture.get('action')
                                     gesture_app_context = matched_gesture.get('app_context')
 
-                                    # Update gesture stats in database BEFORE action execution
+                                    # PHASE 1 OPTIMIZATION: Fast database update using raw SQL
                                     try:
-                                        gesture_record = db.query(Gesture).filter(Gesture.id == matched_gesture.get('id')).first()
-                                        if gesture_record:
-                                            gesture_record.total_similarity = (gesture_record.total_similarity or 0.0) + similarity
-                                            gesture_record.match_count = (gesture_record.match_count or 0) + 1
-                                            gesture_record.accuracy_score = gesture_record.total_similarity / gesture_record.match_count
-                                            db.commit()
-                                            logger.debug(f"📊 Updated gesture stats: match_count={gesture_record.match_count}, accuracy={gesture_record.accuracy_score:.1%}")
+                                        from sqlalchemy import text
+                                        gesture_id = matched_gesture.get('id')
+
+                                        # Use raw SQL for faster update (bypasses ORM overhead)
+                                        update_query = text("""
+                                            UPDATE gestures
+                                            SET total_similarity = COALESCE(total_similarity, 0) + :similarity,
+                                                match_count = COALESCE(match_count, 0) + 1,
+                                                accuracy_score = (COALESCE(total_similarity, 0) + :similarity) / (COALESCE(match_count, 0) + 1),
+                                                updated_at = NOW()
+                                            WHERE id = :gesture_id
+                                        """)
+
+                                        db.execute(update_query, {"similarity": similarity, "gesture_id": gesture_id})
+                                        db.commit()
+                                        logger.debug(f"📊 Updated gesture stats (fast SQL) for gesture_id={gesture_id}")
                                     except Exception as e:
                                         logger.warning(f"Failed to update gesture stats: {e}")
                                         db.rollback()
@@ -630,13 +657,22 @@ class HandTrackingService:
                                     logger.info(f"   Delta: {(gesture_threshold - similarity):.1%}")
                                     logger.info(f"{'='*60}")
 
-                                    # Increment false trigger count in database
+                                    # PHASE 1 OPTIMIZATION: Fast database update using raw SQL
                                     try:
-                                        gesture_record = db.query(Gesture).filter(Gesture.id == matched_gesture.get('id')).first()
-                                        if gesture_record:
-                                            gesture_record.false_trigger_count = (gesture_record.false_trigger_count or 0) + 1
-                                            db.commit()
-                                            logger.info(f"📊 False trigger count updated: {gesture_record.false_trigger_count}")
+                                        from sqlalchemy import text
+                                        gesture_id = matched_gesture.get('id')
+
+                                        # Use raw SQL for faster update
+                                        update_query = text("""
+                                            UPDATE gestures
+                                            SET false_trigger_count = COALESCE(false_trigger_count, 0) + 1,
+                                                updated_at = NOW()
+                                            WHERE id = :gesture_id
+                                        """)
+
+                                        db.execute(update_query, {"gesture_id": gesture_id})
+                                        db.commit()
+                                        logger.debug(f"📊 False trigger count updated (fast SQL) for gesture_id={gesture_id}")
                                     except Exception as e:
                                         logger.warning(f"Failed to update false trigger count: {e}")
                                         db.rollback()

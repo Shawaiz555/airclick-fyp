@@ -47,6 +47,10 @@ class Gesture(Base):
     # NEW: Recording metadata (added in migration 004)
     recording_metadata = Column(JSONB, default={})  # Recording conditions, stats, etc.
 
+    # PHASE 2 OPTIMIZATION: Precomputed features (added in migration 006)
+    precomputed_features = Column(JSONB, nullable=True)  # Cached Procrustes features (60x63 array)
+    features_version = Column(Integer, default=1)  # Feature extraction algorithm version
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())

@@ -707,6 +707,8 @@ class GestureMatcher:
         CRITICAL FIX v5: Now uses stored raw_trajectory or raw_wrist_positions from
         gesture recording, since Procrustes normalization destroys position info.
 
+        PHASE 1 OPTIMIZATION: Reduced logging, optimized for speed.
+
         The penalty is calculated by comparing the overall trajectory direction vectors:
         - If movements are in the same direction: penalty = 0.0 (no penalty)
         - If movements are perpendicular: penalty = 0.5 (moderate penalty)
@@ -720,6 +722,9 @@ class GestureMatcher:
             Penalty value between 0.0 (same direction) and 1.0 (opposite direction)
         """
         try:
+            # PHASE 1 OPTIMIZATION: Quick validation first
+            if not input_frames or len(input_frames) < 2:
+                return 0.0
             # Extract wrist positions from input frames (these ARE raw, not normalized)
             def get_wrist_trajectory(frames: List[Dict], debug_name: str = "") -> np.ndarray:
                 """Extract wrist (x, y) positions from raw frames."""
@@ -760,7 +765,8 @@ class GestureMatcher:
                 norm2 = raw_trajectory['magnitude']
                 wrist2_start = np.array([raw_trajectory['start_x'], raw_trajectory['start_y']])
                 wrist2_end = np.array([raw_trajectory['end_x'], raw_trajectory['end_y']])
-                logger.info(f"  Using stored raw_trajectory: delta=({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
+                # PHASE 1 OPTIMIZATION: Reduced logging (debug only)
+                logger.debug(f"  Using stored raw_trajectory: delta=({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
             elif raw_wrist_positions and len(raw_wrist_positions) >= 2:
                 # Calculate from raw positions
                 start = raw_wrist_positions[0]
@@ -769,7 +775,8 @@ class GestureMatcher:
                 wrist2_end = np.array([end['x'], end['y']])
                 trajectory2 = wrist2_end - wrist2_start
                 norm2 = np.linalg.norm(trajectory2)
-                logger.info(f"  Using raw_wrist_positions: delta=({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
+                # PHASE 1 OPTIMIZATION: Reduced logging (debug only)
+                logger.debug(f"  Using raw_wrist_positions: delta=({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
             else:
                 # Fallback: try to get from frames (will likely be 0 due to normalization)
                 stored_frames = landmark_data.get('frames', [])
@@ -797,10 +804,11 @@ class GestureMatcher:
             if not isinstance(trajectory2, np.ndarray):
                 trajectory2 = np.array(trajectory2)
 
-            logger.info(f"  Trajectory comparison:")
-            logger.info(f"    Input: start=({wrist1[0][0]:.3f}, {wrist1[0][1]:.3f}) → end=({wrist1[-1][0]:.3f}, {wrist1[-1][1]:.3f})")
-            logger.info(f"    Input trajectory: ({trajectory1[0]:.4f}, {trajectory1[1]:.4f}), magnitude={norm1:.4f}")
-            logger.info(f"    Stored trajectory: ({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
+            # PHASE 1 OPTIMIZATION: Reduced logging (debug only)
+            logger.debug(f"  Trajectory comparison:")
+            logger.debug(f"    Input: start=({wrist1[0][0]:.3f}, {wrist1[0][1]:.3f}) → end=({wrist1[-1][0]:.3f}, {wrist1[-1][1]:.3f})")
+            logger.debug(f"    Input trajectory: ({trajectory1[0]:.4f}, {trajectory1[1]:.4f}), magnitude={norm1:.4f}")
+            logger.debug(f"    Stored trajectory: ({trajectory2[0]:.4f}, {trajectory2[1]:.4f}), magnitude={norm2:.4f}")
 
             # CRITICAL FIX v14: Smarter hand removal detection
             # Distinguish between hand removal and intentional gesture movement
@@ -822,19 +830,20 @@ class GestureMatcher:
             is_hand_removal = (is_y_dominant and is_x_minimal and
                              is_stored_stationary and is_significant_movement)
 
-            logger.info(f"    Movement analysis:")
-            logger.info(f"       X-movement: {input_x_movement:.4f}, Y-movement: {input_y_movement:.4f}")
-            logger.info(f"       Y-dominance: {y_dominance*100:.1f}%, X-minimal: {is_x_minimal}")
-            logger.info(f"       Stored stationary: {is_stored_stationary} (magnitude={norm2:.4f})")
+            # PHASE 1 OPTIMIZATION: Reduced logging (debug only)
+            logger.debug(f"    Movement analysis:")
+            logger.debug(f"       X-movement: {input_x_movement:.4f}, Y-movement: {input_y_movement:.4f}")
+            logger.debug(f"       Y-dominance: {y_dominance*100:.1f}%, X-minimal: {is_x_minimal}")
+            logger.debug(f"       Stored stationary: {is_stored_stationary} (magnitude={norm2:.4f})")
 
             if is_hand_removal:
                 logger.info(f"    ⚠️ HAND REMOVAL DETECTED")
-                logger.info(f"       Treating input as STATIONARY for matching purposes")
+                logger.debug(f"       Treating input as STATIONARY for matching purposes")
                 # Override norm1 to treat as stationary
                 norm1_original = norm1
                 norm1 = norm2  # Use stored gesture's magnitude
                 trajectory1 = trajectory2  # Use stored gesture's direction
-                logger.info(f"       Adjusted input magnitude: {norm1_original:.4f} → {norm1:.4f}")
+                logger.debug(f"       Adjusted input magnitude: {norm1_original:.4f} → {norm1:.4f}")
             else:
                 logger.info(f"    ✅ INTENTIONAL GESTURE MOVEMENT (not hand removal)")
 
@@ -862,8 +871,9 @@ class GestureMatcher:
             stationary_threshold = 0.02 * hand_size_scale  # Below this = definitely stationary
             movement_threshold = 0.05 * hand_size_scale    # Above this = definitely moving
 
-            logger.info(f"    Hand size: {input_hand_size:.4f}, scale: {hand_size_scale:.2f}")
-            logger.info(f"    Adaptive thresholds: stationary={stationary_threshold:.4f}, moving={movement_threshold:.4f}")
+            # PHASE 1 OPTIMIZATION: Reduced logging (debug only)
+            logger.debug(f"    Hand size: {input_hand_size:.4f}, scale: {hand_size_scale:.2f}")
+            logger.debug(f"    Adaptive thresholds: stationary={stationary_threshold:.4f}, moving={movement_threshold:.4f}")
 
             # Classify input gesture
             input_is_stationary = norm1 < stationary_threshold
@@ -875,18 +885,18 @@ class GestureMatcher:
             stored_is_moving = norm2 > movement_threshold
             stored_is_ambiguous = not stored_is_stationary and not stored_is_moving
 
-            logger.info(f"    Input classification: {'STATIONARY' if input_is_stationary else 'MOVING' if input_is_moving else 'AMBIGUOUS'} (magnitude={norm1:.4f})")
-            logger.info(f"    Stored classification: {'STATIONARY' if stored_is_stationary else 'MOVING' if stored_is_moving else 'AMBIGUOUS'} (magnitude={norm2:.4f})")
+            logger.debug(f"    Input classification: {'STATIONARY' if input_is_stationary else 'MOVING' if input_is_moving else 'AMBIGUOUS'} (magnitude={norm1:.4f})")
+            logger.debug(f"    Stored classification: {'STATIONARY' if stored_is_stationary else 'MOVING' if stored_is_moving else 'AMBIGUOUS'} (magnitude={norm2:.4f})")
 
             # CASE 1: Input is clearly moving
             if input_is_moving:
                 if stored_is_stationary:
                     # Moving input matched to stationary gesture - HIGH penalty
-                    logger.info(f"    → MOVING input vs STATIONARY stored - HIGH penalty")
+                    logger.debug(f"    → MOVING input vs STATIONARY stored - HIGH penalty")
                     return 0.8
                 elif stored_is_ambiguous:
                     # Moving input matched to ambiguous gesture - moderate penalty
-                    logger.info(f"    → MOVING input vs AMBIGUOUS stored - moderate penalty")
+                    logger.debug(f"    → MOVING input vs AMBIGUOUS stored - moderate penalty")
                     return 0.4
                 # stored_is_moving - compare directions below
 
@@ -894,26 +904,26 @@ class GestureMatcher:
             elif input_is_stationary:
                 if stored_is_moving:
                     # Stationary input matched to moving gesture - HIGH penalty
-                    logger.info(f"    → STATIONARY input vs MOVING stored - HIGH penalty")
+                    logger.debug(f"    → STATIONARY input vs MOVING stored - HIGH penalty")
                     return 0.8
                 elif stored_is_stationary:
                     # Both stationary - no penalty
-                    logger.info(f"    → Both STATIONARY - no penalty")
+                    logger.debug(f"    → Both STATIONARY - no penalty")
                     return 0.0
                 else:
                     # stored_is_ambiguous - small penalty
-                    logger.info(f"    → STATIONARY input vs AMBIGUOUS stored - small penalty")
+                    logger.debug(f"    → STATIONARY input vs AMBIGUOUS stored - small penalty")
                     return 0.2
 
             # CASE 3: Input is in ambiguous range
             else:  # input_is_ambiguous
                 if stored_is_stationary:
                     # Ambiguous input vs stationary - moderate penalty
-                    logger.info(f"    → AMBIGUOUS input vs STATIONARY stored - moderate penalty")
+                    logger.debug(f"    → AMBIGUOUS input vs STATIONARY stored - moderate penalty")
                     return 0.3
                 elif stored_is_moving:
                     # Ambiguous input vs moving - moderate penalty
-                    logger.info(f"    → AMBIGUOUS input vs MOVING stored - moderate penalty")
+                    logger.debug(f"    → AMBIGUOUS input vs MOVING stored - moderate penalty")
                     return 0.3
                 # Both ambiguous - compare magnitudes and directions
 
@@ -942,7 +952,7 @@ class GestureMatcher:
             # AND only if both gestures are clearly moving (not stationary or ambiguous)
             if cosine_sim < DIRECTION_HARD_THRESHOLD and norm1 > movement_threshold and norm2 > movement_threshold:
                 logger.info(f"    ⛔ HARD REJECT: Opposite directions (cosine={cosine_sim:.3f} < {DIRECTION_HARD_THRESHOLD})")
-                logger.info(f"       Both gestures moving but in opposite directions → Incompatible")
+                logger.debug(f"       Both gestures moving but in opposite directions → Incompatible")
                 return 0.95  # Very high penalty but not maximum (allows some flexibility)
 
             # Direction penalty: penalize opposite/perpendicular movements
@@ -958,8 +968,8 @@ class GestureMatcher:
             # Combined penalty: weight direction more heavily
             penalty = direction_penalty * 0.7 + magnitude_penalty * 0.3
 
-            logger.info(f"    → Direction penalty: {direction_penalty:.4f}, Magnitude penalty: {magnitude_penalty:.4f}")
-            logger.info(f"    → Combined trajectory penalty: {penalty:.4f}")
+            logger.debug(f"    → Direction penalty: {direction_penalty:.4f}, Magnitude penalty: {magnitude_penalty:.4f}")
+            logger.debug(f"    → Combined trajectory penalty: {penalty:.4f}")
 
             return max(0.0, min(1.0, penalty))
 
@@ -1013,11 +1023,25 @@ class GestureMatcher:
                     value = cached_value
                     is_similarity = False
                 else:
-                    # Extract stored features (already normalized by Procrustes + bone-length)
-                    stored_features = self.extract_features(stored_frames)
-                    # ✅ CRITICAL FIX #3: Remove double normalization!
-                    # stored_normalized = self.normalize_sequence(stored_features)  # ❌ REMOVED
-                    stored_normalized = stored_features  # Use features as-is
+                    # PHASE 2 OPTIMIZATION: Use precomputed features if available
+                    stored_normalized = None
+
+                    # Try to load precomputed features first (MUCH faster!)
+                    precomputed = gesture.get('precomputed_features')
+                    if precomputed and isinstance(precomputed, list):
+                        try:
+                            stored_normalized = np.array(precomputed)
+                            logger.debug(f"✅ Using precomputed features for '{gesture.get('name')}' (instant)")
+                        except Exception as e:
+                            logger.debug(f"⚠️ Failed to load precomputed features: {e}, falling back")
+                            stored_normalized = None
+
+                    # Fallback: Extract features on-demand (for old gestures without precomputed features)
+                    if stored_normalized is None:
+                        # Extract stored features (already normalized by Procrustes + bone-length)
+                        stored_features = self.extract_features(stored_frames)
+                        stored_normalized = stored_features  # Use features as-is
+                        logger.debug(f"⏱️ Computed features on-demand for '{gesture.get('name')}' (~5ms)")
 
                     # Calculate DTW distance or similarity
                     # FIXED: dtw_distance now returns (value, is_similarity_flag)
@@ -1069,7 +1093,7 @@ class GestureMatcher:
                             pose_penalty = 0.25 * hamming_dist  # 25% per finger difference
                             adjusted_similarity *= (1.0 - min(pose_penalty, 0.7))  # Max 70% penalty
                             logger.info(f"    ⚠️ WEAK pose match penalty: hamming={hamming_dist} → additional {pose_penalty:.1%} penalty")
-                            logger.info(f"       Final adjusted similarity: {adjusted_similarity:.2%}")
+                            logger.debug(f"       Final adjusted similarity: {adjusted_similarity:.2%}")
 
                 # ✅ CRITICAL FIX #4: Enhanced logging with distance/similarity info
                 if is_similarity:

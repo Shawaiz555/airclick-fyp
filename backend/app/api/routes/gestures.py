@@ -335,13 +335,43 @@ def record_gesture(
         }
     }
 
+    # PHASE 2 OPTIMIZATION: Precompute features during recording
+    precomputed_features = None
+    features_version = 1
+    try:
+        from app.services.gesture_preprocessing import preprocess_for_recording
+        import numpy as np
+
+        logger.info("🔧 PHASE 2: Precomputing features for faster matching...")
+        precompute_start = time.time()
+
+        # Extract and normalize features (same process as matching)
+        features_array = preprocess_for_recording(
+            frames,
+            target_frames=60,
+            apply_smoothing=True,
+            apply_procrustes=True,
+            apply_bone_normalization=True
+        )
+
+        # Convert to list for JSON storage (60x63 array)
+        precomputed_features = features_array.tolist()
+        precompute_time = (time.time() - precompute_start) * 1000
+
+        logger.info(f"✅ Features precomputed in {precompute_time:.1f}ms (shape: {features_array.shape})")
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to precompute features: {e}, will compute on-demand during matching")
+        precomputed_features = None
+
     # Create gesture record
     new_gesture = Gesture(
         user_id=current_user.id,
         name=gesture_data.name,
         action=gesture_data.action,
         app_context=gesture_data.app_context,
-        landmark_data=landmark_data
+        landmark_data=landmark_data,
+        precomputed_features=precomputed_features,  # PHASE 2: Store precomputed features
+        features_version=features_version  # PHASE 2: Track feature version
     )
 
     db.add(new_gesture)
