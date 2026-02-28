@@ -63,7 +63,9 @@ class HandPoseDetector:
         release_threshold: float = 0.08,
         cooldown_frames: int = 10,
         consistency_frames: int = 3,
-        adaptive_threshold: bool = True
+        adaptive_threshold: bool = True,
+        stability_threshold: float = 0.02,
+        stability_frames: int = 5
     ):
         """
         Initialize the hand pose detector.
@@ -74,12 +76,16 @@ class HandPoseDetector:
             cooldown_frames: Number of frames to wait before next click
             consistency_frames: Number of consecutive frames required
             adaptive_threshold: Auto-adjust thresholds based on hand size
+            stability_threshold: Maximum hand movement allowed for click (prevents clicks during motion)
+            stability_frames: Number of stable frames required before click
         """
         self.pinch_threshold = pinch_threshold
         self.release_threshold = release_threshold
         self.cooldown_frames = cooldown_frames
         self.consistency_frames = consistency_frames
         self.adaptive_threshold = adaptive_threshold
+        self.stability_threshold = stability_threshold
+        self.stability_frames = stability_frames
 
         # State machines for each click type
         self.left_click_state = ClickState.IDLE
@@ -97,16 +103,22 @@ class HandPoseDetector:
         self.hand_size_samples = []
         self.calibrated_hand_size = None
 
+        # Hand stability tracking (NEW - prevents clicks during motion)
+        self.hand_positions_buffer = deque(maxlen=stability_frames)
+        self.hand_orientations_buffer = deque(maxlen=stability_frames)
+
         # Statistics
         self.stats = {
             'total_updates': 0,
             'left_clicks_triggered': 0,
             'right_clicks_triggered': 0,
             'false_positives_prevented': 0,
-            'calibrated': False
+            'calibrated': False,
+            'stability_blocks': 0,  # Track how many clicks blocked due to instability
+            'orientation_blocks': 0  # Track how many clicks blocked due to bad orientation
         }
 
-        logger.info(f"Hand Pose Detector initialized (pinch_threshold={pinch_threshold}, cooldown={cooldown_frames})")
+        logger.info(f"Hand Pose Detector initialized (pinch_threshold={pinch_threshold}, cooldown={cooldown_frames}, stability_threshold={stability_threshold})")
 
     def calculate_distance(
         self,
@@ -243,6 +255,119 @@ class HandPoseDetector:
         # All frames must agree
         return all(buffer)
 
+    def is_hand_stable(self, hand_landmarks: List[Dict]) -> bool:
+        """
+        Check if hand is stable (not moving rapidly).
+
+        This prevents clicks during rapid hand movements like:
+        - Rubbing eyes
+        - Fixing hair
+        - Waving hand
+        - Scratching face
+
+        Args:
+            hand_landmarks: List of 21 hand landmarks
+
+        Returns:
+            True if hand is stable, False if moving too fast
+        """
+        if len(hand_landmarks) < 1:
+            return False
+
+        # Use wrist position for stability tracking
+        wrist = hand_landmarks[0]
+        current_pos = np.array([wrist['x'], wrist['y'], wrist['z']])
+
+        # Add to position buffer
+        self.hand_positions_buffer.append(current_pos)
+
+        # Need enough samples to check stability
+        if len(self.hand_positions_buffer) < self.stability_frames:
+            return False
+
+        # Calculate variance in hand position over recent frames
+        positions = np.array(list(self.hand_positions_buffer))
+        position_variance = np.var(positions, axis=0)
+        max_variance = np.max(position_variance)
+
+        # Check if variance is below threshold (hand is stable)
+        is_stable = max_variance < (self.stability_threshold ** 2)
+
+        if not is_stable:
+            logger.debug(f"⚠️ Hand unstable: variance={max_variance:.6f}, threshold={self.stability_threshold**2:.6f}")
+
+        return is_stable
+
+    def is_hand_facing_camera(self, hand_landmarks: List[Dict]) -> bool:
+        """
+        Check if hand is facing the camera (not sideways or upside down).
+
+        This prevents clicks when hand is in unnatural positions:
+        - Hand sideways (rubbing face)
+        - Palm facing away
+        - Hand upside down
+
+        Uses the palm normal vector to determine orientation.
+
+        Args:
+            hand_landmarks: List of 21 hand landmarks
+
+        Returns:
+            True if hand is properly oriented toward camera, False otherwise
+        """
+        if len(hand_landmarks) < 13:
+            return False
+
+        # Use wrist, index MCP, and pinky MCP to calculate palm normal
+        wrist = hand_landmarks[0]
+        index_mcp = hand_landmarks[5]  # Index finger base
+        pinky_mcp = hand_landmarks[17]  # Pinky finger base
+
+        # Create vectors
+        v1 = np.array([index_mcp['x'] - wrist['x'],
+                      index_mcp['y'] - wrist['y'],
+                      index_mcp['z'] - wrist['z']])
+        v2 = np.array([pinky_mcp['x'] - wrist['x'],
+                      pinky_mcp['y'] - wrist['y'],
+                      pinky_mcp['z'] - wrist['z']])
+
+        # Calculate palm normal using cross product
+        palm_normal = np.cross(v1, v2)
+
+        # Normalize the normal vector
+        magnitude = np.linalg.norm(palm_normal)
+        if magnitude < 0.001:
+            return False
+
+        palm_normal = palm_normal / magnitude
+
+        # Camera is looking along the Z axis (negative Z in MediaPipe)
+        # Good orientation: palm facing camera means Z component should be negative
+        # We also want the hand to be relatively upright (Y component check)
+
+        z_component = palm_normal[2]
+
+        # Add to orientation buffer
+        self.hand_orientations_buffer.append(z_component)
+
+        # Need enough samples
+        if len(self.hand_orientations_buffer) < self.stability_frames:
+            return False
+
+        # Check if orientation is consistent and facing camera
+        # Z component should be negative (palm facing camera) and consistent
+        orientations = list(self.hand_orientations_buffer)
+        avg_z = np.mean(orientations)
+        orientation_variance = np.var(orientations)
+
+        # Good orientation: negative Z (facing camera) with low variance
+        is_facing_camera = avg_z < -0.3 and orientation_variance < 0.1
+
+        if not is_facing_camera:
+            logger.debug(f"⚠️ Hand not facing camera: avg_z={avg_z:.3f}, variance={orientation_variance:.3f}")
+
+        return is_facing_camera
+
     def update_state_machine(
         self,
         is_pinched: bool,
@@ -318,7 +443,73 @@ class HandPoseDetector:
         if self.adaptive_threshold and not self.stats['calibrated']:
             self.calibrate_hand_size(hand_landmarks)
 
-        # Detect pinches
+        # CRITICAL: Check hand stability and orientation BEFORE detecting pinches
+        # This prevents unintentional clicks during rapid movements or bad hand positions
+        is_stable = self.is_hand_stable(hand_landmarks)
+        is_facing_camera = self.is_hand_facing_camera(hand_landmarks)
+
+        # Only proceed with click detection if hand is stable and properly oriented
+        if not is_stable:
+            logger.debug("🚫 Click blocked: Hand is not stable (rapid movement detected)")
+            self.stats['stability_blocks'] += 1
+            # Clear consistency buffers to reset click detection
+            self.left_click_buffer.clear()
+            self.right_click_buffer.clear()
+            return {
+                'click_type': ClickType.NONE.value,
+                'trigger_left': False,
+                'trigger_right': False,
+                'blocked_reason': 'hand_unstable',
+                'raw_detections': {
+                    'index_pinch': False,
+                    'middle_pinch': False
+                },
+                'consistent_detections': {
+                    'left_click': False,
+                    'right_click': False
+                },
+                'states': {
+                    'left_click': self.left_click_state.value,
+                    'right_click': self.right_click_state.value
+                },
+                'cooldowns': {
+                    'left_click': int(self.left_click_cooldown),
+                    'right_click': int(self.right_click_cooldown)
+                },
+                'stats': self.stats.copy()
+            }
+
+        if not is_facing_camera:
+            logger.debug("🚫 Click blocked: Hand not facing camera (bad orientation)")
+            self.stats['orientation_blocks'] += 1
+            # Clear consistency buffers to reset click detection
+            self.left_click_buffer.clear()
+            self.right_click_buffer.clear()
+            return {
+                'click_type': ClickType.NONE.value,
+                'trigger_left': False,
+                'trigger_right': False,
+                'blocked_reason': 'hand_not_facing_camera',
+                'raw_detections': {
+                    'index_pinch': False,
+                    'middle_pinch': False
+                },
+                'consistent_detections': {
+                    'left_click': False,
+                    'right_click': False
+                },
+                'states': {
+                    'left_click': self.left_click_state.value,
+                    'right_click': self.right_click_state.value
+                },
+                'cooldowns': {
+                    'left_click': int(self.left_click_cooldown),
+                    'right_click': int(self.right_click_cooldown)
+                },
+                'stats': self.stats.copy()
+            }
+
+        # Detect pinches (only if hand is stable and facing camera)
         is_index_pinched = self.detect_index_pinch(hand_landmarks)
         is_middle_pinched = self.detect_middle_pinch(hand_landmarks)
 
@@ -432,13 +623,17 @@ class HandPoseDetector:
         self.right_click_cooldown = 0
         self.left_click_buffer.clear()
         self.right_click_buffer.clear()
+        self.hand_positions_buffer.clear()
+        self.hand_orientations_buffer.clear()
 
         self.stats = {
             'total_updates': 0,
             'left_clicks_triggered': 0,
             'right_clicks_triggered': 0,
             'false_positives_prevented': 0,
-            'calibrated': self.stats.get('calibrated', False)
+            'calibrated': self.stats.get('calibrated', False),
+            'stability_blocks': 0,
+            'orientation_blocks': 0
         }
 
         logger.info("Hand pose detector reset")
@@ -452,7 +647,9 @@ class HandPoseDetector:
                 'release_threshold': self.release_threshold,
                 'cooldown_frames': self.cooldown_frames,
                 'consistency_frames': self.consistency_frames,
-                'adaptive_threshold': self.adaptive_threshold
+                'adaptive_threshold': self.adaptive_threshold,
+                'stability_threshold': self.stability_threshold,
+                'stability_frames': self.stability_frames
             },
             'calibration': {
                 'calibrated': self.stats.get('calibrated', False),
@@ -481,9 +678,11 @@ def get_hand_pose_detector() -> HandPoseDetector:
             release_threshold=0.12,     # 12cm (hysteresis)
             cooldown_frames=5,          # ~160ms - faster clicks (was 10)
             consistency_frames=2,       # Only 2 frames needed (was 3)
-            adaptive_threshold=False    # Disabled for consistency
+            adaptive_threshold=False,   # Disabled for consistency
+            stability_threshold=0.015,  # Hand must be stable (low movement) to click
+            stability_frames=5          # Need 5 stable frames (~160ms) before allowing click
         )
-        logger.info("Global hand pose detector created (EASY CLICK MODE)")
+        logger.info("Global hand pose detector created (STABLE CLICK MODE - prevents unintentional clicks)")
 
     return hand_pose_detector
 
