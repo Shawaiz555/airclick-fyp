@@ -201,6 +201,13 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             detail="Incorrect email or password"
         )
 
+    # Check if user account is blocked/inactive
+    if user.status == "INACTIVE":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account has been blocked by the administrator. Please contact support for assistance."
+        )
+
     # Check if user registered via OAuth (no password set)
     if user.oauth_provider and not user.password_hash:
         raise HTTPException(
@@ -336,6 +343,13 @@ async def google_auth(
     is_new_user = False
 
     if existing_user:
+        # Check if user account is blocked/inactive
+        if existing_user.status == "INACTIVE":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been blocked by the administrator. Please contact support for assistance."
+            )
+
         # User exists - update OAuth information if needed
         if not existing_user.oauth_provider:
             # User registered with email/password, now linking Google
