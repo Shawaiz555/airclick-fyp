@@ -500,14 +500,12 @@ class GestureMatcher:
         indexing_stats = {}
 
         if self.enable_indexing and len(stored_gestures) > 10:
-            candidates, indexing_stats = self.indexer.get_candidate_gestures(
+            candidates, _ = self.indexer.get_candidate_gestures(
                 input_frames,
                 stored_gestures
             )
 
-            logger.info(f"Phase 3 Indexing: {len(stored_gestures)} → {len(candidates)} candidates")
-            logger.info(f"  Clustering: {indexing_stats.get('candidates_after_clustering', 0)} candidates")
-            logger.info(f"  Early rejection: {indexing_stats.get('candidates_after_filtering', 0)} candidates")
+            logger.debug(f"Indexing: {len(stored_gestures)} → {len(candidates)} candidates")
 
             # Adjust for strict filtering if database is large
             if len(stored_gestures) > 500 and not self.indexer.strict_filtering:
@@ -532,11 +530,8 @@ class GestureMatcher:
                     input_pose_data = calculate_pose_signature(first_frame_landmarks)
                     input_pose_signature = input_pose_data['signature']
 
-                    logger.info(f"\n{'='*60}")
-                    logger.info(f"POSE FILTERING:")
-                    logger.info(f"  Input pose: {input_pose_signature} ({input_pose_data['extended_count']} fingers)")
-                    logger.info(f"  Gesture hint: {input_pose_data['gesture_hint']}")
-                    logger.info(f"{'='*60}\n")
+                    # PERFORMANCE FIX: Reduce logging verbosity - only log summary, not every candidate
+                    logger.debug(f"POSE FILTERING: Input pose {input_pose_signature} ({input_pose_data['extended_count']} fingers) - {input_pose_data['gesture_hint']}")
 
                     # Filter candidates by pose compatibility
                     strict_matches = []  # Pose matches perfectly (hamming <= 1)
@@ -549,29 +544,18 @@ class GestureMatcher:
                         if not stored_pose:
                             # Legacy gesture without pose signature - include it (backward compatible)
                             strict_matches.append(candidate)
-                            logger.debug(f"  ℹ️ '{candidate.get('name')}': No pose signature (legacy), including")
                             continue
 
                         # Calculate Hamming distance (number of different fingers)
                         hamming_dist = calculate_pose_distance(input_pose_signature, stored_pose)
-                        stored_hint = candidate.get('landmark_data', {}).get('gesture_hint', 'Unknown')
 
-                        # Categorize by pose similarity
+                        # Categorize by pose similarity (NO LOGGING per candidate - too slow!)
                         if hamming_dist <= 1:
-                            # Very similar pose - include in strict matches
                             strict_matches.append(candidate)
-                            logger.info(f"  ✅ '{candidate.get('name')}': STRONG pose match "
-                                      f"(stored={stored_pose}, hamming={hamming_dist}) - {stored_hint}")
                         elif hamming_dist == 2:
-                            # Moderately similar - might be detection error
                             moderate_matches.append(candidate)
-                            logger.info(f"  ⚠️ '{candidate.get('name')}': MODERATE pose match "
-                                      f"(stored={stored_pose}, hamming={hamming_dist}) - {stored_hint}")
                         else:
-                            # Very different pose - likely incompatible
                             weak_matches.append(candidate)
-                            logger.info(f"  ❌ '{candidate.get('name')}': WEAK pose match "
-                                      f"(stored={stored_pose}, hamming={hamming_dist}) - {stored_hint}")
 
                     # Smart filtering strategy:
                     # 1. If we have strict matches, use only those (best case)
@@ -579,22 +563,22 @@ class GestureMatcher:
                     # 3. If still nothing, include weak matches (fallback, but trajectory penalty will filter)
                     if strict_matches:
                         pose_filtered_candidates = strict_matches
-                        logger.info(f"\n✅ Using {len(strict_matches)} STRONG pose matches\n")
+                        logger.debug(f"Using {len(strict_matches)} STRONG pose matches")
                         pose_filter_applied = True
                     elif moderate_matches:
                         pose_filtered_candidates = moderate_matches
-                        logger.warning(f"\n⚠️ No strong matches, using {len(moderate_matches)} MODERATE matches\n")
+                        logger.debug(f"Using {len(moderate_matches)} MODERATE pose matches")
                         pose_filter_applied = True
                     elif weak_matches:
                         pose_filtered_candidates = weak_matches
-                        logger.warning(f"\n⚠️ No strong/moderate matches, using {len(weak_matches)} WEAK matches (trajectory penalty will filter)\n")
+                        logger.debug(f"Using {len(weak_matches)} WEAK pose matches")
                         pose_filter_applied = True
                     else:
                         # This should never happen, but fallback to all candidates
                         pose_filtered_candidates = candidates
-                        logger.warning(f"\n⚠️ Pose filtering produced no matches, using all {len(candidates)} candidates\n")
+                        logger.warning(f"Pose filtering produced no matches, using all {len(candidates)} candidates")
 
-                    logger.info(f"Pose filtering: {len(candidates)} → {len(pose_filtered_candidates)} candidates\n")
+                    logger.debug(f"Pose filtering: {len(candidates)} → {len(pose_filtered_candidates)} candidates")
                     candidates = pose_filtered_candidates
 
                 else:
@@ -617,7 +601,7 @@ class GestureMatcher:
         best_similarity = 0.0
         best_distance = float('inf')
 
-        logger.info(f"Input gesture: {len(input_frames)} frames → {len(input_normalized)} normalized features")
+        logger.debug(f"Input gesture: {len(input_frames)} frames → {len(input_normalized)} normalized features")
 
         # Phase 3: Parallel processing for multiple candidates
         if self.enable_parallel and len(candidates) > 10:
@@ -655,39 +639,28 @@ class GestureMatcher:
                     if hamming_dist == 0:
                         # Perfect pose match - reduce threshold by 10%
                         gesture_threshold *= 0.90
-                        logger.info(f"  🎯 Perfect pose match bonus: threshold reduced to {gesture_threshold:.2%}")
+                        logger.debug(f"Perfect pose match bonus: threshold reduced to {gesture_threshold:.2%}")
                     elif hamming_dist == 1:
                         # Strong pose match - reduce threshold by 5%
                         gesture_threshold *= 0.95
-                        logger.info(f"  🎯 Strong pose match bonus: threshold reduced to {gesture_threshold:.2%}")
+                        logger.debug(f"Strong pose match bonus: threshold reduced to {gesture_threshold:.2%}")
         else:
             gesture_threshold = self.similarity_threshold
 
-        # Log summary
-        logger.info(f"\nMatching Results Summary:")
-        logger.info(f"  Total gestures in database: {len(stored_gestures)}")
-        logger.info(f"  Candidates evaluated: {len(candidates)}")
-        logger.info(f"  Best match: {best_match.get('name') if best_match else 'None'}")
-        logger.info(f"  Best similarity: {best_similarity:.2%}")
-        logger.info(f"  Threshold (adaptive): {gesture_threshold:.2%}")
-        logger.info(f"  Total time: {total_time:.1f}ms")
-
+        # PERFORMANCE FIX: Only log essential info - moved detailed logs to debug
         # Check if best match meets threshold
         result = None
         if best_match and best_similarity >= gesture_threshold:
-            logger.info(f"  ✓ Match accepted! '{best_match.get('name')}' exceeds threshold")
+            # SUCCESS: Log concise match result
+            logger.info(f"✓ Matched '{best_match.get('name')}' ({best_similarity:.1%}) in {total_time:.0f}ms")
             result = (best_match, best_similarity)
         else:
-            logger.info(f"  ✗ No match: Best similarity ({best_similarity:.2%}) < Threshold ({gesture_threshold:.2%})")
-            logger.info(f"\nTroubleshooting tips:")
-            logger.info(f"  - Try performing the gesture more slowly")
-            logger.info(f"  - Ensure hand stays in frame throughout gesture")
-            logger.info(f"  - Record additional variations of this gesture for better matching")
-            logger.info(f"  - Check if gesture motion matches recording closely")
+            # NO MATCH: Log brief message only
+            logger.info(f"✗ No match: best {best_similarity:.1%} < threshold {gesture_threshold:.1%} ({total_time:.0f}ms)")
 
             # If return_best_candidate is True, still return the best match for false trigger tracking
             if return_best_candidate and best_match:
-                logger.info(f"  ℹ️ Returning best candidate for false trigger tracking")
+                logger.debug(f"Returning best candidate for false trigger tracking")
                 result = (best_match, best_similarity)
 
         # Phase 3: Cache result for future queries
@@ -1054,34 +1027,21 @@ class GestureMatcher:
                 # FIXED: Convert to similarity correctly
                 similarity = self.calculate_final_similarity(value, is_similarity)
 
-                # CRITICAL FIX v5: Apply trajectory consistency check using stored raw_trajectory
-                # This prevents matching gestures with opposite movement directions
-                # Must use stored raw_trajectory because Procrustes normalization removes position info
-                logger.info(f"  Calculating trajectory penalty for '{gesture.get('name')}'...")
+                # PERFORMANCE FIX: Calculate penalties without verbose logging
                 trajectory_penalty = self._calculate_trajectory_penalty_from_raw_frames(
-                    input_frames, gesture  # Pass full gesture dict to access raw_trajectory
+                    input_frames, gesture
                 )
 
-                # CRITICAL FIX v15: Combined trajectory + pose penalty
-                # Apply trajectory penalty first
+                # Apply trajectory penalty
                 if trajectory_penalty > 0.75:
-                    # Very high penalty: likely different gesture types
                     penalty_weight = 0.5
-                    adjusted_similarity = similarity * (1.0 - trajectory_penalty * penalty_weight)
-                    logger.info(f"    High trajectory mismatch (penalty={trajectory_penalty:.2f}) → using 50% weight")
                 elif trajectory_penalty > 0.4:
-                    # Moderate penalty: some trajectory differences
                     penalty_weight = 0.4
-                    adjusted_similarity = similarity * (1.0 - trajectory_penalty * penalty_weight)
-                    logger.info(f"    Moderate trajectory mismatch (penalty={trajectory_penalty:.2f}) → using 40% weight")
                 else:
-                    # Low penalty: trajectories are compatible
                     penalty_weight = 0.3
-                    adjusted_similarity = similarity * (1.0 - trajectory_penalty * penalty_weight)
-                    logger.info(f"    Low trajectory mismatch (penalty={trajectory_penalty:.2f}) → using 30% weight")
+                adjusted_similarity = similarity * (1.0 - trajectory_penalty * penalty_weight)
 
-                # CRITICAL FIX v15: Apply pose penalty for WEAK matches
-                # If this was a WEAK pose match (hamming >= 3), apply additional penalty
+                # Apply pose penalty for WEAK matches
                 if input_pose_signature:
                     stored_pose = gesture.get('landmark_data', {}).get('pose_signature')
                     if stored_pose:
@@ -1089,20 +1049,11 @@ class GestureMatcher:
                         hamming_dist = calculate_pose_distance(input_pose_signature, stored_pose)
 
                         if hamming_dist >= 3:
-                            # WEAK pose match - heavily penalize
-                            pose_penalty = 0.25 * hamming_dist  # 25% per finger difference
-                            adjusted_similarity *= (1.0 - min(pose_penalty, 0.7))  # Max 70% penalty
-                            logger.info(f"    ⚠️ WEAK pose match penalty: hamming={hamming_dist} → additional {pose_penalty:.1%} penalty")
-                            logger.debug(f"       Final adjusted similarity: {adjusted_similarity:.2%}")
+                            pose_penalty = 0.25 * hamming_dist
+                            adjusted_similarity *= (1.0 - min(pose_penalty, 0.7))
 
-                # ✅ CRITICAL FIX #4: Enhanced logging with distance/similarity info
-                if is_similarity:
-                    logger.info(f"  {idx}. '{gesture.get('name')}' (template {gesture.get('template_index', 0)}): "
-                              f"similarity={similarity:.2%} → adjusted={adjusted_similarity:.2%} "
-                              f"(trajectory_penalty={trajectory_penalty:.2f})")
-                else:
-                    logger.info(f"  {idx}. '{gesture.get('name')}' (template {gesture.get('template_index', 0)}): "
-                              f"distance={value:.2f} → similarity={similarity:.2%} → adjusted={adjusted_similarity:.2%}")
+                # PERFORMANCE FIX: Only log the final result for each gesture (1 line instead of 5)
+                logger.debug(f"{idx}. '{gesture.get('name')}': {adjusted_similarity:.1%}")
 
                 # Update best match if this is better (using adjusted similarity)
                 if adjusted_similarity > best_similarity:
@@ -1196,9 +1147,8 @@ class GestureMatcher:
                     gesture, adjusted_similarity = future.result()
 
                     if adjusted_similarity > 0:
-                        # ✅ CRITICAL FIX #4: Enhanced logging for parallel matching
-                        logger.info(f"  {idx}. '{gesture.get('name')}' (template {gesture.get('template_index', 0)}): "
-                                  f"similarity={adjusted_similarity:.2%} (parallel)")
+                        # PERFORMANCE FIX: Minimal logging in parallel mode
+                        logger.debug(f"{idx}. '{gesture.get('name')}': {adjusted_similarity:.1%}")
 
                         if adjusted_similarity > best_similarity:
                             best_similarity = adjusted_similarity

@@ -902,19 +902,20 @@ export default function Home() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ hybridMode: newValue })
                           });
+                          console.log(`🔄 Hybrid mode updated: ${newValue ? 'ON (Cursor Enabled)' : 'OFF (Cursor Disabled)'}`);
                         } catch (err) {
                           console.warn('Could not sync to Electron');
                         }
                       }}
                       className={`py-4 px-6 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 shadow-lg ${hybridMode
                         ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 hover:shadow-purple-500/40'
-                        : 'bg-gray-800/60 hover:bg-gray-700/60 border-2 border-gray-600/50'
+                        : 'bg-gradient-to-r from-red-500 to-orange-600 hover:from-red-600 hover:to-orange-700 hover:shadow-red-500/40'
                         } transform hover:scale-[1.02] cursor-pointer`}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                       </svg>
-                      {hybridMode ? 'Hybrid: ON' : 'Hybrid: OFF'}
+                      {hybridMode ? 'Cursor: ON' : 'Cursor: OFF'}
                     </button>
                   </div>
                 </div>

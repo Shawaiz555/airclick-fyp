@@ -1159,18 +1159,29 @@
             ".airclick-hybridmode",
           );
 
-          // CRITICAL FIX: Always default to TRUE for cursor control to work
-          // Cursor control system (hybrid mode) should be enabled by default
-          hybridModeEnabled = true;
-
-          // Always write/overwrite the file to ensure it's set to true
-          try {
-            fs.writeFileSync(hybridModeFile, "true", "utf8");
-            console.log(
-              "🔧 Hybrid mode initialized: true (cursor control ENABLED by default)",
-            );
-          } catch (err) {
-            console.warn("⚠️ Could not write hybrid mode file:", err.message);
+          // Read current value from file (if exists) - DON'T overwrite user preference!
+          if (fs.existsSync(hybridModeFile)) {
+            try {
+              const fileContent = fs.readFileSync(hybridModeFile, "utf8").trim();
+              hybridModeEnabled = fileContent === "true";
+              console.log(
+                `🔧 Hybrid mode read from file: ${hybridModeEnabled} (cursor control ${hybridModeEnabled ? 'ENABLED' : 'DISABLED'})`,
+              );
+            } catch (err) {
+              console.warn("⚠️ Could not read hybrid mode file:", err.message);
+              hybridModeEnabled = true; // Default to true on read error
+            }
+          } else {
+            // File doesn't exist - create it with default value (true)
+            hybridModeEnabled = true;
+            try {
+              fs.writeFileSync(hybridModeFile, "true", "utf8");
+              console.log(
+                "🔧 Hybrid mode file created with default: true (cursor control ENABLED)",
+              );
+            } catch (err) {
+              console.warn("⚠️ Could not create hybrid mode file:", err.message);
+            }
           }
         } catch (error) {
           console.error("Error initializing hybrid mode:", error);
@@ -1212,12 +1223,13 @@
         // Get current hybrid mode
         const currentMode = initializeHybridMode();
 
-        // Determine WebSocket URL based on hybrid mode
-        const wsUrl = currentMode
-          ? "ws://localhost:8000/ws/hand-tracking-hybrid"
-          : "ws://localhost:8000/ws/hand-tracking";
+        // CRITICAL FIX: ALWAYS use hybrid endpoint
+        // The hybrid endpoint has the state machine which works for both cursor+gesture and gesture-only modes
+        // The backend will enable/disable cursor control based on the .airclick-hybridmode file
+        // The old /ws/hand-tracking endpoint doesn't have state machine support
+        const wsUrl = "ws://localhost:8000/ws/hand-tracking-hybrid";
 
-        console.log(`🔌 Connecting to: ${wsUrl} (hybrid_mode=${currentMode})`);
+        console.log(`🔌 Connecting to: ${wsUrl} (hybrid_mode=${currentMode}, cursor will be ${currentMode ? 'ENABLED' : 'DISABLED'})`);
 
         // Connect to backend WebSocket
         ws = new WebSocket(wsUrl);
@@ -1829,13 +1841,20 @@
         };
 
         // CRITICAL FIX: Check if cursor is actually enabled (not just state)
-        // Distinguish between "recording" and "not authenticated"
+        // Distinguish between "recording", "user disabled", and "not authenticated"
         let stateName = stateNames[state] || state.toUpperCase();
         let stateClass = state;
 
-        if (state === "cursor_only" && stateMachine.cursor_enabled === false) {
-          // Check if user is recording vs not authenticated
+        // PHASE 5 FIX: Check cursor_disabled_by_user FIRST, regardless of state
+        // When user toggles hybrid mode OFF, show "Cursor: OFF" in ANY state
+        if (stateMachine.cursor_disabled_by_user === true) {
+          // User toggled hybrid mode OFF from home page
+          stateName = "Cursor: OFF";
+          stateClass = "disabled";
+        } else if (state === "cursor_only" && stateMachine.cursor_enabled === false) {
+          // Cursor disabled for other reasons (recording or not authenticated)
           if (stateMachine.is_recording === true) {
+            // User is recording a gesture
             stateName = "Disabled (Recording)";
             stateClass = "disabled";
           } else {

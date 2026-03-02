@@ -409,17 +409,21 @@ class HandTrackingService:
 
                 def auth_check_callback():
                     """
-                    Check if user is authenticated AND has gestures to match AND not recording.
+                    Check if user is recording AND if authentication is required for current mode.
                     Called by state machine BEFORE starting frame collection.
 
                     Returns False if:
-                    - User is not authenticated
-                    - User has no gestures
-                    - User is currently recording/updating a gesture (to avoid interference)
+                    - User is currently recording/updating a gesture (always block to avoid interference)
+                    - Hybrid mode is ON AND user is not authenticated (cursor control requires clean workflow)
+
+                    CRITICAL FIX: When hybrid mode is OFF, authentication is NOT enforced for gesture collection.
+                    The user can still collect and match gestures even without logging in (if they have gestures).
+                    The gesture_match_callback will handle the actual authentication check during matching.
                     """
                     nonlocal auth_block_logged
 
                     # CRITICAL: Check if user is recording a gesture FIRST
+                    # ALWAYS block gesture collection when recording (regardless of hybrid mode)
                     import os
                     recording_state_path = os.path.join(os.path.expanduser("~"), ".airclick-recording")
 
@@ -430,24 +434,38 @@ class HandTrackingService:
 
                             if is_recording:
                                 if not auth_block_logged:
-                                    logger.warning("⚠️ BLOCKING gesture matching - User is recording/updating a gesture")
+                                    logger.warning("⚠️ BLOCKING gesture collection - User is recording/updating a gesture")
                                     auth_block_logged = True
                                 return False
                     except Exception as e:
                         logger.error(f"Failed to check recording state: {e}")
 
-                    # Then check authentication
-                    if not gesture_matching_enabled:
-                        if not auth_block_logged:
-                            logger.warning(f"⚠️ BLOCKING gesture matching - gesture_matching_enabled={gesture_matching_enabled}")
-                            logger.info("💡 TIP: Log in to the web app to enable gesture matching")
-                            auth_block_logged = True
-                        return False
+                    # HYBRID MODE CHECK: Only enforce authentication when cursor control is active
+                    # When hybrid mode is ON: Cursor control + gesture recognition work together,
+                    #                         so we need clean authenticated workflow
+                    # When hybrid mode is OFF: Only gesture recognition is active,
+                    #                          so allow collection to proceed (matching will check auth)
+                    if hybrid_controller.hybrid_mode_enabled:
+                        # Hybrid mode ON - enforce authentication for clean cursor+gesture workflow
+                        if not gesture_matching_enabled:
+                            if not auth_block_logged:
+                                logger.warning(f"⚠️ BLOCKING gesture collection - Hybrid mode ON requires authentication")
+                                logger.info("💡 TIP: Log in to the web app to enable gesture matching")
+                                auth_block_logged = True
+                            return False
+                    else:
+                        # Hybrid mode OFF - allow gesture collection without strict auth enforcement
+                        # The gesture_match_callback will handle authentication during actual matching
+                        if auth_block_logged and not gesture_matching_enabled:
+                            logger.info("✅ Gesture collection ALLOWED - Hybrid mode OFF (cursor disabled, gesture-only mode)")
+                            logger.info("   Note: Gesture matching still requires authentication")
+                            auth_block_logged = False
 
-                    # Reset flag when authentication succeeds
+                    # Reset flag when authentication succeeds (hybrid mode ON + authenticated)
                     if auth_block_logged:
-                        logger.info("✅ Gesture matching ALLOWED - Starting frame collection")
+                        logger.info("✅ Gesture collection ALLOWED - Authentication successful")
                         auth_block_logged = False
+
                     return True
 
                 # Register the auth check callback
@@ -749,8 +767,34 @@ class HandTrackingService:
 
                 # Register the callback
                 hybrid_controller.set_gesture_match_callback(gesture_match_callback)
-                hybrid_controller.enable_hybrid_mode()
-                logger.info(f"✅ Hybrid mode ENABLED for client {client_id} with gesture matching")
+
+                # CRITICAL FIX: Read hybrid mode preference from file
+                # User can toggle hybrid mode ON/OFF from the frontend
+                # When OFF: Disable cursor control, but keep gesture recognition and state machine working
+                # When ON: Enable cursor control + gesture recognition
+                hybrid_mode_preference = True  # Default to True
+                hybrid_mode_file = os.path.join(os.path.expanduser("~"), ".airclick-hybridmode")
+
+                if os.path.exists(hybrid_mode_file):
+                    try:
+                        with open(hybrid_mode_file, 'r') as f:
+                            hybrid_mode_value = f.read().strip().lower()
+                            hybrid_mode_preference = hybrid_mode_value == 'true'
+                            logger.info(f"📖 Read hybrid mode preference from file: {hybrid_mode_preference}")
+                    except Exception as e:
+                        logger.warning(f"Failed to read hybrid mode file: {e}, using default: True")
+                        hybrid_mode_preference = True
+                else:
+                    logger.info(f"📄 Hybrid mode file does not exist, using default: True")
+                    hybrid_mode_preference = True
+
+                # Enable/disable hybrid mode based on user preference
+                if hybrid_mode_preference:
+                    hybrid_controller.enable_hybrid_mode()
+                    logger.info(f"✅ Hybrid mode ENABLED for client {client_id} (cursor control ON)")
+                else:
+                    hybrid_controller.disable_hybrid_mode()
+                    logger.info(f"⚠️ Hybrid mode DISABLED for client {client_id} (cursor control OFF, gesture recognition still active)")
 
             except Exception as e:
                 logger.error(f"Failed to initialize hybrid mode: {e}")
@@ -762,8 +806,39 @@ class HandTrackingService:
             frame_times = []
             last_frame_time = time.time()
 
+            # Hybrid mode preference tracking
+            last_hybrid_check_time = time.time()
+            hybrid_check_interval = 1.0  # Check hybrid mode preference every 1 second
+
             # Keep connection alive and send data
             while True:
+                # DYNAMIC HYBRID MODE CHECK: Periodically check if user toggled hybrid mode
+                current_time = time.time()
+                if hybrid_mode and hybrid_controller and (current_time - last_hybrid_check_time) >= hybrid_check_interval:
+                    last_hybrid_check_time = current_time
+
+                    # Read current hybrid mode preference from file
+                    hybrid_mode_file = os.path.join(os.path.expanduser("~"), ".airclick-hybridmode")
+                    current_hybrid_preference = True  # Default
+
+                    if os.path.exists(hybrid_mode_file):
+                        try:
+                            with open(hybrid_mode_file, 'r') as f:
+                                hybrid_mode_value = f.read().strip().lower()
+                                current_hybrid_preference = hybrid_mode_value == 'true'
+                        except Exception as e:
+                            logger.warning(f"Failed to read hybrid mode file: {e}")
+                            current_hybrid_preference = True
+
+                    # Check if preference changed
+                    if current_hybrid_preference != hybrid_controller.hybrid_mode_enabled:
+                        if current_hybrid_preference:
+                            hybrid_controller.enable_hybrid_mode()
+                            logger.info(f"🔄 Hybrid mode dynamically ENABLED (cursor control ON)")
+                        else:
+                            hybrid_controller.disable_hybrid_mode()
+                            logger.info(f"🔄 Hybrid mode dynamically DISABLED (cursor control OFF)")
+
                 # Track frame start time for latency calculation
                 frame_start = time.time()
 
@@ -845,7 +920,8 @@ class HandTrackingService:
                                     'success': False,
                                     'error': 'No hands detected',
                                     'state_machine': state_machine_info,  # Send full state info including match_result
-                                    'hybrid_mode_enabled': True
+                                    'hybrid_mode_enabled': hybrid_controller.hybrid_mode_enabled,  # CRITICAL FIX: Use actual hybrid mode state
+                                    'cursor_enabled': False  # Cursor always disabled when no hand
                                 }
                             }
 

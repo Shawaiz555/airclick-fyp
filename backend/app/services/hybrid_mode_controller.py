@@ -89,25 +89,17 @@ class HybridModeController:
         if hand_data.get('hand_count', 0) == 0:
             # CRITICAL FIX: Notify state machine about hand removal
             # This triggers gesture matching if we were collecting frames
-            if self.hybrid_mode_enabled:
-                state_metadata = self.state_machine.handle_no_hand_detected(
-                    match_callback=self.gesture_match_callback
-                )
-                return {
-                    'success': False,
-                    'error': 'No hands detected',
-                    'hybrid_mode_enabled': self.hybrid_mode_enabled,
-                    'cursor_enabled': False,
-                    'state_machine': state_metadata
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': 'No hands detected',
-                    'hybrid_mode_enabled': self.hybrid_mode_enabled,
-                    'cursor_enabled': False,
-                    'state_machine': self.state_machine.get_state_info()
-                }
+            # This works regardless of whether cursor control is enabled or not
+            state_metadata = self.state_machine.handle_no_hand_detected(
+                match_callback=self.gesture_match_callback
+            )
+            return {
+                'success': False,
+                'error': 'No hands detected',
+                'hybrid_mode_enabled': self.hybrid_mode_enabled,
+                'cursor_enabled': False,  # Cursor always disabled when no hand detected
+                'state_machine': state_metadata
+            }
 
         # Get first hand landmarks
         hand = hand_data['hands'][0]
@@ -213,21 +205,34 @@ class HybridModeController:
                 self.stats['gestures_matched'] += 1
 
         else:
-            # Hybrid mode OFF - gesture-only mode (no state machine)
-            result['cursor_enabled'] = False
+            # Hybrid mode OFF - cursor control disabled, but state machine still works for gesture recognition
+            # Update state machine for gesture collection and matching
+            state, state_metadata = self.state_machine.update(
+                frame,
+                match_callback=self.gesture_match_callback
+            )
+
+            result['state_machine'] = state_metadata
+            result['cursor_enabled'] = False  # Cursor control is OFF
+
+            # CRITICAL: Add flag to indicate cursor is disabled by user preference (not recording)
+            result['state_machine']['cursor_disabled_by_user'] = True
+            result['state_machine']['is_recording'] = False
+
+            # Cursor and clicks are disabled
             result['cursor'] = {
                 'success': False,
                 'cursor_enabled': False,
-                'message': 'Hybrid mode disabled'
+                'message': 'Cursor control disabled (hybrid mode OFF)'
             }
             result['clicks'] = {
                 'click_type': 'none',
-                'message': 'Hybrid mode disabled'
+                'message': 'Click detection disabled (hybrid mode OFF)'
             }
-            result['state_machine'] = {
-                'state': 'disabled',
-                'cursor_enabled': False
-            }
+
+            # Track gesture matches even when cursor is off
+            if state == HybridState.IDLE and state_metadata.get('match_result'):
+                self.stats['gestures_matched'] += 1
 
         # Calculate latency
         latency = (time.time() - start_time) * 1000
