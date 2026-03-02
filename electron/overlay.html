@@ -1876,7 +1876,7 @@
             gesture_name: matchResult.gesture_name,
             similarity: matchResult.similarity,
             authenticated: matchResult.authenticated,
-            timestamp: Math.floor(Date.now() / 1000) // Round to second to group similar results
+            timestamp: Math.floor(Date.now() / 1000), // Round to second to group similar results
           });
 
           // Only show if this is a different result than last shown
@@ -1889,7 +1889,33 @@
               matchBannerTimeout = null;
             }
 
-            if (matchResult.matched) {
+            if (matchResult.matched && matchResult.context_mismatch) {
+              // Context mismatch - show warning banner with detailed message
+              container.classList.add("failed");
+              container.classList.remove("matched");
+              matchStatusBanner.classList.add("visible", "no-match");
+              matchStatusIcon.textContent = "⚠";
+
+              // Create clear, actionable message with instruction to change context
+              const gestureContext = matchResult.gesture_context || "UNKNOWN";
+              const activeContext = matchResult.active_context || "UNKNOWN";
+              matchStatusText.textContent = `"${matchResult.gesture_name}" is a ${gestureContext} gesture. Change context to ${gestureContext} in Home page or use ${activeContext} gestures`;
+
+              console.log(
+                `⚠️ Context mismatch: ${matchResult.gesture_name} is from ${gestureContext} context, currently in ${activeContext}. User can change context in Home page.`,
+              );
+
+              // Auto-hide after 4 seconds - LONGER for context mismatch to read message
+              matchBannerTimeout = setTimeout(() => {
+                matchStatusBanner.classList.remove("visible", "no-match");
+                container.classList.remove("failed");
+                lastShownMatchResult = null;
+                matchBannerTimeout = null;
+                console.log(
+                  "⚠️ Context mismatch banner auto-hidden - ready for new gesture",
+                );
+              }, 4000);
+            } else if (matchResult.matched) {
               // Matched gesture - show success banner
               container.classList.add("matched");
               matchStatusBanner.classList.add("visible");
@@ -1907,7 +1933,9 @@
                 container.classList.remove("matched");
                 lastShownMatchResult = null; // Reset after hiding to allow new gestures
                 matchBannerTimeout = null;
-                console.log("✅ Success banner auto-hidden - ready for new gesture");
+                console.log(
+                  "✅ Success banner auto-hidden - ready for new gesture",
+                );
               }, 1500);
             } else if (matchResult.authenticated === false) {
               // Not authenticated - show login required
@@ -1922,7 +1950,9 @@
                 matchStatusBanner.classList.remove("visible", "no-match");
                 lastShownMatchResult = null; // Reset after hiding
                 matchBannerTimeout = null;
-                console.log("🔒 Login banner auto-hidden - ready for new gesture");
+                console.log(
+                  "🔒 Login banner auto-hidden - ready for new gesture",
+                );
               }, 1500);
             } else {
               // No match found
@@ -1937,7 +1967,9 @@
                 matchStatusBanner.classList.remove("visible", "no-match");
                 lastShownMatchResult = null; // CRITICAL: Reset to allow new gesture
                 matchBannerTimeout = null;
-                console.log("✅ NO MATCH banner auto-hidden - ready for new gesture");
+                console.log(
+                  "✅ NO MATCH banner auto-hidden - ready for new gesture",
+                );
               }, 1500);
             }
           }
@@ -1958,7 +1990,9 @@
               matchBannerTimeout = null;
             }
 
-            console.log("🔄 Left IDLE state - banner hidden, ready for new gesture");
+            console.log(
+              "🔄 Left IDLE state - banner hidden, ready for new gesture",
+            );
           }
         }
 
@@ -1996,8 +2030,40 @@
 
       // Update gesture match result
       function updateGestureMatch(data) {
-        if (data.matched) {
-          // Success
+        // Check for context mismatch
+        if (data.matched && data.contextMismatch) {
+          // Context mismatch - show warning
+          container.classList.add("failed");
+          container.classList.remove("matched");
+
+          // Show context mismatch status banner
+          matchStatusBanner.classList.add("visible", "no-match");
+          matchStatusIcon.textContent = "⚠";
+          matchStatusText.textContent = `CONTEXT MISMATCH - ${data.name || ""}`;
+
+          gestureResult.classList.add("visible", "failed");
+          gestureResult.classList.remove("success");
+
+          gestureIcon.classList.add("failed");
+          gestureIcon.classList.remove("success");
+          gestureIcon.textContent = "⚠";
+
+          gestureName.textContent = data.name || "Context Mismatch";
+          gestureAction.textContent = `${data.gestureContext || "?"} → ${data.activeContext || "?"}`;
+          gestureSimilarity.textContent = `${data.similarity}%`;
+          gestureSimilarity.className = "stat-value warning";
+          gestureFrames.textContent = data.frames || "60";
+          gestureStatus.textContent = "⚠ Context Mismatch";
+          gestureStatus.className = "stat-value error";
+
+          // Auto-hide after 3 seconds (longer for context mismatch to read)
+          setTimeout(() => {
+            gestureResult.classList.remove("visible");
+            matchStatusBanner.classList.remove("visible", "no-match");
+            container.classList.remove("failed");
+          }, 3000);
+        } else if (data.matched) {
+          // Success - normal match
           container.classList.add("matched");
           container.classList.remove("failed");
 
@@ -2300,6 +2366,21 @@
             return;
           }
 
+          // Get active context from token-helper
+          let activeContext = "ALL";
+          try {
+            const contextResponse = await fetch(
+              "http://localhost:3001/get-context",
+            );
+            if (contextResponse.ok) {
+              const contextData = await contextResponse.json();
+              activeContext = contextData.context || "ALL";
+              console.log(`🎯 Active context: ${activeContext}`);
+            }
+          } catch (err) {
+            console.warn("Could not fetch active context, using default: ALL");
+          }
+
           console.log("📡 Sending match request to backend...");
           const response = await fetch(
             "http://localhost:8000/api/gestures/match",
@@ -2308,6 +2389,7 @@
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
+                "X-Active-Context": activeContext,
               },
               body: JSON.stringify(frames),
             },

@@ -50,7 +50,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   // App settings state
-  const [activeApp, setActiveApp] = useState('GLOBAL');
+  const [activeApp, setActiveApp] = useState('ALL');  // Start with ALL context by default
   const [hybridMode, setHybridMode] = useState(true);  // Start with hybrid mode ON by default
 
   // WebSocket state
@@ -80,7 +80,7 @@ export default function Home() {
 
   // ==================== CONSTANTS ====================
 
-  const apps = ['POWERPOINT', 'WORD', 'GLOBAL'];
+  const apps = ['ALL', 'GLOBAL', 'POWERPOINT', 'WORD'];
 
   // ==================== LOAD USER GESTURES ====================
 
@@ -102,6 +102,20 @@ export default function Home() {
       syncHybridModeToElectron(true);
     }
 
+    // Initialize active context from localStorage
+    const savedContext = localStorage.getItem('activeContext');
+    if (savedContext !== null) {
+      setActiveApp(savedContext);
+      // Sync to Electron overlay
+      syncContextToElectron(savedContext);
+    } else {
+      // Set default to ALL if not in localStorage
+      localStorage.setItem('activeContext', 'ALL');
+      setActiveApp('ALL');
+      // Sync to Electron overlay
+      syncContextToElectron('ALL');
+    }
+
     // Listen for hybrid mode changes from gesture management page (same window)
     const handleHybridModeChange = (e) => {
       const newValue = e.detail.hybridMode;
@@ -115,6 +129,10 @@ export default function Home() {
         const newValue = e.newValue === 'true';
         console.log('🔄 Hybrid mode changed (other tab):', newValue);
         setHybridMode(newValue);
+      }
+      if (e.key === 'activeContext' && e.newValue !== null) {
+        console.log('🔄 Active context changed (other tab):', e.newValue);
+        setActiveApp(e.newValue);
       }
     };
 
@@ -159,6 +177,21 @@ export default function Home() {
       });
     } catch (error) {
       console.log('Could not sync hybrid mode to Electron');
+    }
+  };
+
+  // Sync active context to Electron overlay
+  const syncContextToElectron = async (context) => {
+    try {
+      await fetch('http://localhost:3001/save-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context })
+      }).catch(err => {
+        console.log('Token helper not running (this is okay if not using Electron overlay)');
+      });
+    } catch (error) {
+      console.log('Could not sync context to Electron');
     }
   };
 
@@ -470,7 +503,8 @@ export default function Home() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-Active-Context': activeApp  // Send active context to backend
         },
         body: JSON.stringify(frames)
       });
@@ -481,13 +515,17 @@ export default function Home() {
         setMatchedGesture(result.gesture);
         setSimilarity(result.similarity);
 
+        // Check if context matches (ALL matches everything)
+        const contextMatches = activeApp === 'ALL' || result.gesture.app_context === activeApp;
+        const contextMismatch = !contextMatches;
+
         // NEW: Add to recent matches history
         setRecentMatches(prev => [{
           name: result.gesture.name,
           similarity: (result.similarity * 100).toFixed(0),
-          success: true,
+          success: contextMatches,  // Mark as success only if context matches
           timestamp: new Date().toLocaleTimeString(),
-          action: result.gesture.action
+          action: contextMatches ? result.gesture.action : 'Context Mismatch'
         }, ...prev].slice(0, 5));
 
         // Send match result to Electron overlay
@@ -498,25 +536,29 @@ export default function Home() {
               name: result.gesture.name,
               action: result.gesture.action,
               similarity: Math.round(result.similarity * 100),
-              frames: 60
+              frames: 60,
+              contextMismatch: contextMismatch,
+              gestureContext: result.gesture.app_context,
+              activeContext: activeApp
             }
           });
         }
 
         // Check if context matches
-        if (result.gesture.app_context === activeApp) {
+        if (contextMatches) {
           setStatusMessage(`✅ Matched: ${result.gesture.name} (${(result.similarity * 100).toFixed(0)}%) - Executing...`);
           // Auto-execute immediately
           await executeGestureAction(result.gesture.id);
         } else {
-          setStatusMessage(`✅ Matched: ${result.gesture.name} - Switch to ${result.gesture.app_context} context to execute`);
+          // Context mismatch - show clear feedback
+          setStatusMessage(`⚠️ Gesture "${result.gesture.name}" is from ${result.gesture.app_context} context. Currently in ${activeApp} context.`);
         }
 
-        // Clear matched gesture after 2 seconds
+        // Clear matched gesture after 2 seconds (3 seconds for context mismatch)
         setTimeout(() => {
           setMatchedGesture(null);
           setStatusMessage('👋 Ready - Perform a gesture');
-        }, 2000);
+        }, contextMismatch ? 3000 : 2000);
       } else {
         // NEW: Add failed match to history
         setRecentMatches(prev => [{
@@ -1002,7 +1044,16 @@ export default function Home() {
                     </div>
                     <select
                       value={activeApp}
-                      onChange={(e) => setActiveApp(e.target.value)}
+                      onChange={async (e) => {
+                        const newContext = e.target.value;
+                        setActiveApp(newContext);
+                        // Save to localStorage for persistence
+                        localStorage.setItem('activeContext', newContext);
+                        // Sync to Electron overlay
+                        await syncContextToElectron(newContext);
+                        // Log context change
+                        console.log('🔄 Active context changed:', newContext);
+                      }}
                       className="w-full bg-gray-700/50 border-2 border-cyan-500/30 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 cursor-pointer font-medium"
                     >
                       {apps.map(app => (

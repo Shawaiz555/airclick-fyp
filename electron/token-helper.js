@@ -10,6 +10,7 @@ const os = require('os');
 
 const TOKEN_FILE = path.join(os.homedir(), '.airclick-token');
 const HYBRID_MODE_FILE = path.join(os.homedir(), '.airclick-hybridmode');
+const CONTEXT_FILE = path.join(os.homedir(), '.airclick-context');
 
 // Simple HTTP server to receive token from browser
 const server = http.createServer((req, res) => {
@@ -114,6 +115,54 @@ const server = http.createServer((req, res) => {
       }
     } catch (error) {
       console.error('Error reading hybrid mode:', error);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: error.message }));
+    }
+  } else if (req.method === 'POST' && req.url === '/save-context') {
+    let body = '';
+
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+
+    req.on('end', () => {
+      try {
+        const { context } = JSON.parse(body);
+
+        if (context !== undefined) {
+          // Save context to file
+          fs.writeFileSync(CONTEXT_FILE, context.toString(), 'utf8');
+          console.log(`🎯 Context saved: ${context}`);
+
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+        } else {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'No context provided' }));
+        }
+      } catch (error) {
+        console.error('Error saving context:', error);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: error.message }));
+      }
+    });
+  } else if (req.method === 'GET' && req.url === '/get-context') {
+    try {
+      // Read context from file
+      if (fs.existsSync(CONTEXT_FILE)) {
+        const context = fs.readFileSync(CONTEXT_FILE, 'utf8').trim();
+        console.log(`📖 Context read: ${context}`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ context }));
+      } else {
+        // Default to ALL if file doesn't exist
+        console.log('📄 Context file does not exist, returning default: ALL');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ context: 'ALL' }));
+      }
+    } catch (error) {
+      console.error('Error reading context:', error);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error.message }));
     }

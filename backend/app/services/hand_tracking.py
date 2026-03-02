@@ -522,6 +522,23 @@ class HandTrackingService:
                                 logger.warning("No gestures found for matching")
                                 return {"matched": False, "reason": "No gestures in database"}
 
+                            # CONTEXT FILTERING: Read active context from file
+                            active_context = "ALL"
+                            context_path = os.path.join(os.path.expanduser("~"), ".airclick-context")
+                            if os.path.exists(context_path):
+                                try:
+                                    with open(context_path, 'r') as f:
+                                        active_context = f.read().strip().upper()
+                                    logger.info(f"🎯 Active context: {active_context}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to read context file: {e}, using ALL")
+                                    active_context = "ALL"
+                            else:
+                                logger.info(f"🎯 Active context: ALL (file not found)")
+
+                            # NOTE: We DON'T filter gestures here - we match against ALL gestures
+                            # and check context AFTER matching to provide proper feedback
+
                             # PHASE 1 OPTIMIZATION: Convert to list format with performance tracking
                             convert_start = perf_time.time()
                             gestures_list = []
@@ -575,30 +592,43 @@ class HandTrackingService:
                                     gesture_action = matched_gesture.get('action')
                                     gesture_app_context = matched_gesture.get('app_context')
 
+                                    # CONTEXT FILTERING: Check if matched gesture context matches active context
+                                    context_mismatch = False
+                                    if active_context != "ALL" and gesture_app_context != active_context:
+                                        context_mismatch = True
+                                        logger.warning(f"")
+                                        logger.warning(f"⚠️ CONTEXT MISMATCH DETECTED!")
+                                        logger.warning(f"   Gesture context: {gesture_app_context}")
+                                        logger.warning(f"   Active context: {active_context}")
+                                        logger.warning(f"   Action will NOT be executed")
+                                        logger.warning(f"")
+
                                     # PHASE 1 OPTIMIZATION: Fast database update using raw SQL
-                                    try:
-                                        from sqlalchemy import text
-                                        gesture_id = matched_gesture.get('id')
+                                    # Only update stats if context matches (don't count context mismatches as successful matches)
+                                    if not context_mismatch:
+                                        try:
+                                            from sqlalchemy import text
+                                            gesture_id = matched_gesture.get('id')
 
-                                        # Use raw SQL for faster update (bypasses ORM overhead)
-                                        update_query = text("""
-                                            UPDATE gestures
-                                            SET total_similarity = COALESCE(total_similarity, 0) + :similarity,
-                                                match_count = COALESCE(match_count, 0) + 1,
-                                                accuracy_score = (COALESCE(total_similarity, 0) + :similarity) / (COALESCE(match_count, 0) + 1),
-                                                updated_at = NOW()
-                                            WHERE id = :gesture_id
-                                        """)
+                                            # Use raw SQL for faster update (bypasses ORM overhead)
+                                            update_query = text("""
+                                                UPDATE gestures
+                                                SET total_similarity = COALESCE(total_similarity, 0) + :similarity,
+                                                    match_count = COALESCE(match_count, 0) + 1,
+                                                    accuracy_score = (COALESCE(total_similarity, 0) + :similarity) / (COALESCE(match_count, 0) + 1),
+                                                    updated_at = NOW()
+                                                WHERE id = :gesture_id
+                                            """)
 
-                                        db.execute(update_query, {"similarity": similarity, "gesture_id": gesture_id})
-                                        db.commit()
-                                        logger.debug(f"📊 Updated gesture stats (fast SQL) for gesture_id={gesture_id}")
-                                    except Exception as e:
-                                        logger.warning(f"Failed to update gesture stats: {e}")
-                                        db.rollback()
+                                            db.execute(update_query, {"similarity": similarity, "gesture_id": gesture_id})
+                                            db.commit()
+                                            logger.debug(f"📊 Updated gesture stats (fast SQL) for gesture_id={gesture_id}")
+                                        except Exception as e:
+                                            logger.warning(f"Failed to update gesture stats: {e}")
+                                            db.rollback()
 
-                                    # Execute action AFTER logging match result
-                                    if gesture_action:
+                                    # Execute action ONLY if context matches
+                                    if gesture_action and not context_mismatch:
                                         logger.info(f"")
                                         logger.info(f"🎬 Executing action: {gesture_action}")
                                         logger.info(f"   App context: {gesture_app_context}")
@@ -632,7 +662,24 @@ class HandTrackingService:
                                             "similarity": similarity,
                                             "action": gesture_action,
                                             "action_executed": action_result.get("success", False),
-                                            "action_result": action_result
+                                            "action_result": action_result,
+                                            "context_mismatch": False,
+                                            "gesture_context": gesture_app_context,
+                                            "active_context": active_context
+                                        }
+                                    elif context_mismatch:
+                                        # Context mismatch - gesture matched but wrong context
+                                        return {
+                                            "matched": True,
+                                            "gesture_name": matched_gesture['name'],
+                                            "gesture_id": matched_gesture.get('id'),
+                                            "similarity": similarity,
+                                            "action": gesture_action,
+                                            "action_executed": False,
+                                            "context_mismatch": True,
+                                            "gesture_context": gesture_app_context,
+                                            "active_context": active_context,
+                                            "error": f"Gesture is from {gesture_app_context} context, currently in {active_context} context"
                                         }
                                     else:
                                         logger.warning(f"⚠️ Gesture '{matched_gesture['name']}' has no action assigned")
@@ -643,7 +690,10 @@ class HandTrackingService:
                                             "similarity": similarity,
                                             "action": None,
                                             "action_executed": False,
-                                            "error": "No action assigned to gesture"
+                                            "error": "No action assigned to gesture",
+                                            "context_mismatch": False,
+                                            "gesture_context": gesture_app_context,
+                                            "active_context": active_context
                                         }
                                 else:
                                     # FALSE TRIGGER: Similarity below threshold

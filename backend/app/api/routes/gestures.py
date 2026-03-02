@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 from datetime import datetime
@@ -769,7 +769,8 @@ def delete_gesture(
 def match_gesture(
     frames: List[Dict],
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_active_context: str = Header(default="ALL", alias="X-Active-Context")
 ):
     """
     Match input gesture frames against stored gestures.
@@ -777,6 +778,10 @@ def match_gesture(
     PHASE 1 & 2 FIX: Now uses standardized preprocessing with:
     - Frame resampling to exactly 60 frames
     - Stateful preprocessing (preserves filter state for smooth matching)
+
+    CONTEXT FILTERING: Filters gestures based on active context from X-Active-Context header.
+    - ALL: Matches gestures from all contexts
+    - GLOBAL/POWERPOINT/WORD: Only matches gestures from that specific context
 
     Returns the best matching gesture with similarity score.
     """
@@ -803,6 +808,28 @@ def match_gesture(
             "message": "No gestures stored yet. Please record some gestures first.",
             "reason": "no_gestures_stored"
         }
+
+    # CONTEXT FILTERING: Filter gestures based on active context
+    active_context = x_active_context.upper()
+    logger.info(f"Active context: {active_context}")
+
+    if active_context != "ALL":
+        # Filter gestures to only include those matching the active context
+        filtered_gestures = [g for g in stored_gestures if g.app_context == active_context]
+        logger.info(f"Context filtering: {len(stored_gestures)} total → {len(filtered_gestures)} in {active_context} context")
+        stored_gestures = filtered_gestures
+
+        if not stored_gestures:
+            logger.warning(f"⚠️ No gestures found for {active_context} context")
+            logger.info(f"{'='*60}\n")
+            return {
+                "matched": False,
+                "message": f"No gestures stored for {active_context} context.",
+                "reason": "no_gestures_in_context",
+                "active_context": active_context
+            }
+    else:
+        logger.info(f"Context filtering: ALL contexts enabled - using all {len(stored_gestures)} gestures")
 
     # Only log frame stats if we have gestures to match against
     logger.info(f"Input frames received: {len(frames)}")
