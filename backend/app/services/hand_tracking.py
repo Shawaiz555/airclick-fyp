@@ -808,7 +808,7 @@ class HandTrackingService:
 
             # Hybrid mode preference tracking
             last_hybrid_check_time = time.time()
-            hybrid_check_interval = 1.0  # Check hybrid mode preference every 1 second
+            hybrid_check_interval = 5.0  # Check hybrid mode preference every 5 seconds (reduced from 1s to prevent rapid toggling)
 
             # Keep connection alive and send data
             while True:

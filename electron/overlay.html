@@ -1266,13 +1266,15 @@
               drawHand(data);
               noHandOverlay.classList.add("hidden");
 
-              // FIX: Only use legacy matching when hybrid mode is OFF
-              // When hybrid mode is ON, the backend state machine handles matching
-              const hybridModeActive =
-                data.hybrid && data.hybrid.hybrid_mode_enabled;
+              // CRITICAL FIX: NEVER use legacy frame collection when connected to hybrid endpoint
+              // The hybrid endpoint ALWAYS uses the state machine for frame collection,
+              // regardless of whether cursor control is enabled or disabled
+              // Legacy code below is kept only for old /ws/hand-tracking endpoint (no longer used)
+              const usingHybridEndpoint = data.hybrid !== undefined;
 
-              if (!hybridModeActive) {
+              if (!usingHybridEndpoint) {
                 // LEGACY MODE: Manual frame collection and matching (gesture-only mode)
+                // This code path is NO LONGER USED (we always connect to hybrid endpoint)
                 // ONLY collect frames and match gestures if user is authenticated AND not recording
                 if (isAuthenticated && !isRecordingGesture) {
                   // Collect frames for gesture recognition
@@ -1351,8 +1353,15 @@
                   updateRecording(false, 0);
                 }
               } else {
-                // HYBRID MODE: State machine handles matching, clear legacy frames
+                // HYBRID ENDPOINT MODE: State machine handles ALL frame collection and matching
+                // Clear legacy frames to prevent dual collection
                 recognitionFrames = [];
+                lastHandPosition = null;
+                if (gestureEndTimer) {
+                  clearTimeout(gestureEndTimer);
+                  gestureEndTimer = null;
+                }
+                updateRecording(false, 0);
               }
             } else {
               clearCanvas();
@@ -1430,62 +1439,15 @@
         };
       }
 
-      // Listen for hybrid mode changes from localStorage
-      window.addEventListener("storage", (e) => {
-        if (e.key === "hybridMode" && e.newValue !== null) {
-          const newValue = e.newValue === "true";
+      // CRITICAL FIX: Removed localStorage event listener for hybrid mode
+      // We no longer reconnect WebSocket when hybrid mode changes
+      // The backend handles hybrid mode changes dynamically (polls .airclick-hybridmode file every 5s)
+      // This prevents the rapid reconnection/state toggling issue
 
-          // CRITICAL FIX: Don't reconnect if user is recording
-          if (isRecordingGesture) {
-            console.log("⏭️ Skipping hybrid mode change - user is recording");
-            return;
-          }
-
-          console.log(
-            `🔄 Hybrid mode changed (storage event): ${newValue} - Reconnecting WebSocket...`,
-          );
-
-          // Update local state
-          hybridModeEnabled = newValue;
-
-          // Reconnect WebSocket with new mode
-          connectWebSocket();
-        }
-      });
-
-      // Poll hybrid mode file for changes (every 500ms)
-      // This detects when web app changes hybrid mode
-      const hybridModeFile = path.join(os.homedir(), ".airclick-hybridmode");
-      let lastHybridMode = hybridModeEnabled;
-
-      setInterval(() => {
-        try {
-          let currentHybridMode = true; // default
-          if (fs.existsSync(hybridModeFile)) {
-            const fileContent = fs.readFileSync(hybridModeFile, "utf8").trim();
-            currentHybridMode = fileContent === "true";
-          }
-
-          // CRITICAL FIX: Don't override hybrid mode if recording is active
-          // Recording state takes priority - cursor should stay disabled while recording
-          if (isRecordingGesture) {
-            // Skip hybrid mode changes while recording
-            lastHybridMode = currentHybridMode; // Update last value to prevent re-triggering
-            return;
-          }
-
-          if (currentHybridMode !== lastHybridMode) {
-            console.log(
-              `🔄 Hybrid mode changed (file polling): ${lastHybridMode} → ${currentHybridMode} - Reconnecting WebSocket...`,
-            );
-            hybridModeEnabled = currentHybridMode;
-            lastHybridMode = currentHybridMode;
-            connectWebSocket();
-          }
-        } catch (err) {
-          console.warn("⚠️ Error checking hybrid mode file:", err.message);
-        }
-      }, 500);
+      // CRITICAL FIX: Removed frontend hybrid mode polling
+      // The backend now handles hybrid mode changes dynamically without requiring WebSocket reconnection
+      // This prevents the rapid state toggling issue where frontend and backend polls were racing
+      // The backend polls the .airclick-hybridmode file every 5 seconds and updates the state internally
 
       // Poll recording state file (every 500ms)
       // This detects when user is recording/updating a gesture in web UI
