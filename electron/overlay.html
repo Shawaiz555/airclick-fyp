@@ -522,6 +522,52 @@
         color: #6b7280;
       }
 
+      .state-indicator.maintenance {
+        background: rgba(245, 158, 11, 0.2);
+        border: 1px solid rgba(245, 158, 11, 0.5);
+        color: #f59e0b;
+        animation: pulse-state 1.5s infinite;
+      }
+
+      /* Maintenance overlay — sits above canvas, below header drag area */
+      #maintenanceOverlay {
+        position: absolute;
+        inset: 0;
+        z-index: 25;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(17, 24, 39, 0.85);
+        backdrop-filter: blur(8px);
+        gap: 12px;
+      }
+
+      #maintenanceOverlay.visible {
+        display: flex;
+      }
+
+      .maintenance-icon {
+        font-size: 48px;
+        line-height: 1;
+      }
+
+      .maintenance-title {
+        color: #f59e0b;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-align: center;
+      }
+
+      .maintenance-subtitle {
+        color: rgba(156, 163, 175, 0.9);
+        font-size: 12px;
+        text-align: center;
+        max-width: 300px;
+        line-height: 1.4;
+      }
+
       @keyframes pulse-state {
         0%,
         100% {
@@ -666,6 +712,13 @@
           >
         </div>
 
+        <!-- Maintenance Mode Overlay -->
+        <div id="maintenanceOverlay">
+          <div class="maintenance-icon">🔧</div>
+          <div class="maintenance-title">SYSTEM UNDER MAINTENANCE</div>
+          <div class="maintenance-subtitle">Gesture controls are temporarily disabled. Please wait for the system to come back online.</div>
+        </div>
+
         <!-- NEW: Cursor Position Indicator (for Hybrid Mode) -->
         <div
           id="cursorIndicator"
@@ -751,6 +804,7 @@
 
       // DOM elements
       const container = document.getElementById("overlay-container");
+      const maintenanceOverlay = document.getElementById("maintenanceOverlay");
       const statusDot = document.getElementById("statusDot");
       const handStatus = document.getElementById("handStatus");
       const authStatus = document.getElementById("authStatus");
@@ -830,6 +884,9 @@
       const MIN_GESTURE_FRAMES = 5; // Minimum frames before matching
       const MAX_GESTURE_FRAMES = 90; // Maximum frames to collect
       const GESTURE_END_DELAY = 300; // ms to wait after hand stops before matching
+
+      // Maintenance mode state
+      let isMaintenanceMode = false;
 
       // Hybrid mode state - dynamic from localStorage
       let hybridModeEnabled = true; // Default to true
@@ -1608,6 +1665,91 @@
         }
       }, 5000); // Increased from 2000ms to 5000ms (5 seconds)
 
+      // ==================== MAINTENANCE MODE ====================
+
+      function applyMaintenanceMode(active) {
+        if (active) {
+          // Show overlay on canvas
+          maintenanceOverlay.classList.add("visible");
+
+          // Update Gesture Matching row to show MAINTENANCE
+          authStatus.innerHTML = '<span class="status-badge" style="background: rgba(245,158,11,0.2); border: 1px solid rgba(245,158,11,0.5); color: #f59e0b;">MAINTENANCE</span>';
+
+          // Update State Machine row if visible
+          stateMachineRow.style.display = "flex";
+          stateMachineStatus.innerHTML = `
+            <span class="state-indicator maintenance">
+              <span class="state-dot"></span>
+              <span>MAINTENANCE</span>
+            </span>
+          `;
+
+          // Clear any active match banners and recording indicators
+          matchStatusBanner.classList.remove("visible", "no-match", "processing");
+          container.classList.remove("matched", "failed", "recording");
+          recordingIndicator.classList.remove("visible");
+          lastShownMatchResult = null;
+          if (matchBannerTimeout) {
+            clearTimeout(matchBannerTimeout);
+            matchBannerTimeout = null;
+          }
+
+          // Show maintenance banner
+          matchStatusBanner.classList.add("visible");
+          matchStatusBanner.style.background = "rgba(245, 158, 11, 0.95)";
+          matchStatusBanner.style.boxShadow = "0 4px 20px rgba(245, 158, 11, 0.4)";
+          matchStatusIcon.textContent = "🔧";
+          matchStatusText.textContent = "SYSTEM UNDER MAINTENANCE";
+
+          // Hide banner after 4s then keep overlay visible
+          matchBannerTimeout = setTimeout(() => {
+            matchStatusBanner.classList.remove("visible");
+            matchStatusBanner.style.background = "";
+            matchStatusBanner.style.boxShadow = "";
+            matchBannerTimeout = null;
+          }, 4000);
+
+          console.log("🔧 Maintenance mode ACTIVATED - gesture matching disabled");
+        } else {
+          // Hide maintenance overlay
+          maintenanceOverlay.classList.remove("visible");
+
+          // Reset match banner styles in case maintenance set custom colors
+          matchStatusBanner.style.background = "";
+          matchStatusBanner.style.boxShadow = "";
+
+          // Restore gesture matching status
+          if (isAuthenticated) {
+            authStatus.innerHTML = '<span class="status-badge success">ENABLED</span>';
+          } else {
+            authStatus.innerHTML = '<span class="status-badge error">DISABLED (Login Required)</span>';
+          }
+
+          console.log("✅ Maintenance mode DEACTIVATED - gesture matching restored");
+        }
+      }
+
+      // Poll maintenance status every 15 seconds
+      async function checkMaintenanceStatus() {
+        try {
+          const response = await fetch("http://localhost:8000/api/admin/maintenance-status");
+          if (response.ok) {
+            const data = await response.json();
+            const newMode = !!data.maintenance_mode;
+            if (newMode !== isMaintenanceMode) {
+              isMaintenanceMode = newMode;
+              applyMaintenanceMode(isMaintenanceMode);
+            }
+          }
+        } catch (err) {
+          // Backend unreachable - leave current state unchanged
+        }
+      }
+
+      // Check immediately then every 15 seconds
+      checkMaintenanceStatus();
+      setInterval(checkMaintenanceStatus, 15000);
+
       // Initial connection
       connectWebSocket();
 
@@ -1780,6 +1922,9 @@
 
       // PHASE 3 & 4: Update state machine visualization
       function updateStateMachine(hybridData) {
+        // Block all state machine UI updates during maintenance
+        if (isMaintenanceMode) return;
+
         if (!hybridData || !hybridData.state_machine) {
           stateMachineRow.style.display = "none";
           return;
@@ -2152,6 +2297,9 @@
         console.log(`📊 Status message received:`, data);
         backendStatusReceived = true; // Mark that backend sent us status
 
+        // Don't overwrite maintenance UI with auth status
+        if (isMaintenanceMode) return;
+
         if (data.status === "disabled") {
           // Hybrid mode disabled - update UI based on reason
           isAuthenticated = false;
@@ -2338,6 +2486,12 @@
           console.warn(
             `Not enough frames to match (need at least ${MIN_GESTURE_FRAMES}, got ${frames.length})`,
           );
+          return;
+        }
+
+        // Block gesture matching during maintenance
+        if (isMaintenanceMode) {
+          console.log("🔧 Gesture matching skipped — system under maintenance");
           return;
         }
 

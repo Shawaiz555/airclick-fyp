@@ -831,3 +831,14 @@ def reset_admin_settings(
         message="Settings reset to defaults",
         applied_to_runtime=applied
     )
+
+
+@router.get("/maintenance-status")
+def get_maintenance_status():
+    """
+    Public endpoint — no authentication required.
+    Returns whether maintenance mode is currently active.
+    Used by user-facing pages to show/hide the maintenance banner.
+    """
+    settings = load_admin_settings()
+    return {"maintenance_mode": settings.system.maintenance_mode}
