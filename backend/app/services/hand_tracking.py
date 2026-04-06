@@ -889,28 +889,32 @@ class HandTrackingService:
                     # No hands detected - IMPORTANT: Notify state machine to trigger matching if collecting
                     if hybrid_mode and hybrid_controller:
                         try:
-                            # LOG: Track no-hand detection during collection
                             current_state = hybrid_controller.state_machine.state
+
                             if current_state == HybridState.COLLECTING:
                                 logger.info(f"🚫 NO HAND detected while COLLECTING ({len(hybrid_controller.state_machine.collected_frames)} frames collected)")
+                                # Non-blocking: transition to MATCHING and kick off match in background thread
+                                frames_to_match = hybrid_controller.state_machine.start_matching_non_blocking()
+                                if frames_to_match and hybrid_controller.gesture_match_callback:
+                                    callback = hybrid_controller.gesture_match_callback
+                                    state_machine = hybrid_controller.state_machine
 
-                            # Process "no hand" frame to allow state machine to finish collection
-                            # CRITICAL FIX: State machine now handles IDLE transition internally
-                            no_hand_result = hybrid_controller.state_machine.handle_no_hand_detected(
-                                match_callback=hybrid_controller.gesture_match_callback
-                            )
+                                    def run_match():
+                                        try:
+                                            result = callback(frames_to_match)
+                                            logger.info(f"🎯 Gesture match result: {result}")
+                                        except Exception as e:
+                                            logger.error(f"❌ Match callback error: {e}")
+                                            result = {"matched": False, "error": str(e)}
+                                        state_machine.finish_matching(result)
 
-                            # Log match result if triggered
-                            if no_hand_result.get('trigger') == 'hand_removed':
-                                logger.info(f"🎯 Gesture match result: {no_hand_result.get('match_result')}")
+                                    loop = asyncio.get_event_loop()
+                                    loop.run_in_executor(None, run_match)
 
-                            # IMPORTANT: Get the full state machine info including match_result in IDLE state
-                            # This ensures the overlay receives the match result even when hand is gone
+                            # Send current state (MATCHING or other) to client immediately
                             state_machine_info = hybrid_controller.state_machine.get_state_info()
-                            # CRITICAL FIX: Add gesture_matching_enabled status
                             state_machine_info['gesture_matching_enabled'] = gesture_matching_enabled
 
-                            # Send no hand status to client with match result if available
                             no_hand_data = {
                                 'timestamp': datetime.now().isoformat(),
                                 'hands': [],
@@ -919,9 +923,9 @@ class HandTrackingService:
                                 'hybrid': {
                                     'success': False,
                                     'error': 'No hands detected',
-                                    'state_machine': state_machine_info,  # Send full state info including match_result
-                                    'hybrid_mode_enabled': hybrid_controller.hybrid_mode_enabled,  # CRITICAL FIX: Use actual hybrid mode state
-                                    'cursor_enabled': False  # Cursor always disabled when no hand
+                                    'state_machine': state_machine_info,
+                                    'hybrid_mode_enabled': hybrid_controller.hybrid_mode_enabled,
+                                    'cursor_enabled': False
                                 }
                             }
 

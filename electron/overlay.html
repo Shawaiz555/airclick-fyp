@@ -553,7 +553,7 @@
         align-items: center;
         gap: 12px;
         box-shadow: 0 4px 30px rgba(34, 197, 94, 0.6);
-        animation: scaleIn 0.3s ease;
+        animation: scaleIn 0.2s ease forwards;
         z-index: 20;
         min-width: 250px;
         justify-content: center;
@@ -566,6 +566,21 @@
       .match-status-banner.no-match {
         background: rgba(239, 68, 68, 0.95);
         box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+      }
+
+      .match-status-banner.processing {
+        background: rgba(139, 92, 246, 0.95);
+        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .match-status-banner.processing .match-status-icon {
+        display: inline-block;
+        animation: spin 0.8s linear infinite;
       }
 
       .match-status-icon {
@@ -1773,7 +1788,7 @@
         const stateMachine = hybridData.state_machine;
         const state = stateMachine.state;
 
-        // DEBUG: Log state transitions
+        // DEBUG: Log state transitions (read-only here, state is updated at end of function)
         if (
           !window.lastStateMachineState ||
           window.lastStateMachineState !== state
@@ -1787,7 +1802,8 @@
               trigger_type: stateMachine.trigger_type,
             },
           );
-          window.lastStateMachineState = state;
+          // NOTE: Do NOT update window.lastStateMachineState here - it is updated
+          // at the end of this function so prevState is correct throughout all logic
         }
 
         // Show state machine row
@@ -1834,124 +1850,142 @@
         `;
 
         // Update recording indicator based on state
+        const prevState = window.lastStateMachineState || null;
         if (state === "collecting") {
           const progress =
             (stateMachine.collected_count / stateMachine.target_frames) * 100;
           updateRecording(true, stateMachine.collected_count);
           recText.textContent = `COLLECTING (${stateMachine.collected_count}/${stateMachine.target_frames})`;
         } else if (state === "matching") {
+          // Keep recording banner visible but change text to show analyzing
           updateRecording(true, 60);
-          recText.textContent = "MATCHING...";
+          recText.textContent = "ANALYZING GESTURE...";
+          // Also show the purple processing banner
+          matchStatusBanner.classList.add("visible", "processing");
+          matchStatusBanner.classList.remove("no-match");
+          matchStatusIcon.textContent = "⟳";
+          matchStatusText.textContent = "ANALYZING GESTURE...";
+        } else if (state === "idle") {
+          // If we transitioned directly from collecting (matching was instantaneous),
+          // show "ANALYZING..." banner so user sees feedback before result appears
+          if (prevState === "collecting") {
+            updateRecording(true, 60);
+            recText.textContent = "ANALYZING GESTURE...";
+            if (!matchStatusBanner.classList.contains("processing")) {
+              matchStatusBanner.classList.add("visible", "processing");
+              matchStatusBanner.classList.remove("no-match");
+              matchStatusIcon.textContent = "⟳";
+              matchStatusText.textContent = "ANALYZING GESTURE...";
+            }
+          } else if (matchStatusBanner.classList.contains("processing")) {
+            // Processing banner still visible (waiting for result timeout) - keep recording banner too
+            updateRecording(true, 60);
+            recText.textContent = "ANALYZING GESTURE...";
+          } else {
+            updateRecording(false, 0);
+          }
         } else {
+          // cursor_only or other non-matching states - hide processing banner
           updateRecording(false, 0);
+          if (matchStatusBanner.classList.contains("processing")) {
+            matchStatusBanner.classList.remove("visible", "processing");
+          }
         }
 
         // Show match result if in IDLE state (FIXED - prevent blinking AND auto-hide)
         if (state === "idle" && stateMachine.match_result) {
           const matchResult = stateMachine.match_result;
 
-          // CRITICAL FIX: Only show banner if this is a NEW match result
-          // Create a unique key for this match result to prevent re-showing the same result
+          // Only show banner once per unique result - key has NO timestamp so it
+          // stays stable across all WebSocket frames while in idle with the same result
           const matchResultKey = JSON.stringify({
             matched: matchResult.matched,
             gesture_name: matchResult.gesture_name,
             similarity: matchResult.similarity,
             authenticated: matchResult.authenticated,
-            timestamp: Math.floor(Date.now() / 1000), // Round to second to group similar results
           });
 
           // Only show if this is a different result than last shown
           if (lastShownMatchResult !== matchResultKey) {
             lastShownMatchResult = matchResultKey;
 
-            // Clear any existing timeout to prevent multiple hide timers
+            // Clear any existing hide timer
             if (matchBannerTimeout) {
               clearTimeout(matchBannerTimeout);
               matchBannerTimeout = null;
             }
 
-            if (matchResult.matched && matchResult.context_mismatch) {
-              // Context mismatch - show warning banner with detailed message
-              container.classList.add("failed");
-              container.classList.remove("matched");
-              matchStatusBanner.classList.add("visible", "no-match");
-              matchStatusIcon.textContent = "⚠";
+            // If we jumped directly from collecting→idle (matching was instantaneous),
+            // briefly show "ANALYZING..." before result so user sees their gesture was received.
+            // If we came from matching state, user already saw "ANALYZING..." - show result immediately.
+            const resultDelay = (prevState === "collecting") ? 350 : 0;
 
-              // Create clear, actionable message with instruction to change context
-              const gestureContext = matchResult.gesture_context || "UNKNOWN";
-              const activeContext = matchResult.active_context || "UNKNOWN";
-              matchStatusText.textContent = `"${matchResult.gesture_name}" is a ${gestureContext} gesture. Change context to ${gestureContext} in Home page or use ${activeContext} gestures`;
-
-              console.log(
-                `⚠️ Context mismatch: ${matchResult.gesture_name} is from ${gestureContext} context, currently in ${activeContext}. User can change context in Home page.`,
-              );
-
-              // Auto-hide after 4 seconds - LONGER for context mismatch to read message
-              matchBannerTimeout = setTimeout(() => {
-                matchStatusBanner.classList.remove("visible", "no-match");
-                container.classList.remove("failed");
-                lastShownMatchResult = null;
-                matchBannerTimeout = null;
-                console.log(
-                  "⚠️ Context mismatch banner auto-hidden - ready for new gesture",
-                );
-              }, 4000);
-            } else if (matchResult.matched) {
-              // Matched gesture - show success banner
-              container.classList.add("matched");
-              matchStatusBanner.classList.add("visible");
-              matchStatusBanner.classList.remove("no-match");
-              matchStatusIcon.textContent = "✓";
-              matchStatusText.textContent = `MATCHED: ${matchResult.gesture_name}`;
-
-              console.log(
-                `✅ Gesture matched: ${matchResult.gesture_name} (${(matchResult.similarity * 100).toFixed(1)}%)`,
-              );
-
-              // Auto-hide after 1.5 seconds - FASTER for better UX
-              matchBannerTimeout = setTimeout(() => {
-                matchStatusBanner.classList.remove("visible");
+            const showResultBanner = () => {
+              updateRecording(false, 0);
+              if (matchResult.matched && matchResult.context_mismatch) {
+                // Context mismatch - show warning banner with detailed message
+                container.classList.add("failed");
                 container.classList.remove("matched");
-                lastShownMatchResult = null; // Reset after hiding to allow new gestures
-                matchBannerTimeout = null;
-                console.log(
-                  "✅ Success banner auto-hidden - ready for new gesture",
-                );
-              }, 1500);
-            } else if (matchResult.authenticated === false) {
-              // Not authenticated - show login required
-              matchStatusBanner.classList.add("visible", "no-match");
-              matchStatusIcon.textContent = "🔒";
-              matchStatusText.textContent = "LOGIN REQUIRED";
+                matchStatusBanner.classList.add("visible", "no-match");
+                matchStatusBanner.classList.remove("processing");
+                matchStatusIcon.textContent = "⚠";
 
-              console.log("❌ Not authenticated - login required");
+                const gestureContext = matchResult.gesture_context || "UNKNOWN";
+                const activeContext = matchResult.active_context || "UNKNOWN";
+                matchStatusText.textContent = `"${matchResult.gesture_name}" is a ${gestureContext} gesture. Change context to ${gestureContext} in Home page or use ${activeContext} gestures`;
 
-              // Auto-hide after 1.5 seconds
-              matchBannerTimeout = setTimeout(() => {
-                matchStatusBanner.classList.remove("visible", "no-match");
-                lastShownMatchResult = null; // Reset after hiding
-                matchBannerTimeout = null;
-                console.log(
-                  "🔒 Login banner auto-hidden - ready for new gesture",
-                );
-              }, 1500);
+                // Hide after 4s for context mismatch so user can read the message
+                matchBannerTimeout = setTimeout(() => {
+                  matchStatusBanner.classList.remove("visible", "no-match");
+                  container.classList.remove("failed");
+                  matchBannerTimeout = null;
+                }, 4000);
+              } else if (matchResult.matched) {
+                // Matched gesture - show success banner
+                container.classList.add("matched");
+                matchStatusBanner.classList.add("visible");
+                matchStatusBanner.classList.remove("no-match", "processing");
+                matchStatusIcon.textContent = "✓";
+                matchStatusText.textContent = `MATCHED: ${matchResult.gesture_name}`;
+
+                // Hide after 1s - do NOT reset lastShownMatchResult here so it won't re-show
+                matchBannerTimeout = setTimeout(() => {
+                  matchStatusBanner.classList.remove("visible");
+                  container.classList.remove("matched");
+                  matchBannerTimeout = null;
+                }, 1000);
+              } else if (matchResult.authenticated === false) {
+                // Not authenticated - show login required
+                matchStatusBanner.classList.add("visible", "no-match");
+                matchStatusBanner.classList.remove("processing");
+                matchStatusIcon.textContent = "🔒";
+                matchStatusText.textContent = "LOGIN REQUIRED";
+
+                // Hide after 1s - do NOT reset lastShownMatchResult here so it won't re-show
+                matchBannerTimeout = setTimeout(() => {
+                  matchStatusBanner.classList.remove("visible", "no-match");
+                  matchBannerTimeout = null;
+                }, 1000);
+              } else {
+                // No match found
+                matchStatusBanner.classList.add("visible", "no-match");
+                matchStatusBanner.classList.remove("processing");
+                matchStatusIcon.textContent = "✗";
+                matchStatusText.textContent = "NO MATCH";
+
+                // Hide after 1s - do NOT reset lastShownMatchResult here so it won't re-show
+                matchBannerTimeout = setTimeout(() => {
+                  matchStatusBanner.classList.remove("visible", "no-match");
+                  matchBannerTimeout = null;
+                }, 1000);
+              }
+            };
+
+            if (resultDelay > 0) {
+              // Show processing banner first, then result after delay
+              setTimeout(showResultBanner, resultDelay);
             } else {
-              // No match found
-              matchStatusBanner.classList.add("visible", "no-match");
-              matchStatusIcon.textContent = "✗";
-              matchStatusText.textContent = "NO MATCH";
-
-              console.log("❌ No gesture match found");
-
-              // CRITICAL FIX: Auto-hide after 1.5 seconds to allow fresh gesture
-              matchBannerTimeout = setTimeout(() => {
-                matchStatusBanner.classList.remove("visible", "no-match");
-                lastShownMatchResult = null; // CRITICAL: Reset to allow new gesture
-                matchBannerTimeout = null;
-                console.log(
-                  "✅ NO MATCH banner auto-hidden - ready for new gesture",
-                );
-              }, 1500);
+              showResultBanner();
             }
           }
         } else if (state !== "idle") {
@@ -2037,12 +2071,12 @@
           gestureStatus.textContent = "⚠ Context Mismatch";
           gestureStatus.className = "stat-value error";
 
-          // Auto-hide after 3 seconds (longer for context mismatch to read)
+          // Auto-hide after 1 second
           setTimeout(() => {
             gestureResult.classList.remove("visible");
             matchStatusBanner.classList.remove("visible", "no-match");
             container.classList.remove("failed");
-          }, 3000);
+          }, 1000);
         } else if (data.matched) {
           // Success - normal match
           container.classList.add("matched");
@@ -2070,12 +2104,12 @@
           gestureStatus.textContent = "✓";
           gestureStatus.className = "stat-value success";
 
-          // Auto-hide after 3 seconds
+          // Auto-hide after 1 second
           setTimeout(() => {
             gestureResult.classList.remove("visible");
             matchStatusBanner.classList.remove("visible");
             container.classList.remove("matched");
-          }, 3000);
+          }, 1000);
         } else {
           // Failure
           container.classList.add("failed");
@@ -2101,12 +2135,12 @@
           gestureStatus.textContent = "✗";
           gestureStatus.className = "stat-value error";
 
-          // Auto-hide after 2 seconds
+          // Auto-hide after 1 second
           setTimeout(() => {
             gestureResult.classList.remove("visible");
             matchStatusBanner.classList.remove("visible", "no-match");
             container.classList.remove("failed");
-          }, 2000);
+          }, 1000);
         }
       }
 

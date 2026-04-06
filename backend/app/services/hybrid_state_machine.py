@@ -42,15 +42,15 @@ class HybridStateMachine:
 
     def __init__(
         self,
-        stationary_duration_threshold: float = 2.0,  # PHASE 4.1: Increased to 2.0 seconds (was 1.5) - more deliberate gesture trigger
-        collection_frame_count: int = 90,            # MAX frames to collect for gesture
-        min_collection_frames: int = 10,             # CRITICAL FIX: Reduced to 10 frames minimum (allow quick gestures)
-        idle_cooldown_duration: float = 1.0,         # Cooldown after match (seconds) - REDUCED for faster restart
-        velocity_threshold: float = 0.015,           # DECREASED: Movement threshold for stationary detection (more strict)
-        moving_velocity_threshold: float = 0.08,     # LOWERED: Minimum velocity for moving gesture detection (easier to trigger swipes)
-        moving_duration_threshold: float = 0.15,     # LOWERED: Seconds of movement to trigger moving gesture (faster swipe detection)
-        gesture_end_stationary_duration: float = 0.3,# LOWERED: Seconds stationary to end gesture collection (faster response)
-        min_movement_frames: int = 15                # NEW: Minimum frames to collect AFTER movement starts (for swipes)
+        stationary_duration_threshold: float = 1.2,  # Reduced from 2.0s: faster static gesture trigger
+        collection_frame_count: int = 60,            # Reduced from 90: fewer frames = faster match
+        min_collection_frames: int = 10,             # Minimum frames required before matching
+        idle_cooldown_duration: float = 0.5,         # Reduced from 1.0s: faster restart after match
+        velocity_threshold: float = 0.015,           # Movement threshold for stationary detection
+        moving_velocity_threshold: float = 0.08,     # Minimum velocity for moving gesture detection
+        moving_duration_threshold: float = 0.15,     # Seconds of movement to trigger moving gesture
+        gesture_end_stationary_duration: float = 0.2,# Reduced from 0.3s: faster end-of-gesture detection
+        min_movement_frames: int = 15                # Minimum frames to collect AFTER movement starts
     ):
         """
         Initialize the state machine.
@@ -766,6 +766,35 @@ class HybridStateMachine:
 
         # If in other states, just return current state info
         return self.get_state_info()
+
+    def start_matching_non_blocking(self) -> Optional[list]:
+        """
+        Transition to MATCHING state and return frames to match, WITHOUT running the callback.
+        The caller is responsible for running the match callback asynchronously and calling
+        finish_matching() with the result when done.
+
+        Returns:
+            List of collected frames if we were in COLLECTING state, else None
+        """
+        current_time = time.time()
+        if self.state == HybridState.COLLECTING and len(self.collected_frames) >= self.min_collection_frames:
+            logger.info(f"👋 Hand removed - transitioning to MATCHING (non-blocking) with {len(self.collected_frames)} frames")
+            self.state = HybridState.MATCHING
+            self.matching_start_time = current_time
+            self.previous_hand_position = None
+            self.last_velocity = 0.0
+            # Return a copy of frames for the async worker
+            return list(self.collected_frames)
+        return None
+
+    def finish_matching(self, match_result: dict):
+        """
+        Called when async matching completes. Sets result and transitions to IDLE.
+        """
+        self.last_match_result = match_result
+        self.state = HybridState.IDLE
+        self.idle_start_time = time.time()
+        logger.info(f"State: MATCHING → IDLE (async finish)")
 
     def force_cursor_mode(self):
         """Force transition back to CURSOR_ONLY mode (emergency reset)."""
