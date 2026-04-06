@@ -353,37 +353,54 @@ class HandTrackingService:
                                         logger.error(f"Failed to send auth status to client {client_id}: {send_error}")
                                     gesture_matching_enabled = False
                                 else:
-                                    # Check gesture count
+                                    # Check user role and gesture count
                                     db = SessionLocal()
                                     try:
-                                        gesture_count = db.query(Gesture).filter(Gesture.user_id == user_id).count()
+                                        from app.models.user import User
+                                        user = db.query(User).filter(User.id == user_id).first()
 
-                                        if gesture_count == 0:
-                                            # No gestures - cursor works but no gesture matching
-                                            logger.warning(f"⚠️ User {user_id} has no gestures - gesture matching disabled (cursor still works)")
+                                        # Admin accounts cannot perform gestures
+                                        if user and user.role == "ADMIN":
+                                            logger.warning(f"⚠️ Admin account {user_id} - gesture matching disabled")
                                             try:
                                                 await websocket.send_text(json.dumps({
                                                     "status": "disabled",
-                                                    "reason": "no_gestures",
-                                                    "message": "No gestures recorded",
+                                                    "reason": "admin_account",
+                                                    "message": "Admin accounts cannot perform gestures",
                                                     "gesture_count": 0
                                                 }))
                                             except Exception as send_error:
                                                 logger.error(f"Failed to send auth status to client {client_id}: {send_error}")
                                             gesture_matching_enabled = False
                                         else:
-                                            # User has gestures - enable gesture matching
-                                            logger.info(f"✅ User {user_id} has {gesture_count} gesture(s) - enabling gesture matching")
-                                            try:
-                                                await websocket.send_text(json.dumps({
-                                                    "status": "enabled",
-                                                    "reason": "ready",
-                                                    "message": "Gesture matching enabled",
-                                                    "gesture_count": gesture_count
-                                                }))
-                                            except Exception as send_error:
-                                                logger.error(f"Failed to send auth status to client {client_id}: {send_error}")
-                                            gesture_matching_enabled = True
+                                            gesture_count = db.query(Gesture).filter(Gesture.user_id == user_id).count()
+
+                                            if gesture_count == 0:
+                                                # No gestures - cursor works but no gesture matching
+                                                logger.warning(f"⚠️ User {user_id} has no gestures - gesture matching disabled (cursor still works)")
+                                                try:
+                                                    await websocket.send_text(json.dumps({
+                                                        "status": "disabled",
+                                                        "reason": "no_gestures",
+                                                        "message": "No gestures recorded",
+                                                        "gesture_count": 0
+                                                    }))
+                                                except Exception as send_error:
+                                                    logger.error(f"Failed to send auth status to client {client_id}: {send_error}")
+                                                gesture_matching_enabled = False
+                                            else:
+                                                # User has gestures - enable gesture matching
+                                                logger.info(f"✅ User {user_id} has {gesture_count} gesture(s) - enabling gesture matching")
+                                                try:
+                                                    await websocket.send_text(json.dumps({
+                                                        "status": "enabled",
+                                                        "reason": "ready",
+                                                        "message": "Gesture matching enabled",
+                                                        "gesture_count": gesture_count
+                                                    }))
+                                                except Exception as send_error:
+                                                    logger.error(f"Failed to send auth status to client {client_id}: {send_error}")
+                                                gesture_matching_enabled = True
                                     finally:
                                         db.close()
 

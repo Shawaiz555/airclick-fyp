@@ -24,7 +24,8 @@ import {
 const DEFAULT_SETTINGS = {
   system: {
     system_name: 'AirClick Gesture Control',
-    default_app_context: 'GLOBAL'
+    default_app_context: 'GLOBAL',
+    maintenance_mode: false
   },
   defaults: {
     default_cursor_speed: 1.5,
@@ -201,6 +202,15 @@ export default function SystemSettings() {
                     options={APP_CONTEXT_OPTIONS}
                     description="Default context for gesture actions when no app is detected"
                     color="cyan"
+                  />
+
+                  <FuturisticToggle
+                    label="Maintenance Mode"
+                    description="Temporarily disable user access to the system"
+                    checked={settings.system.maintenance_mode}
+                    onChange={(v) => updateSetting('system', 'maintenance_mode', v)}
+                    color="amber"
+                    warning={settings.system.maintenance_mode}
                   />
                 </SettingsSection>
 
