@@ -1856,6 +1856,9 @@
             (stateMachine.collected_count / stateMachine.target_frames) * 100;
           updateRecording(true, stateMachine.collected_count);
           recText.textContent = `COLLECTING (${stateMachine.collected_count}/${stateMachine.target_frames})`;
+          // Hide processing/result banner while collecting - only the recording indicator should show
+          matchStatusBanner.classList.remove("visible", "processing", "no-match");
+          container.classList.remove("matched", "failed");
         } else if (state === "matching") {
           // Keep recording banner visible but change text to show analyzing
           updateRecording(true, 60);
@@ -1993,8 +1996,8 @@
           // This ensures banner disappears when user starts a new gesture
           if (lastShownMatchResult !== null) {
             // Immediately hide any visible banner
-            matchStatusBanner.classList.remove("visible", "no-match");
-            container.classList.remove("matched");
+            matchStatusBanner.classList.remove("visible", "no-match", "processing");
+            container.classList.remove("matched", "failed");
 
             // Reset tracking
             lastShownMatchResult = null;
@@ -2452,6 +2455,17 @@
           updateGestureMatch(data.gestureMatch);
         }
       });
+
+      // Reset all banner state on startup - ensure clean slate
+      matchStatusBanner.classList.remove("visible", "processing", "no-match");
+      container.classList.remove("matched", "failed", "recording");
+      recordingIndicator.classList.remove("visible");
+      lastShownMatchResult = null;
+      if (matchBannerTimeout) {
+        clearTimeout(matchBannerTimeout);
+        matchBannerTimeout = null;
+      }
+      window.lastStateMachineState = null;
 
       console.log("✅ Overlay UI initialized");
     </script>
