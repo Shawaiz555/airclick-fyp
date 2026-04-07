@@ -55,6 +55,22 @@ def record_gesture(
 
     logger.info(f"✅ Gesture name '{gesture_data.name}' is unique - proceeding with recording")
 
+    # Check for duplicate action assignment (same action already used by another gesture)
+    existing_action_gesture = db.query(Gesture).filter(
+        Gesture.user_id == current_user.id,
+        Gesture.action == gesture_data.action,
+        Gesture.app_context == gesture_data.app_context
+    ).first()
+
+    if existing_action_gesture:
+        logger.warning(f"⚠️ Action '{gesture_data.action}' already assigned to gesture '{existing_action_gesture.name}' for user {current_user.email}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"The action '{gesture_data.action}' is already assigned to gesture '{existing_action_gesture.name}'. Each action can only be assigned to one gesture."
+        )
+
+    logger.info(f"✅ Action '{gesture_data.action}' is available - proceeding with recording")
+
     # CRITICAL FIX: Check for duplicate gesture landmarks (same gesture, different name)
     # This prevents users from storing essentially the same gesture multiple times
     # We'll check this AFTER preprocessing to compare apples-to-apples
@@ -140,16 +156,9 @@ def record_gesture(
                 }
                 existing_gestures_list.append(gesture_dict)
 
-            # Convert new gesture frames to matching format
-            new_gesture_frames = [
-                {
-                    "timestamp": frame.timestamp,
-                    "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
-                    "handedness": frame.handedness,
-                    "confidence": frame.confidence
-                }
-                for frame in gesture_data.frames
-            ]
+            # Use the already-preprocessed frames_dict for comparison so the new
+            # gesture is compared on the same scale as existing stored gestures.
+            new_gesture_frames = frames_dict
 
             # Match against existing gestures
             match_result = matcher.match_gesture(
@@ -473,6 +482,22 @@ def update_gesture(
                 detail=f"A gesture with the name '{gesture_data.name}' already exists. Please choose a different name."
             )
 
+    # Check for duplicate action assignment (if action or context is changing)
+    if gesture_data.action != gesture.action or gesture_data.app_context != gesture.app_context:
+        existing_action_gesture = db.query(Gesture).filter(
+            Gesture.user_id == current_user.id,
+            Gesture.action == gesture_data.action,
+            Gesture.app_context == gesture_data.app_context,
+            Gesture.id != gesture_id  # Exclude current gesture
+        ).first()
+
+        if existing_action_gesture:
+            logger.warning(f"⚠️ Action '{gesture_data.action}' already assigned to gesture '{existing_action_gesture.name}'")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"The action '{gesture_data.action}' is already assigned to gesture '{existing_action_gesture.name}'. Each action can only be assigned to one gesture."
+            )
+
     # Update basic fields
     gesture.name = gesture_data.name
     gesture.action = gesture_data.action
@@ -561,16 +586,9 @@ def update_gesture(
                     }
                     existing_gestures_list.append(gesture_dict)
 
-                # Convert updated gesture frames to matching format
-                updated_gesture_frames = [
-                    {
-                        "timestamp": frame.timestamp,
-                        "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
-                        "handedness": frame.handedness,
-                        "confidence": frame.confidence
-                    }
-                    for frame in gesture_data.frames
-                ]
+                # Use the already-preprocessed frames_dict so the comparison is
+                # on the same scale as existing stored gestures.
+                updated_gesture_frames = frames_dict
 
                 # Match against existing gestures
                 match_result = matcher.match_gesture(
