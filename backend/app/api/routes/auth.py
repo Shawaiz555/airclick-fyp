@@ -13,6 +13,9 @@ All endpoints return JWT tokens for authenticated sessions.
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
+import logging
+
+logger = logging.getLogger(__name__)
 import secrets
 import hashlib
 import os
@@ -155,6 +158,13 @@ async def register(
     # Generate JWT access token
     access_token = create_access_token(data={"sub": new_user.id})
 
+    # Preload gestures into memory (new user has none, but initialises the store)
+    try:
+        from app.services.gesture_store import load_user_gestures
+        load_user_gestures(new_user.id, db)
+    except Exception as _e:
+        logger.warning(f"GestureStore preload failed on register: {_e}")
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -230,6 +240,13 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
 
     # Generate JWT access token
     access_token = create_access_token(data={"sub": user.id})
+
+    # Preload gestures into memory for instant matching
+    try:
+        from app.services.gesture_store import load_user_gestures
+        load_user_gestures(user.id, db)
+    except Exception as _e:
+        logger.warning(f"GestureStore preload failed on login: {_e}")
 
     return {
         "access_token": access_token,
@@ -406,6 +423,13 @@ async def google_auth(
 
     # Generate JWT access token
     access_token = create_access_token(data={"sub": user.id})
+
+    # Preload gestures into memory for instant matching
+    try:
+        from app.services.gesture_store import load_user_gestures
+        load_user_gestures(user.id, db)
+    except Exception as _e:
+        logger.warning(f"GestureStore preload failed on OAuth login: {_e}")
 
     return {
         "access_token": access_token,

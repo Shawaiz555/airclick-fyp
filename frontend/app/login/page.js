@@ -46,12 +46,14 @@ export default function LoginPage() {
         const errorData = await response.json().catch(() => ({ detail: 'Login failed' }));
         throw new Error(errorData.detail || 'Invalid credentials');
       }
-      toast.success('Logged in successfully!!');
 
       const data = await response.json();
 
-      // Login with user data and token
-      login(data.user, data.access_token);
+      toast.success('Logged in successfully!!');
+
+      // login() handles redirect — keep spinner up during navigation
+      await login(data.user, data.access_token);
+      return; // redirect in progress, don't stop spinner
 
     } catch (err) {
       setError(err.message || 'Invalid credentials');

@@ -11,6 +11,7 @@ from app.services.gesture_matcher import get_gesture_matcher
 from app.services.action_executor import get_action_executor
 from app.services.gesture_indexing import rebuild_gesture_index
 from app.services.gesture_cache import invalidate_user_cache
+from app.services.gesture_store import reload_user_gestures
 from app.core.actions import get_all_actions_flat, get_actions_by_context, AppContext
 import logging
 
@@ -393,6 +394,7 @@ def record_gesture(
 
     # Phase 3: Invalidate user's cache since gestures changed
     invalidate_user_cache(current_user.id)
+    reload_user_gestures(current_user.id, db)
 
     logger.info(f"✅ Gesture recorded: '{new_gesture.name}' | 60 frames | Index marked for rebuild")
     logger.info(f"{'='*60}\n")
@@ -745,6 +747,7 @@ def update_gesture(
 
     # Phase 3: Invalidate user's cache since gesture changed
     invalidate_user_cache(current_user.id)
+    reload_user_gestures(current_user.id, db)
 
     logger.info(f"Gesture updated: {gesture.name} | Index marked for rebuild")
 
@@ -777,6 +780,7 @@ def delete_gesture(
 
     # Phase 3: Invalidate user's cache since gesture deleted
     invalidate_user_cache(current_user.id)
+    reload_user_gestures(current_user.id, db)
 
     logger.info(f"Gesture deleted: {gesture.name} | Index marked for rebuild")
 
@@ -810,15 +814,18 @@ def match_gesture(
     logger.info(f"{'='*60}")
     logger.info(f"User: {current_user.email} (ID: {current_user.id})")
 
-    # CRITICAL FIX: Check for stored gestures FIRST before doing any processing
-    # This avoids expensive preprocessing when there are no gestures to match against
-    stored_gestures = db.query(Gesture).filter(
-        Gesture.user_id == current_user.id
-    ).all()
+    # Load gestures from in-memory store (preloaded at login); fall back to DB on miss
+    from app.services.gesture_store import get_user_gestures, load_user_gestures
 
-    logger.info(f"Stored gestures found in database: {len(stored_gestures)}")
+    all_gestures_dict = get_user_gestures(current_user.id)
+    if all_gestures_dict is None:
+        logger.info("GestureStore miss — loading from DB")
+        load_user_gestures(current_user.id, db)
+        all_gestures_dict = get_user_gestures(current_user.id) or []
 
-    if not stored_gestures:
+    logger.info(f"Stored gestures available: {len(all_gestures_dict)}")
+
+    if not all_gestures_dict:
         logger.warning("⚠️ No stored gestures found - returning early without processing")
         logger.info(f"{'='*60}\n")
         return {
@@ -832,12 +839,10 @@ def match_gesture(
     logger.info(f"Active context: {active_context}")
 
     if active_context != "ALL":
-        # Filter gestures to only include those matching the active context
-        filtered_gestures = [g for g in stored_gestures if g.app_context == active_context]
-        logger.info(f"Context filtering: {len(stored_gestures)} total → {len(filtered_gestures)} in {active_context} context")
-        stored_gestures = filtered_gestures
+        gestures_dict = [g for g in all_gestures_dict if g["app_context"] == active_context]
+        logger.info(f"Context filtering: {len(all_gestures_dict)} total → {len(gestures_dict)} in {active_context} context")
 
-        if not stored_gestures:
+        if not gestures_dict:
             logger.warning(f"⚠️ No gestures found for {active_context} context")
             logger.info(f"{'='*60}\n")
             return {
@@ -847,7 +852,8 @@ def match_gesture(
                 "active_context": active_context
             }
     else:
-        logger.info(f"Context filtering: ALL contexts enabled - using all {len(stored_gestures)} gestures")
+        gestures_dict = all_gestures_dict
+        logger.info(f"Context filtering: ALL contexts enabled - using all {len(gestures_dict)} gestures")
 
     # Only log frame stats if we have gestures to match against
     logger.info(f"Input frames received: {len(frames)}")
@@ -865,18 +871,6 @@ def match_gesture(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least 5 frames required for gesture matching"
         )
-
-    # Convert to dictionary format
-    gestures_dict = [
-        {
-            "id": g.id,
-            "name": g.name,
-            "action": g.action,
-            "app_context": g.app_context,
-            "landmark_data": g.landmark_data
-        }
-        for g in stored_gestures
-    ]
 
     # Log stored gestures details
     logger.info("\nStored gestures to compare against:")
