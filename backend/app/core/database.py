@@ -13,17 +13,13 @@ logger = logging.getLogger(__name__)
 engine = create_engine(
     settings.DATABASE_URL,
     poolclass=QueuePool,
-    pool_pre_ping=True,          # Test connections before using
-    pool_size=5,                 # Reduced from 10 to 5 for Supabase free tier
-    max_overflow=5,              # Reduced from 10 to 5 (total max = 10 connections)
-    pool_recycle=3600,           # Recycle connections after 1 hour
+    pool_pre_ping=True,          # Test connections before using — retries on stale conn
+    pool_size=3,                 # Supabase free tier: keep total connections low
+    max_overflow=2,              # Total max = 5 connections
+    pool_recycle=300,            # Recycle every 5 min — Supabase pooler drops idle after ~5 min
     pool_timeout=30,             # Wait 30 seconds for connection
     connect_args={
-        "connect_timeout": 30,    # Connection timeout in seconds
-        "keepalives": 1,          # Enable TCP keepalives
-        "keepalives_idle": 30,    # Seconds before sending keepalive
-        "keepalives_interval": 10, # Seconds between keepalives
-        "keepalives_count": 5     # Number of keepalives before giving up
+        "connect_timeout": 30,   # Connection timeout in seconds
     }
 )
 

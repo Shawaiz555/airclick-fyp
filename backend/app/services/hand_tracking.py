@@ -540,20 +540,24 @@ class HandTrackingService:
 
                         db = SessionLocal()
                         try:
-                            # Import here to avoid circular dependency
                             from app.models.gesture import Gesture
+                            from app.services.gesture_store import get_user_gestures, load_user_gestures
                             import time as perf_time
 
-                            # PHASE 1 OPTIMIZATION: Load gestures with performance tracking
-                            db_start = perf_time.time()
+                            # Use in-memory store (loaded at login) — falls back to DB if not cached
+                            load_start = perf_time.time()
+                            gestures_list = get_user_gestures(user_id)
 
-                            # Get ONLY the authenticated user's gestures (SECURITY FIX)
-                            gestures = db.query(Gesture).filter(Gesture.user_id == user_id).all()
+                            if gestures_list is None:
+                                # Not in store yet — load from DB and cache for next time
+                                logger.info(f"📊 GestureStore miss for user {user_id} — loading from DB")
+                                load_user_gestures(user_id, db)
+                                gestures_list = get_user_gestures(user_id)
 
-                            db_time = (perf_time.time() - db_start) * 1000
-                            logger.info(f"📊 Database query completed in {db_time:.1f}ms ({len(gestures)} gestures)")
+                            load_time = (perf_time.time() - load_start) * 1000
+                            logger.info(f"📊 Gestures loaded in {load_time:.1f}ms ({len(gestures_list)} gestures, from {'cache' if load_time < 2 else 'DB'})")
 
-                            if not gestures:
+                            if not gestures_list:
                                 logger.warning("No gestures found for matching")
                                 return {"matched": False, "reason": "No gestures in database"}
 
@@ -570,27 +574,6 @@ class HandTrackingService:
                                     active_context = "ALL"
                             else:
                                 logger.info(f"🎯 Active context: ALL (file not found)")
-
-                            # NOTE: We DON'T filter gestures here - we match against ALL gestures
-                            # and check context AFTER matching to provide proper feedback
-
-                            # PHASE 1 OPTIMIZATION: Convert to list format with performance tracking
-                            convert_start = perf_time.time()
-                            gestures_list = []
-                            for g in gestures:
-                                gesture_dict = {
-                                    'id': g.id,
-                                    'name': g.name,
-                                    'action': g.action,  # Include action for execution
-                                    'app_context': g.app_context,  # Include app context
-                                    'landmark_data': g.landmark_data,  # Should contain 'frames' key
-                                    'adaptive_threshold': g.adaptive_threshold,  # PHASE 1: Include adaptive threshold
-                                    'template_index': g.template_index  # PHASE 1: Include template index
-                                }
-                                gestures_list.append(gesture_dict)
-
-                            convert_time = (perf_time.time() - convert_start) * 1000
-                            logger.info(f"📊 Gesture conversion completed in {convert_time:.1f}ms")
 
                             # Match gesture - CRITICAL: Use return_best_candidate=True for false trigger tracking
                             matcher = get_gesture_matcher()
