@@ -271,12 +271,18 @@ class HandPoseDetector:
         Returns:
             True if hand is stable, False if moving too fast
         """
-        if len(hand_landmarks) < 1:
+        if len(hand_landmarks) < 13:
             return False
 
-        # Use wrist position for stability tracking
-        wrist = hand_landmarks[0]
-        current_pos = np.array([wrist['x'], wrist['y'], wrist['z']])
+        # Use multiple landmarks (wrist + index/middle MCPs + fingertips) for a more
+        # robust stability signal — wrist alone misses rapid finger/palm movement
+        key_indices = [0, 5, 9, 8, 12]  # wrist, index MCP, middle MCP, index tip, middle tip
+        pts = []
+        for i in key_indices:
+            lm = hand_landmarks[i]
+            pts.append([lm['x'], lm['y'], lm['z']])
+        # Average the key-point centroid as a single position sample
+        current_pos = np.mean(pts, axis=0)
 
         # Add to position buffer
         self.hand_positions_buffer.append(current_pos)
@@ -360,13 +366,55 @@ class HandPoseDetector:
         avg_z = np.mean(orientations)
         orientation_variance = np.var(orientations)
 
-        # Good orientation: negative Z (facing camera) with low variance
-        is_facing_camera = avg_z < -0.3 and orientation_variance < 0.1
+        # Good orientation: palm clearly facing camera (avg_z < -0.5 = at least 50% toward camera)
+        # and consistent across recent frames (variance < 0.05).
+        # Tighter than before to reject side-on hands (face-rubbing, mouth-touching, etc.)
+        is_facing_camera = avg_z < -0.5 and orientation_variance < 0.05
 
         if not is_facing_camera:
             logger.debug(f"⚠️ Hand not facing camera: avg_z={avg_z:.3f}, variance={orientation_variance:.3f}")
 
         return is_facing_camera
+
+    def are_fingers_extended(self, hand_landmarks: List[Dict]) -> bool:
+        """
+        Check that the index and middle fingers are reasonably extended (not curled).
+
+        When a hand is rubbing the face/mouth the fingers are typically bent/curled
+        toward the palm.  We require that the index and middle fingertips are further
+        from the wrist than their respective PIP joints — a simple proxy for extension.
+
+        Landmark indices used:
+          0  = wrist
+          6  = index PIP,   8  = index tip
+          10 = middle PIP,  12 = middle tip
+        """
+        if len(hand_landmarks) < 13:
+            return False
+
+        wrist = np.array([hand_landmarks[0]['x'], hand_landmarks[0]['y'], hand_landmarks[0]['z']])
+
+        def dist(lm):
+            return np.linalg.norm(np.array([lm['x'], lm['y'], lm['z']]) - wrist)
+
+        index_pip_dist = dist(hand_landmarks[6])
+        index_tip_dist = dist(hand_landmarks[8])
+        middle_pip_dist = dist(hand_landmarks[10])
+        middle_tip_dist = dist(hand_landmarks[12])
+
+        # Tip must be at least 80 % of the PIP distance from the wrist — catches all but
+        # nearly-fully-curled fingers without blocking a pinch (where tip comes close to thumb,
+        # not to the wrist).
+        index_extended = index_tip_dist >= index_pip_dist * 0.8
+        middle_extended = middle_tip_dist >= middle_pip_dist * 0.8
+
+        if not (index_extended and middle_extended):
+            logger.debug(
+                f"⚠️ Fingers not extended: index={index_tip_dist:.3f}/{index_pip_dist:.3f}, "
+                f"middle={middle_tip_dist:.3f}/{middle_pip_dist:.3f}"
+            )
+
+        return index_extended and middle_extended
 
     def update_state_machine(
         self,
@@ -509,7 +557,37 @@ class HandPoseDetector:
                 'stats': self.stats.copy()
             }
 
-        # Detect pinches (only if hand is stable and facing camera)
+        # Reject clicks when fingers are curled (hand rubbing face/mouth scenario)
+        if not self.are_fingers_extended(hand_landmarks):
+            logger.debug("🚫 Click blocked: Fingers not extended (hand likely near face)")
+            self.stats['stability_blocks'] += 1
+            self.left_click_buffer.clear()
+            self.right_click_buffer.clear()
+            return {
+                'click_type': ClickType.NONE.value,
+                'trigger_left': False,
+                'trigger_right': False,
+                'blocked_reason': 'fingers_not_extended',
+                'raw_detections': {
+                    'index_pinch': False,
+                    'middle_pinch': False
+                },
+                'consistent_detections': {
+                    'left_click': False,
+                    'right_click': False
+                },
+                'states': {
+                    'left_click': self.left_click_state.value,
+                    'right_click': self.right_click_state.value
+                },
+                'cooldowns': {
+                    'left_click': int(self.left_click_cooldown),
+                    'right_click': int(self.right_click_cooldown)
+                },
+                'stats': self.stats.copy()
+            }
+
+        # Detect pinches (only if hand is stable, facing camera, and fingers are extended)
         is_index_pinched = self.detect_index_pinch(hand_landmarks)
         is_middle_pinched = self.detect_middle_pinch(hand_landmarks)
 
@@ -674,15 +752,15 @@ def get_hand_pose_detector() -> HandPoseDetector:
 
     if hand_pose_detector is None:
         hand_pose_detector = HandPoseDetector(
-            pinch_threshold=0.08,       # 8cm - MUCH easier to trigger (was 5cm)
-            release_threshold=0.12,     # 12cm (hysteresis)
-            cooldown_frames=5,          # ~160ms - faster clicks (was 10)
-            consistency_frames=2,       # Only 2 frames needed (was 3)
+            pinch_threshold=0.08,       # 8cm distance to trigger pinch
+            release_threshold=0.12,     # 12cm hysteresis
+            cooldown_frames=8,          # ~250ms between clicks (was 5)
+            consistency_frames=4,       # 4 consecutive frames required (was 2) — ~130ms at 30fps
             adaptive_threshold=False,   # Disabled for consistency
-            stability_threshold=0.015,  # Hand must be stable (low movement) to click
-            stability_frames=5          # Need 5 stable frames (~160ms) before allowing click
+            stability_threshold=0.012,  # Tighter stability — less hand jitter allowed (was 0.015)
+            stability_frames=8          # Need 8 stable frames (~260ms) before allowing click (was 5)
         )
-        logger.info("Global hand pose detector created (STABLE CLICK MODE - prevents unintentional clicks)")
+        logger.info("Global hand pose detector created (STRICT CLICK MODE - stability_frames=8, consistency=4)")
 
     return hand_pose_detector
 

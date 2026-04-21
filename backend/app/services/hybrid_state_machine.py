@@ -42,7 +42,7 @@ class HybridStateMachine:
 
     def __init__(
         self,
-        stationary_duration_threshold: float = 1.2,  # Reduced from 2.0s: faster static gesture trigger
+        stationary_duration_threshold: float = 1.6,  # Raised from 1.2s: requires more committed stillness to reduce accidental triggers
         collection_frame_count: int = 60,            # Reduced from 90: fewer frames = faster match
         min_collection_frames: int = 10,             # Minimum frames required before matching
         idle_cooldown_duration: float = 0.5,         # Reduced from 1.0s: faster restart after match
@@ -136,7 +136,11 @@ class HybridStateMachine:
 
     def calculate_hand_velocity(self, landmarks: List[Dict]) -> float:
         """
-        Calculate hand velocity based on wrist movement.
+        Calculate hand velocity based on the centroid of key landmarks.
+
+        Using only the wrist misses rapid finger/palm movement (e.g. hair-fixing
+        where the wrist barely moves but the hand is clearly in motion).  We
+        average wrist + index MCP + middle MCP + index tip + middle tip instead.
 
         Args:
             landmarks: List of 21 hand landmarks
@@ -144,12 +148,16 @@ class HybridStateMachine:
         Returns:
             Velocity magnitude (0-1 range, normalized by frame)
         """
-        if not landmarks or len(landmarks) < 1:
+        if not landmarks or len(landmarks) < 13:
             return 0.0
 
-        # Use wrist landmark (index 0)
-        wrist = landmarks[0]
-        current_position = np.array([wrist['x'], wrist['y'], wrist['z']])
+        # Key landmarks: wrist(0), index MCP(5), middle MCP(9), index tip(8), middle tip(12)
+        key_indices = [0, 5, 9, 8, 12]
+        pts = []
+        for i in key_indices:
+            lm = landmarks[i]
+            pts.append([lm['x'], lm['y'], lm['z']])
+        current_position = np.mean(pts, axis=0)
 
         if self.previous_hand_position is None:
             self.previous_hand_position = current_position
@@ -160,6 +168,47 @@ class HybridStateMachine:
         self.previous_hand_position = current_position
 
         return float(displacement)
+
+    def is_hand_facing_camera(self, landmarks: List[Dict]) -> bool:
+        """
+        Check that the palm is clearly oriented toward the camera.
+
+        Uses the cross-product of (index_MCP - wrist) and (pinky_MCP - wrist)
+        to compute the palm normal.  A negative Z component means the palm faces
+        the camera.  Threshold -0.4 requires the hand to be at least 40% toward
+        the camera — weaker than the click detector so it doesn't block legitimate
+        gestures performed at slight angles, but strong enough to reject a hand
+        that is sideways or facing away (hair-fixing, mouth-touching, etc.).
+
+        Returns True if hand is facing camera, False otherwise.
+        """
+        if not landmarks or len(landmarks) < 18:
+            return False
+
+        wrist     = landmarks[0]
+        index_mcp = landmarks[5]
+        pinky_mcp = landmarks[17]
+
+        v1 = np.array([index_mcp['x'] - wrist['x'],
+                       index_mcp['y'] - wrist['y'],
+                       index_mcp['z'] - wrist['z']])
+        v2 = np.array([pinky_mcp['x'] - wrist['x'],
+                       pinky_mcp['y'] - wrist['y'],
+                       pinky_mcp['z'] - wrist['z']])
+
+        palm_normal = np.cross(v1, v2)
+        magnitude = np.linalg.norm(palm_normal)
+        if magnitude < 0.001:
+            return False
+
+        palm_normal = palm_normal / magnitude
+        z_component = palm_normal[2]
+
+        facing = z_component < -0.4
+        if not facing:
+            logger.debug(f"⚠️ Gesture blocked: palm not facing camera (z={z_component:.3f})")
+        return facing
+
 
     def is_hand_stationary(self, landmarks: List[Dict]) -> bool:
         """
@@ -290,6 +339,19 @@ class HybridStateMachine:
                 logger.debug("✅ Auth check passed - collection allowed")
         else:
             logger.warning("⚠️ No auth_check_callback registered!")
+
+        # HAND QUALITY GATES: Reject collection if the hand is not in a valid
+        # gesture-performing position.  This is the main fix for accidental triggers
+        # caused by hair-fixing, mouth-touching, side-on hands, etc.
+        #
+        # These checks run BEFORE the velocity/duration timers so that a non-facing
+        # or curled hand continuously resets the stationary/moving timers and can
+        # never accumulate enough dwell time to fire.
+        if not self.is_hand_facing_camera(landmarks):
+            # Reset both timers — hand is sideways / facing away
+            self.stationary_start_time = None
+            self.moving_start_time = None
+            return False
 
         # TRIGGER 1: Check if hand is stationary (static gestures)
         if self.is_hand_stationary(landmarks):
@@ -571,7 +633,7 @@ class HybridStateMachine:
             # When hand reappears during IDLE, we need fresh velocity calculation
             if landmarks:
                 # Calculate velocity to update previous_hand_position without triggering collection
-                _ = self.calculate_hand_velocity(landmarks)
+                self.calculate_hand_velocity(landmarks)
                 # Force reset timers to prevent immediate collection
                 if self.stationary_start_time is not None or self.moving_start_time is not None:
                     logger.debug(f"✋ Hand reappeared during IDLE cooldown - resetting timers (remaining: {self.idle_cooldown_duration - idle_duration:.2f}s)")
