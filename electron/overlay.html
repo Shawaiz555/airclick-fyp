@@ -1035,6 +1035,18 @@
       // Faster polling = more reliable click detection with gesture control
       const cursorCheckInterval = setInterval(checkCursorOverHeader, 16);
 
+      // Registry for all intervals/timeouts so they can be cleared on unload
+      const _intervals = {
+        cursorCheck: cursorCheckInterval,
+        recordingPoll: null,
+        tokenPoll: null,
+        maintenancePoll: null,
+        authPoll: null,
+      };
+      const _timeouts = {
+        wsReconnect: null,
+      };
+
       // Set initial state to click-through
       currentWindow.setIgnoreMouseEvents(true, { forward: true });
       console.log(
@@ -1318,6 +1330,19 @@
       // Track if we're currently connecting to prevent multiple simultaneous connections
       let isConnecting = false;
 
+      // Cleanly destroy a WebSocket without triggering its onclose reconnect logic
+      function destroyWebSocket() {
+        if (!ws) return;
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        if (ws.readyState !== WebSocket.CLOSED) {
+          ws.close();
+        }
+        ws = null;
+      }
+
       // Connect to WebSocket with current hybrid mode
       function connectWebSocket() {
         // Prevent multiple simultaneous connection attempts
@@ -1335,12 +1360,19 @@
             console.log(
               "🔌 Closing existing WebSocket connection for mode switch",
             );
-            ws.close();
-            // Wait for connection to close before reconnecting
-            ws = null;
-            setTimeout(connectWebSocket, 300);
+            destroyWebSocket();
+            // Cancel any pending reconnect and schedule a fresh one
+            if (_timeouts.wsReconnect) {
+              clearTimeout(_timeouts.wsReconnect);
+            }
+            _timeouts.wsReconnect = setTimeout(() => {
+              _timeouts.wsReconnect = null;
+              connectWebSocket();
+            }, 300);
             return;
           }
+          // ws exists but already closed — clean up silently
+          destroyWebSocket();
         }
 
         isConnecting = true;
@@ -1548,13 +1580,23 @@
         ws.onclose = () => {
           console.log("❌ Overlay disconnected from backend");
           statusDot.classList.remove("active");
-          isConnecting = false; // Reset connection flag
-
-          // Clear the ws reference
+          isConnecting = false;
           ws = null;
 
-          // Don't reload - just try to reconnect after delay
-          setTimeout(() => {
+          // Reset gesture state so stale data doesn't pollute the next session
+          recognitionFrames = [];
+          lastHandPosition = null;
+          if (gestureEndTimer) {
+            clearTimeout(gestureEndTimer);
+            gestureEndTimer = null;
+          }
+
+          // Schedule one reconnect attempt — cancel any previously queued one
+          if (_timeouts.wsReconnect) {
+            clearTimeout(_timeouts.wsReconnect);
+          }
+          _timeouts.wsReconnect = setTimeout(() => {
+            _timeouts.wsReconnect = null;
             console.log("🔄 Attempting to reconnect...");
             connectWebSocket();
           }, 3000);
@@ -1581,7 +1623,7 @@
       const recordingStateFile = path.join(os.homedir(), ".airclick-recording");
       let lastRecordingState = false;
 
-      setInterval(() => {
+      _intervals.recordingPoll = setInterval(() => {
         try {
           let currentRecordingState = false;
           if (fs.existsSync(recordingStateFile)) {
@@ -1649,7 +1691,7 @@
 
       // Poll gesture count changes - REDUCED from 2s to 10s to avoid spamming backend
       // Only needed to detect when gestures are added/deleted from web UI
-      setInterval(async () => {
+      _intervals.tokenPoll = setInterval(async () => {
         try {
           const currentFileExists = fs.existsSync(tokenPath);
           const currentTokenContent = currentFileExists
@@ -1899,7 +1941,7 @@
 
       // Check immediately then every 15 seconds
       checkMaintenanceStatus();
-      setInterval(checkMaintenanceStatus, 15000);
+      _intervals.maintenancePoll = setInterval(checkMaintenanceStatus, 15000);
 
       // Initial connection
       connectWebSocket();
@@ -2649,7 +2691,7 @@
       }
 
       // Periodically re-check authentication (every 30 seconds)
-      setInterval(() => {
+      _intervals.authPoll = setInterval(() => {
         authChecked = false; // Reset flag to allow re-check
         checkAuthentication();
       }, 30000);
@@ -2826,6 +2868,17 @@
         if (data.gestureMatch !== undefined) {
           updateGestureMatch(data.gestureMatch);
         }
+      });
+
+      // Cleanup all timers and connections when overlay is destroyed
+      window.addEventListener("beforeunload", () => {
+        destroyWebSocket();
+        Object.values(_intervals).forEach((id) => { if (id) clearInterval(id); });
+        Object.values(_timeouts).forEach((id) => { if (id) clearTimeout(id); });
+        if (matchBannerTimeout) clearTimeout(matchBannerTimeout);
+        if (gestureEndTimer) clearTimeout(gestureEndTimer);
+        if (dragPollInterval) clearInterval(dragPollInterval);
+        if (dragTimeout) clearTimeout(dragTimeout);
       });
 
       // Reset all banner state on startup - ensure clean slate
