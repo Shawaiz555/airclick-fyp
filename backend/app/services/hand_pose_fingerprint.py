@@ -360,6 +360,76 @@ def calculate_pose_distance(sig1: str, sig2: str) -> int:
     return HandPoseFingerprint.calculate_pose_distance(sig1, sig2)
 
 
+def check_hand_orientation(frames: List[Dict], min_facing_ratio: float = 0.6) -> Dict:
+    """
+    Check whether a gesture sequence shows the palm facing the camera.
+
+    Rejects side-hand and back-hand postures by computing the palm normal
+    (cross product of wrist→index_MCP and wrist→pinky_MCP vectors) and
+    checking whether its Z component is sufficiently negative (palm toward
+    camera) across the majority of frames.
+
+    Args:
+        frames: List of frame dicts, each with a 'landmarks' key (list of 21
+                dicts with 'x', 'y', 'z').
+        min_facing_ratio: Fraction of frames that must pass the orientation
+                          check (default 0.6 = 60 %).
+
+    Returns:
+        dict with keys:
+            'valid'  (bool)  – True if orientation is acceptable.
+            'reason' (str)   – Human-readable explanation.
+            'ratio'  (float) – Fraction of frames that passed.
+    """
+    if not frames:
+        return {'valid': False, 'reason': 'No frames provided', 'ratio': 0.0}
+
+    passing = 0
+    checked = 0
+
+    for frame in frames:
+        landmarks = frame.get('landmarks', [])
+        if len(landmarks) < 18:
+            continue
+
+        wrist     = landmarks[0]
+        index_mcp = landmarks[5]
+        pinky_mcp = landmarks[17]
+
+        v1 = np.array([index_mcp['x'] - wrist['x'],
+                       index_mcp['y'] - wrist['y'],
+                       index_mcp.get('z', 0) - wrist.get('z', 0)])
+        v2 = np.array([pinky_mcp['x'] - wrist['x'],
+                       pinky_mcp['y'] - wrist['y'],
+                       pinky_mcp.get('z', 0) - wrist.get('z', 0)])
+
+        palm_normal = np.cross(v1, v2)
+        mag = np.linalg.norm(palm_normal)
+        if mag < 1e-6:
+            continue
+
+        z_component = palm_normal[2] / mag
+        checked += 1
+        if z_component < -0.3:
+            passing += 1
+
+    if checked == 0:
+        return {'valid': False, 'reason': 'Could not compute palm orientation (missing Z data)', 'ratio': 0.0}
+
+    ratio = passing / checked
+    if ratio >= min_facing_ratio:
+        return {'valid': True, 'reason': 'Palm is facing the camera', 'ratio': ratio}
+    else:
+        return {
+            'valid': False,
+            'reason': (
+                f'Hand is not facing the camera ({ratio:.0%} of frames passed, '
+                f'need {min_facing_ratio:.0%}). Please face your palm toward the camera.'
+            ),
+            'ratio': ratio
+        }
+
+
 def estimate_hand_size(landmarks: List[Dict]) -> float:
     """
     Convenience function to estimate hand size.

@@ -7,6 +7,7 @@ from app.core.deps import get_current_user
 from app.models.user import User
 from app.models.gesture import Gesture, ActivityLog
 from app.schemas.gesture import GestureCreate, GestureResponse
+from app.services.gesture_validation import validate_gesture_input, process_and_validate_gesture
 from app.services.gesture_matcher import get_gesture_matcher
 from app.services.action_executor import get_action_executor
 from app.services.gesture_indexing import rebuild_gesture_index
@@ -14,6 +15,7 @@ from app.services.gesture_cache import invalidate_user_cache
 from app.services.gesture_store import reload_user_gestures
 from app.core.actions import get_all_actions_flat, get_actions_by_context, AppContext
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -35,28 +37,21 @@ def record_gesture(
     - Frame resampling to exactly 60 frames
     - Stateless preprocessing (reset filters for consistent recording)
     """
-    from app.services.frame_resampler import resample_frames_linear, get_frame_statistics
-
-    logger.info(f"\n{'='*60}")
     logger.info(f"GESTURE RECORDING - User: {current_user.email}")
-    logger.info(f"{'='*60}")
 
-    # CRITICAL FIX: Check for duplicate gesture name
+    # 1. Basic unique checks
     existing_gesture = db.query(Gesture).filter(
         Gesture.user_id == current_user.id,
         Gesture.name == gesture_data.name
     ).first()
 
     if existing_gesture:
-        logger.warning(f"⚠️ Duplicate gesture name: '{gesture_data.name}' already exists for user {current_user.email}")
+        logger.warning(f"⚠️ Duplicate gesture name: '{gesture_data.name}' already exists")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"A gesture with the name '{gesture_data.name}' already exists. Please choose a different name."
+            detail=f"A gesture with the name '{gesture_data.name}' already exists."
         )
 
-    logger.info(f"✅ Gesture name '{gesture_data.name}' is unique - proceeding with recording")
-
-    # Check for duplicate action assignment (same action already used by another gesture)
     existing_action_gesture = db.query(Gesture).filter(
         Gesture.user_id == current_user.id,
         Gesture.action == gesture_data.action,
@@ -64,341 +59,45 @@ def record_gesture(
     ).first()
 
     if existing_action_gesture:
-        logger.warning(f"⚠️ Action '{gesture_data.action}' already assigned to gesture '{existing_action_gesture.name}' for user {current_user.email}")
+        logger.warning(f"⚠️ Action '{gesture_data.action}' already assigned to '{existing_action_gesture.name}'")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"The action '{gesture_data.action}' is already assigned to gesture '{existing_action_gesture.name}'. Each action can only be assigned to one gesture."
+            detail=f"The action '{gesture_data.action}' is already assigned to gesture '{existing_action_gesture.name}'."
         )
 
-    logger.info(f"✅ Action '{gesture_data.action}' is available - proceeding with recording")
+    # 2. Basic frame validation
+    validate_gesture_input(gesture_data.frames)
 
-    # CRITICAL FIX: Check for duplicate gesture landmarks (same gesture, different name)
-    # This prevents users from storing essentially the same gesture multiple times
-    # We'll check this AFTER preprocessing to compare apples-to-apples
-    duplicate_gesture_check_enabled = True  # Set to False to disable this check
-
-    # Validate frames have 21 landmarks each
-    for frame in gesture_data.frames:
-        if len(frame.landmarks) != 21:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Each frame must have exactly 21 landmarks"
-            )
-
-    # Convert to dict format for processing
-    frames_dict = [
-        {
-            "timestamp": frame.timestamp,
-            "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
-            "handedness": frame.handedness,
-            "confidence": frame.confidence
-        }
-        for frame in gesture_data.frames
-    ]
-
-    # Log original frame statistics
-    original_stats = get_frame_statistics(frames_dict)
-    logger.info(f"Original frames: {original_stats['frame_count']} | "
-               f"Duration: {original_stats['duration_ms']}ms | "
-               f"Avg FPS: {original_stats['avg_fps']} | "
-               f"Avg Confidence: {original_stats['avg_confidence']}")
-
-    # ✅ CRITICAL FIX #1: Apply FULL preprocessing during recording
-    # This ensures recorded gestures use the SAME normalization as matching
-    from app.services.gesture_preprocessing import preprocess_for_recording, convert_features_to_frames
-
-    logger.info(f"📐 Applying FULL preprocessing (CRITICAL FIX #1):")
-    logger.info(f"   - Resampling to 60 frames")
-    logger.info(f"   - Temporal smoothing (One Euro Filter)")
-    logger.info(f"   - Procrustes normalization (translation/rotation/scale invariance)")
-    logger.info(f"   - Bone-length normalization (anatomical consistency)")
-
-    # Apply preprocessing and get features
-    features = preprocess_for_recording(
-        frames_dict,
-        target_frames=60,
-        apply_smoothing=True,
-        apply_procrustes=True,
-        apply_bone_normalization=True
+    # 3. Full processing and complex validation (Orientation, Duplicates, Trajectory, Pose)
+    landmark_data, precomputed_features = process_and_validate_gesture(
+        gesture_data.frames,
+        user_id=current_user.id,
+        db=db,
+        gesture_name=gesture_data.name
     )
 
-    logger.info(f"✅ Preprocessing complete: {features.shape}")
-
-    # Convert features back to frames format for storage
-    frames_dict = convert_features_to_frames(features, frames_dict)
-
-    logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
-
-    # CRITICAL FIX #2: Check for duplicate gesture landmarks (same gesture, different name)
-    # This prevents users from storing essentially the same gesture multiple times
-    if duplicate_gesture_check_enabled:
-        logger.info(f"\n{'='*60}")
-        logger.info(f"DUPLICATE GESTURE CHECK - Comparing landmarks with existing gestures")
-        logger.info(f"{'='*60}")
-
-        # Get all existing gestures for this user
-        existing_gestures = db.query(Gesture).filter(Gesture.user_id == current_user.id).all()
-
-        if existing_gestures:
-            logger.info(f"Found {len(existing_gestures)} existing gesture(s) to compare")
-
-            # Use gesture matcher to compare
-            matcher = get_gesture_matcher()
-
-            # Convert existing gestures to list format for matcher
-            existing_gestures_list = []
-            for g in existing_gestures:
-                gesture_dict = {
-                    'id': g.id,
-                    'name': g.name,
-                    'action': g.action,
-                    'app_context': g.app_context,
-                    'landmark_data': g.landmark_data
-                }
-                existing_gestures_list.append(gesture_dict)
-
-            # Use the already-preprocessed frames_dict for comparison so the new
-            # gesture is compared on the same scale as existing stored gestures.
-            new_gesture_frames = frames_dict
-
-            # Match against existing gestures
-            match_result = matcher.match_gesture(
-                new_gesture_frames,
-                existing_gestures_list,
-                user_id=current_user.id,
-                return_best_candidate=True  # Get best match even if below threshold
-            )
-
-            if match_result:
-                matched_gesture, similarity = match_result
-
-                # CRITICAL: Define strict duplicate thresholds to prevent same gesture storage
-                # After testing, peace signs were showing 85-92% similarity
-                # Old threshold of 95% was TOO HIGH - allowing duplicates through
-                #
-                # NEW THRESHOLDS (stricter to prevent conflicts):
-                # 0.85 = 85% similar = DEFINITE duplicate (reject)
-                # 0.78 = 78% similar = VERY similar (reject with warning)
-                # Below 78% = Different enough (allow)
-                DUPLICATE_THRESHOLD_HIGH = 0.85  # Definite duplicate - REJECT
-                DUPLICATE_THRESHOLD_MEDIUM = 0.78  # Very similar - REJECT with warning
-
-                logger.info(f"")
-                logger.info(f"{'='*60}")
-                logger.info(f"SIMILARITY CHECK RESULT:")
-                logger.info(f"   New gesture vs '{matched_gesture['name']}'")
-                logger.info(f"   Similarity: {similarity:.1%}")
-                logger.info(f"   High threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
-                logger.info(f"   Medium threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
-                logger.info(f"{'='*60}")
-
-                if similarity >= DUPLICATE_THRESHOLD_HIGH:
-                    # Definite duplicate - REJECT
-                    logger.warning(f"")
-                    logger.warning(f"{'='*60}")
-                    logger.warning(f"⚠️ DUPLICATE GESTURE DETECTED!")
-                    logger.warning(f"   New gesture is {similarity:.1%} similar to existing gesture")
-                    logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
-                    logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
-                    logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
-                    logger.warning(f"   REJECTING - This is essentially the same gesture")
-                    logger.warning(f"{'='*60}")
-
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail={
-                            "type": "duplicate_gesture",
-                            "message": f"This gesture is too similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a different gesture to avoid conflicts.",
-                            "existing_gesture_name": matched_gesture['name'],
-                            "existing_action": matched_gesture.get('action', 'Unknown'),
-                            "similarity": round(similarity * 100, 1),
-                            "threshold": round(DUPLICATE_THRESHOLD_HIGH * 100, 1)
-                        }
-                    )
-                elif similarity >= DUPLICATE_THRESHOLD_MEDIUM:
-                    # Very similar - REJECT with detailed warning
-                    logger.warning(f"")
-                    logger.warning(f"{'='*60}")
-                    logger.warning(f"⚠️ VERY SIMILAR GESTURE DETECTED!")
-                    logger.warning(f"   New gesture is {similarity:.1%} similar to existing gesture")
-                    logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
-                    logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
-                    logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
-                    logger.warning(f"   REJECTING - Too similar, will cause recognition conflicts")
-                    logger.warning(f"{'='*60}")
-
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail={
-                            "type": "duplicate_gesture",
-                            "message": f"This gesture is very similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a more distinct gesture to avoid recognition conflicts.",
-                            "existing_gesture_name": matched_gesture['name'],
-                            "existing_action": matched_gesture.get('action', 'Unknown'),
-                            "similarity": round(similarity * 100, 1),
-                            "threshold": round(DUPLICATE_THRESHOLD_MEDIUM * 100, 1)
-                        }
-                    )
-                else:
-                    # Different enough - ALLOW
-                    logger.info(f"✅ New gesture is UNIQUE enough")
-                    logger.info(f"   Best match: {similarity:.1%} similar to '{matched_gesture['name']}'")
-                    logger.info(f"   Well below threshold of {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
-                    logger.info(f"   Safe to store!")
-            else:
-                logger.info(f"✅ New gesture is COMPLETELY UNIQUE (no similar gestures found)")
-        else:
-            logger.info(f"✅ This is the user's first gesture - no duplicates possible")
-
-        logger.info(f"{'='*60}\n")
-
-    # CRITICAL FIX: Extract raw trajectory data BEFORE preprocessing destroys it
-    # This is needed for trajectory-based gesture discrimination (swipe vs static gestures)
-    raw_wrist_positions = []
-    for frame in gesture_data.frames:
-        if frame.landmarks and len(frame.landmarks) > 0:
-            wrist = frame.landmarks[0]  # Wrist is landmark 0
-            raw_wrist_positions.append({'x': wrist.x, 'y': wrist.y})
-
-    # Calculate raw trajectory (start to end position)
-    raw_trajectory = None
-    trajectory_classification = "unknown"
-    trajectory_quality = "unknown"
-
-    if len(raw_wrist_positions) >= 2:
-        start = raw_wrist_positions[0]
-        end = raw_wrist_positions[-1]
-        magnitude = ((end['x'] - start['x'])**2 + (end['y'] - start['y'])**2)**0.5
-
-        # CRITICAL: Classify trajectory for quality feedback
-        # These thresholds match gesture_matcher.py exactly
-        STATIONARY_THRESHOLD = 0.02  # Below this = definitely stationary
-        MOVEMENT_THRESHOLD = 0.05    # Above this = definitely moving
-
-        if magnitude < STATIONARY_THRESHOLD:
-            trajectory_classification = "stationary"
-            trajectory_quality = "good"  # Good for static gestures like screenshot
-            logger.info(f"📍 STATIONARY gesture detected (magnitude={magnitude:.4f} < {STATIONARY_THRESHOLD})")
-            logger.info(f"   ✅ Good for: Screenshot, Thumbs up, Peace sign, etc.")
-        elif magnitude > MOVEMENT_THRESHOLD:
-            trajectory_classification = "moving"
-            trajectory_quality = "good"  # Good for swipe/movement gestures
-            logger.info(f"📍 MOVING gesture detected (magnitude={magnitude:.4f} > {MOVEMENT_THRESHOLD})")
-            logger.info(f"   ✅ Good for: Swipe left/right/up/down, Wave, etc.")
-        else:
-            trajectory_classification = "ambiguous"
-            trajectory_quality = "warning"
-            logger.warning(f"⚠️ AMBIGUOUS movement detected (magnitude={magnitude:.4f})")
-            logger.warning(f"   Range: {STATIONARY_THRESHOLD} < {magnitude:.4f} < {MOVEMENT_THRESHOLD}")
-            logger.warning(f"   For SWIPE gestures: Move hand MORE (>5% of screen)")
-            logger.warning(f"   For STATIC gestures: Keep hand STILL (<2% movement)")
-
-        raw_trajectory = {
-            'start_x': start['x'],
-            'start_y': start['y'],
-            'end_x': end['x'],
-            'end_y': end['y'],
-            'delta_x': end['x'] - start['x'],
-            'delta_y': end['y'] - start['y'],
-            'magnitude': magnitude,
-            'classification': trajectory_classification,
-            'quality': trajectory_quality
-        }
-        logger.info(f"📍 Raw trajectory: ({raw_trajectory['delta_x']:.4f}, {raw_trajectory['delta_y']:.4f}), magnitude={magnitude:.4f}")
-
-    # PHASE 1: Calculate hand pose signature from first frame
-    # This enables pose-based filtering to prevent mismatches like peace sign vs swipe
-    from app.services.hand_pose_fingerprint import calculate_pose_signature
-
-    pose_signature_data = None
-    try:
-        if frames_dict and len(frames_dict) > 0:
-            # Extract landmarks from first frame (most representative pose)
-            first_frame_landmarks = frames_dict[0]['landmarks']
-
-            # Calculate pose signature (which fingers are extended)
-            pose_signature_data = calculate_pose_signature(first_frame_landmarks)
-
-            logger.info(f"✋ Hand pose: {pose_signature_data['signature']} "
-                       f"({pose_signature_data['extended_count']} fingers) - {pose_signature_data['gesture_hint']}")
-    except Exception as e:
-        logger.warning(f"⚠️ Could not calculate pose signature: {e}")
-        # Continue without pose signature (backward compatible)
-
-    # Convert to storable format
-    landmark_data = {
-        "frames": frames_dict,
-        "raw_trajectory": raw_trajectory,  # CRITICAL: Preserve trajectory for matching
-        "raw_wrist_positions": raw_wrist_positions,  # Full position history
-        "pose_signature": pose_signature_data['signature'] if pose_signature_data else None,  # NEW: e.g., "0,1,1,0,0"
-        "extended_fingers": pose_signature_data['extended_count'] if pose_signature_data else None,  # NEW: e.g., 2
-        "hand_size": pose_signature_data['hand_size'] if pose_signature_data else None,  # NEW: for adaptive thresholds
-        "gesture_hint": pose_signature_data['gesture_hint'] if pose_signature_data else None,  # NEW: human-readable
-        "metadata": {
-            "total_frames": len(frames_dict),
-            "duration": original_stats['duration_ms'] / 1000.0,
-            "original_frame_count": original_stats['frame_count'],
-            "resampled": original_stats['frame_count'] != 60,
-            "avg_confidence": original_stats['avg_confidence'],
-            "handedness": original_stats['handedness'],
-            "preprocessed": True,  # Mark that preprocessing was applied
-            "preprocessing_version": "v6_with_pose_fingerprint"  # Updated version
-        }
-    }
-
-    # PHASE 2 OPTIMIZATION: Precompute features during recording
-    precomputed_features = None
-    features_version = 1
-    try:
-        from app.services.gesture_preprocessing import preprocess_for_recording
-        import numpy as np
-
-        logger.info("🔧 PHASE 2: Precomputing features for faster matching...")
-        precompute_start = time.time()
-
-        # Extract and normalize features (same process as matching)
-        features_array = preprocess_for_recording(
-            frames,
-            target_frames=60,
-            apply_smoothing=True,
-            apply_procrustes=True,
-            apply_bone_normalization=True
-        )
-
-        # Convert to list for JSON storage (60x63 array)
-        precomputed_features = features_array.tolist()
-        precompute_time = (time.time() - precompute_start) * 1000
-
-        logger.info(f"✅ Features precomputed in {precompute_time:.1f}ms (shape: {features_array.shape})")
-    except Exception as e:
-        logger.warning(f"⚠️ Failed to precompute features: {e}, will compute on-demand during matching")
-        precomputed_features = None
-
-    # Create gesture record
+    # 4. Create and store
     new_gesture = Gesture(
         user_id=current_user.id,
         name=gesture_data.name,
         action=gesture_data.action,
         app_context=gesture_data.app_context,
         landmark_data=landmark_data,
-        precomputed_features=precomputed_features,  # PHASE 2: Store precomputed features
-        features_version=features_version  # PHASE 2: Track feature version
+        precomputed_features=precomputed_features,
+        features_version=1
     )
 
     db.add(new_gesture)
     db.commit()
     db.refresh(new_gesture)
 
-    # Phase 3: Mark that index needs rebuilding
+    # 5. Post-save maintenance
     global _index_needs_rebuild
     _index_needs_rebuild = True
-
-    # Phase 3: Invalidate user's cache since gestures changed
     invalidate_user_cache(current_user.id)
     reload_user_gestures(current_user.id, db)
 
-    logger.info(f"✅ Gesture recorded: '{new_gesture.name}' | 60 frames | Index marked for rebuild")
-    logger.info(f"{'='*60}\n")
-
+    logger.info(f"✅ Gesture recorded: '{new_gesture.name}'")
     return new_gesture
 
 @router.get("/", response_model=List[GestureResponse])
@@ -457,300 +156,68 @@ def update_gesture(
     db: Session = Depends(get_db)
 ):
     """Update an existing gesture."""
-    # Get existing gesture
+    logger.info(f"GESTURE UPDATE - ID: {gesture_id} (User: {current_user.email})")
+
+    # 1. Get existing gesture
     gesture = db.query(Gesture).filter(
         Gesture.id == gesture_id,
         Gesture.user_id == current_user.id
     ).first()
 
     if not gesture:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Gesture not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gesture not found")
 
-    # CRITICAL FIX: Check for duplicate name (if name is changing)
+    # 2. Check for duplicate name
     if gesture_data.name != gesture.name:
-        existing_gesture = db.query(Gesture).filter(
+        existing_name = db.query(Gesture).filter(
             Gesture.user_id == current_user.id,
             Gesture.name == gesture_data.name,
-            Gesture.id != gesture_id  # Exclude current gesture
+            Gesture.id != gesture_id
         ).first()
+        if existing_name:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"A gesture named '{gesture_data.name}' already exists.")
 
-        if existing_gesture:
-            logger.warning(f"⚠️ Duplicate gesture name: '{gesture_data.name}' already exists for user")
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"A gesture with the name '{gesture_data.name}' already exists. Please choose a different name."
-            )
-
-    # Check for duplicate action assignment (if action or context is changing)
+    # 3. Check for duplicate action
     if gesture_data.action != gesture.action or gesture_data.app_context != gesture.app_context:
-        existing_action_gesture = db.query(Gesture).filter(
+        existing_action = db.query(Gesture).filter(
             Gesture.user_id == current_user.id,
             Gesture.action == gesture_data.action,
             Gesture.app_context == gesture_data.app_context,
-            Gesture.id != gesture_id  # Exclude current gesture
+            Gesture.id != gesture_id
         ).first()
+        if existing_action:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Action '{gesture_data.action}' is already assigned to '{existing_action.name}'.")
 
-        if existing_action_gesture:
-            logger.warning(f"⚠️ Action '{gesture_data.action}' already assigned to gesture '{existing_action_gesture.name}'")
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"The action '{gesture_data.action}' is already assigned to gesture '{existing_action_gesture.name}'. Each action can only be assigned to one gesture."
-            )
-
-    # Update basic fields
+    # 4. Update core fields
     gesture.name = gesture_data.name
     gesture.action = gesture_data.action
     gesture.app_context = gesture_data.app_context
 
-    # If new frames are provided, update landmark data
+    # 5. If new frames provided, apply full validation pipeline
     if gesture_data.frames and len(gesture_data.frames) > 0:
-        # Validate frames have 21 landmarks each
-        for frame in gesture_data.frames:
-            if len(frame.landmarks) != 21:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Each frame must have exactly 21 landmarks"
-                )
-
-        # 🔥 CRITICAL FIX: Apply SAME preprocessing as recording!
-        # Convert to dict format for processing
-        frames_dict = [
-            {
-                "timestamp": frame.timestamp,
-                "landmarks": [{"x": lm.x, "y": lm.y, "z": lm.z} for lm in frame.landmarks],
-                "handedness": frame.handedness,
-                "confidence": frame.confidence
-            }
-            for frame in gesture_data.frames
-        ]
-
-        # Get frame statistics
-        from app.services.frame_resampler import get_frame_statistics
-        original_stats = get_frame_statistics(frames_dict)
-
-        logger.info(f"📐 Updating gesture '{gesture.name}' with FULL preprocessing:")
-        logger.info(f"   Original frames: {original_stats['frame_count']}")
-        logger.info(f"   - Resampling to 60 frames")
-        logger.info(f"   - Temporal smoothing (One Euro Filter)")
-        logger.info(f"   - Procrustes normalization")
-        logger.info(f"   - Bone-length normalization")
-
-        # Apply preprocessing
-        from app.services.gesture_preprocessing import preprocess_for_recording, convert_features_to_frames
-
-        features = preprocess_for_recording(
-            frames_dict,
-            target_frames=60,
-            apply_smoothing=True,
-            apply_procrustes=True,
-            apply_bone_normalization=True
+        validate_gesture_input(gesture_data.frames)
+        
+        landmark_data, precomputed_features = process_and_validate_gesture(
+            gesture_data.frames,
+            user_id=current_user.id,
+            db=db,
+            exclude_gesture_id=gesture_id,
+            gesture_name=gesture_data.name
         )
-
-        logger.info(f"✅ Preprocessing complete: {features.shape}")
-
-        # Convert back to frames format
-        frames_dict = convert_features_to_frames(features, frames_dict)
-
-        logger.info(f"✅ Converted back to frames format: {len(frames_dict)} frames")
-
-        # CRITICAL FIX #2: Check for duplicate gesture landmarks when updating
-        # Only check if frames are being updated
-        duplicate_gesture_check_enabled = True  # Set to False to disable
-
-        if duplicate_gesture_check_enabled:
-            logger.info(f"\n{'='*60}")
-            logger.info(f"DUPLICATE GESTURE CHECK - Comparing updated landmarks")
-            logger.info(f"{'='*60}")
-
-            # Get all existing gestures EXCEPT the one being updated
-            existing_gestures = db.query(Gesture).filter(
-                Gesture.user_id == current_user.id,
-                Gesture.id != gesture_id  # Exclude current gesture
-            ).all()
-
-            if existing_gestures:
-                logger.info(f"Found {len(existing_gestures)} other gesture(s) to compare")
-
-                matcher = get_gesture_matcher()
-
-                # Convert existing gestures to list format
-                existing_gestures_list = []
-                for g in existing_gestures:
-                    gesture_dict = {
-                        'id': g.id,
-                        'name': g.name,
-                        'action': g.action,
-                        'app_context': g.app_context,
-                        'landmark_data': g.landmark_data
-                    }
-                    existing_gestures_list.append(gesture_dict)
-
-                # Use the already-preprocessed frames_dict so the comparison is
-                # on the same scale as existing stored gestures.
-                updated_gesture_frames = frames_dict
-
-                # Match against existing gestures
-                match_result = matcher.match_gesture(
-                    updated_gesture_frames,
-                    existing_gestures_list,
-                    user_id=current_user.id,
-                    return_best_candidate=True
-                )
-
-                if match_result:
-                    matched_gesture, similarity = match_result
-
-                    # CRITICAL: Same strict thresholds as CREATE endpoint
-                    DUPLICATE_THRESHOLD_HIGH = 0.85  # Definite duplicate - REJECT
-                    DUPLICATE_THRESHOLD_MEDIUM = 0.78  # Very similar - REJECT with warning
-
-                    logger.info(f"")
-                    logger.info(f"{'='*60}")
-                    logger.info(f"SIMILARITY CHECK RESULT (UPDATE):")
-                    logger.info(f"   Updated gesture vs '{matched_gesture['name']}'")
-                    logger.info(f"   Similarity: {similarity:.1%}")
-                    logger.info(f"   High threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
-                    logger.info(f"   Medium threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
-                    logger.info(f"{'='*60}")
-
-                    if similarity >= DUPLICATE_THRESHOLD_HIGH:
-                        # Definite duplicate - REJECT
-                        logger.warning(f"")
-                        logger.warning(f"{'='*60}")
-                        logger.warning(f"⚠️ DUPLICATE GESTURE DETECTED IN UPDATE!")
-                        logger.warning(f"   Updated gesture is {similarity:.1%} similar to existing gesture")
-                        logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
-                        logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
-                        logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_HIGH:.1%}")
-                        logger.warning(f"   REJECTING - This is essentially the same gesture")
-                        logger.warning(f"{'='*60}")
-
-                        raise HTTPException(
-                            status_code=status.HTTP_409_CONFLICT,
-                            detail={
-                                "type": "duplicate_gesture",
-                                "message": f"This gesture is too similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a different gesture to avoid conflicts.",
-                                "existing_gesture_name": matched_gesture['name'],
-                                "existing_action": matched_gesture.get('action', 'Unknown'),
-                                "similarity": round(similarity * 100, 1),
-                                "threshold": round(DUPLICATE_THRESHOLD_HIGH * 100, 1)
-                            }
-                        )
-                    elif similarity >= DUPLICATE_THRESHOLD_MEDIUM:
-                        # Very similar - REJECT with detailed warning
-                        logger.warning(f"")
-                        logger.warning(f"{'='*60}")
-                        logger.warning(f"⚠️ VERY SIMILAR GESTURE DETECTED IN UPDATE!")
-                        logger.warning(f"   Updated gesture is {similarity:.1%} similar to existing gesture")
-                        logger.warning(f"   Existing gesture: '{matched_gesture['name']}'")
-                        logger.warning(f"   Action: {matched_gesture.get('action', 'Unknown')}")
-                        logger.warning(f"   Threshold: {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
-                        logger.warning(f"   REJECTING - Too similar, will cause recognition conflicts")
-                        logger.warning(f"{'='*60}")
-
-                        raise HTTPException(
-                            status_code=status.HTTP_409_CONFLICT,
-                            detail={
-                                "type": "duplicate_gesture",
-                                "message": f"This gesture is very similar ({similarity:.1%}) to your existing gesture '{matched_gesture['name']}'. Please perform a more distinct gesture to avoid recognition conflicts.",
-                                "existing_gesture_name": matched_gesture['name'],
-                                "existing_action": matched_gesture.get('action', 'Unknown'),
-                                "similarity": round(similarity * 100, 1),
-                                "threshold": round(DUPLICATE_THRESHOLD_MEDIUM * 100, 1)
-                            }
-                        )
-                    else:
-                        # Different enough - ALLOW
-                        logger.info(f"✅ Updated gesture is UNIQUE enough")
-                        logger.info(f"   Best match: {similarity:.1%} similar to '{matched_gesture['name']}'")
-                        logger.info(f"   Well below threshold of {DUPLICATE_THRESHOLD_MEDIUM:.1%}")
-                        logger.info(f"   Safe to update!")
-                else:
-                    logger.info(f"✅ Updated gesture is COMPLETELY UNIQUE (no similar gestures found)")
-            else:
-                logger.info(f"✅ This is the user's only gesture - no duplicates possible")
-
-            logger.info(f"{'='*60}\n")
-
-        # CRITICAL FIX: Extract raw trajectory data BEFORE preprocessing destroys it
-        raw_wrist_positions = []
-        for frame in gesture_data.frames:
-            if frame.landmarks and len(frame.landmarks) > 0:
-                wrist = frame.landmarks[0]  # Wrist is landmark 0
-                raw_wrist_positions.append({'x': wrist.x, 'y': wrist.y})
-
-        # Calculate raw trajectory with classification
-        raw_trajectory = None
-        trajectory_classification = "unknown"
-        trajectory_quality = "unknown"
-
-        STATIONARY_THRESHOLD = 0.02
-        MOVEMENT_THRESHOLD = 0.05
-
-        if len(raw_wrist_positions) >= 2:
-            start = raw_wrist_positions[0]
-            end = raw_wrist_positions[-1]
-            magnitude = ((end['x'] - start['x'])**2 + (end['y'] - start['y'])**2)**0.5
-
-            if magnitude < STATIONARY_THRESHOLD:
-                trajectory_classification = "stationary"
-                trajectory_quality = "good"
-                logger.info(f"📍 STATIONARY gesture (magnitude={magnitude:.4f})")
-            elif magnitude > MOVEMENT_THRESHOLD:
-                trajectory_classification = "moving"
-                trajectory_quality = "good"
-                logger.info(f"📍 MOVING gesture (magnitude={magnitude:.4f})")
-            else:
-                trajectory_classification = "ambiguous"
-                trajectory_quality = "warning"
-                logger.warning(f"⚠️ AMBIGUOUS movement (magnitude={magnitude:.4f})")
-
-            raw_trajectory = {
-                'start_x': start['x'],
-                'start_y': start['y'],
-                'end_x': end['x'],
-                'end_y': end['y'],
-                'delta_x': end['x'] - start['x'],
-                'delta_y': end['y'] - start['y'],
-                'magnitude': magnitude,
-                'classification': trajectory_classification,
-                'quality': trajectory_quality
-            }
-
-        # Convert to storable format
-        landmark_data = {
-            "frames": frames_dict,
-            "raw_trajectory": raw_trajectory,
-            "raw_wrist_positions": raw_wrist_positions,
-            "metadata": {
-                "total_frames": len(frames_dict),
-                "duration": original_stats['duration_ms'] / 1000.0,
-                "original_frame_count": original_stats['frame_count'],
-                "resampled": original_stats['frame_count'] != 60,
-                "avg_confidence": original_stats['avg_confidence'],
-                "handedness": original_stats['handedness'],
-                "preprocessed": True,
-                "preprocessing_version": "v5_with_trajectory"
-            }
-        }
+        
         gesture.landmark_data = landmark_data
+        gesture.precomputed_features = precomputed_features
 
     db.commit()
     db.refresh(gesture)
 
-    # Phase 3: Mark that index needs rebuilding
+    # 6. Post-save maintenance
     global _index_needs_rebuild
     _index_needs_rebuild = True
-
-    # Phase 3: Invalidate user's cache since gesture changed
     invalidate_user_cache(current_user.id)
     reload_user_gestures(current_user.id, db)
 
-    logger.info(f"Gesture updated: {gesture.name} | Index marked for rebuild")
-
+    logger.info(f"✅ Gesture updated: '{gesture.name}'")
     return gesture
 
 @router.delete("/{gesture_id}", status_code=status.HTTP_204_NO_CONTENT)

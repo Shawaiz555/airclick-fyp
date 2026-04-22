@@ -475,6 +475,13 @@ class GestureMatcher:
             logger.warning("Input gesture too short (minimum 5 frames required)")
             return None
 
+        # Reject side-hand / back-hand postures before matching
+        from app.services.hand_pose_fingerprint import check_hand_orientation
+        orientation_result = check_hand_orientation(input_frames)
+        if not orientation_result['valid']:
+            logger.warning(f"🚫 Gesture match rejected - bad hand orientation: {orientation_result['reason']}")
+            return None
+
         # Phase 3: Check cache first
         if self.enable_caching and user_id is not None:
             cached_result = self.cache.get_match_result(input_frames, user_id, app_context)

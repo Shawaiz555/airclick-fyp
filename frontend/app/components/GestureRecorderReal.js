@@ -69,6 +69,11 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   const [isConnected, setIsConnected] = useState(false);
   const [handDetected, setHandDetected] = useState(false);
 
+  // Hand readiness state (orientation + stability)
+  const [handFacingCamera, setHandFacingCamera] = useState(false);
+  const [handStable, setHandStable] = useState(false);
+  const [postureHint, setPostureHint] = useState('');
+
   // ==================== REFS ====================
 
   const wsRef = useRef(null);                    // WebSocket connection
@@ -77,6 +82,10 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   const reconnectTimerRef = useRef(null);        // Auto-reconnect timer
   const isMountedRef = useRef(true);             // Track if component is mounted
   const isRecordingRef = useRef(false);          // Ref for recording state (fixes closure issue)
+  const recentWristPositions = useRef([]);       // Rolling buffer for stability check (last 10 frames)
+  const recentOrientations = useRef([]);         // Rolling buffer for orientation check (last 10 frames)
+  const handFacingCameraRef = useRef(false);     // Mirror of handFacingCamera for WS callback
+  const handStableRef = useRef(false);           // Mirror of handStable for WS callback
 
   // ==================== API FUNCTIONS ====================
 
@@ -203,6 +212,132 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
     });
   }, []); // No dependencies needed
 
+  // ==================== HAND READINESS HELPERS ====================
+
+  /**
+   * Compute palm-facing-camera score from one frame's landmarks.
+   * Returns the palm normal Z component (negative = facing camera).
+   */
+  const getPalmNormalZ = (landmarks) => {
+    if (!landmarks || landmarks.length < 18) return null;
+    const wrist     = landmarks[0];
+    const indexMcp  = landmarks[5];
+    const pinkyMcp  = landmarks[17];
+    const v1 = [indexMcp.x - wrist.x, indexMcp.y - wrist.y, (indexMcp.z ?? 0) - (wrist.z ?? 0)];
+    const v2 = [pinkyMcp.x - wrist.x, pinkyMcp.y - wrist.y, (pinkyMcp.z ?? 0) - (wrist.z ?? 0)];
+    // Cross product
+    const nx = v1[1]*v2[2] - v1[2]*v2[1];
+    const ny = v1[2]*v2[0] - v1[0]*v2[2];
+    const nz = v1[0]*v2[1] - v1[1]*v2[0];
+    const mag = Math.sqrt(nx*nx + ny*ny + nz*nz);
+    if (mag < 1e-6) return null;
+    return nz / mag;
+  };
+
+  /**
+   * Update orientation and stability state from fresh landmark data.
+   * Called every WebSocket frame when a hand is detected.
+   */
+  const updateHandReadiness = useCallback((landmarks) => {
+    const BUFFER_SIZE = 10;
+
+    // --- Orientation ---
+    const nz = getPalmNormalZ(landmarks);
+    if (nz !== null) {
+      const buf = recentOrientations.current;
+      buf.push(nz);
+      if (buf.length > BUFFER_SIZE) buf.shift();
+
+      const avgNz = buf.reduce((a, b) => a + b, 0) / buf.length;
+      const facing = buf.length >= 5 && avgNz < -0.3;
+      handFacingCameraRef.current = facing;
+      setHandFacingCamera(facing);
+    }
+
+    // --- Stability (wrist position variance) ---
+    const wrist = landmarks[0];
+    const posBuf = recentWristPositions.current;
+    posBuf.push([wrist.x, wrist.y, wrist.z ?? 0]);
+    if (posBuf.length > BUFFER_SIZE) posBuf.shift();
+
+    if (posBuf.length >= 5) {
+      const meanX = posBuf.reduce((a, p) => a + p[0], 0) / posBuf.length;
+      const meanY = posBuf.reduce((a, p) => a + p[1], 0) / posBuf.length;
+      const varX  = posBuf.reduce((a, p) => a + (p[0]-meanX)**2, 0) / posBuf.length;
+      const varY  = posBuf.reduce((a, p) => a + (p[1]-meanY)**2, 0) / posBuf.length;
+      const stable = Math.max(varX, varY) < 0.0002;
+      handStableRef.current = stable;
+      setHandStable(stable);
+    }
+  }, []);
+
+  /**
+   * Draw the real-time posture hint overlay on the canvas.
+   * Shows colour-coded guide text so the user knows what to fix.
+   */
+  const drawPostureHint = useCallback((ctx, canvas, facing, stable, hasHand) => {
+    if (!hasHand) return;
+
+    const issues = [];
+    if (!facing) issues.push('Turn your palm toward the camera');
+    if (!stable) issues.push('Hold your hand still');
+
+    if (issues.length === 0) {
+      // All good — green tick
+      ctx.save();
+      ctx.font = 'bold 15px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(8, 8, 230, 30);
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText('✓ Hand ready — press Start Recording', 16, 28);
+      ctx.restore();
+    } else {
+      // Show issues in amber/red banner
+      const lineH = 22;
+      const boxH = 10 + issues.length * lineH;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(8, 8, 300, boxH);
+      ctx.font = 'bold 13px Arial';
+      ctx.textAlign = 'left';
+      issues.forEach((msg, i) => {
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText('⚠ ' + msg, 16, 26 + i * lineH);
+      });
+      ctx.restore();
+    }
+  }, []);
+
+  // Keep postureHint string in sync for the status bar
+  useEffect(() => {
+    if (!handDetected) {
+      setPostureHint('');
+      return;
+    }
+    if (!handFacingCamera && !handStable) {
+      setPostureHint('Turn palm toward camera & hold still');
+    } else if (!handFacingCamera) {
+      setPostureHint('Turn your palm toward the camera');
+    } else if (!handStable) {
+      setPostureHint('Hold your hand still');
+    } else {
+      setPostureHint('');
+    }
+  }, [handDetected, handFacingCamera, handStable]);
+
+  // Reset readiness buffers when no hand is visible
+  useEffect(() => {
+    if (!handDetected) {
+      recentOrientations.current = [];
+      recentWristPositions.current = [];
+      handFacingCameraRef.current = false;
+      handStableRef.current = false;
+      setHandFacingCamera(false);
+      setHandStable(false);
+    }
+  }, [handDetected]);
+
   // ==================== WEBSOCKET FUNCTIONS ====================
 
   /**
@@ -267,11 +402,16 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
               // Draw hand skeleton
               drawHand(data);
 
+              // Update orientation + stability and draw posture hint
+              const landmarks = data.hands[0].landmarks;
+              updateHandReadiness(landmarks);
+              drawPostureHint(ctx, canvas, handFacingCameraRef.current, handStableRef.current, true);
+
               // Record frame if recording is active (use ref to avoid stale closure)
               if (isRecordingRef.current) {
                 const frame = {
                   timestamp: Date.now(),
-                  landmarks: data.hands[0].landmarks,
+                  landmarks,
                   handedness: data.hands[0].handedness,
                   confidence: data.hands[0].confidence
                 };
@@ -337,7 +477,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
         setValidationMessage('Failed to connect. Start Python backend first.');
       }
     }
-  }, [isRecording, drawHand]); // Dependencies: isRecording and drawHand
+  }, [isRecording, drawHand, updateHandReadiness, drawPostureHint]); // Dependencies
 
   // ==================== LIFECYCLE HOOKS ====================
 
@@ -645,10 +785,12 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
               }`}></div>
               <span className="text-sm">
                 {isConnected ? (
-                  handDetected ? (
-                    <span className="text-green-400">✓ Hand Detected</span>
+                  !handDetected ? (
+                    <span className="text-amber-400">⚠ No Hand Detected</span>
+                  ) : postureHint ? (
+                    <span className="text-amber-400">⚠ {postureHint}</span>
                   ) : (
-                    <span className="text-amber-400">⚠ No Hand</span>
+                    <span className="text-green-400">✓ Hand Ready</span>
                   )
                 ) : (
                   <span className="text-red-400">✗ Backend Disconnected</span>
@@ -855,12 +997,18 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
             {/* Record/Stop Button */}
             <button
               onClick={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing || !isConnected}
+              disabled={isProcessing || !isConnected || (!isRecording && (!handDetected || !handFacingCamera || !handStable))}
+              title={
+                !isConnected ? 'Backend disconnected' :
+                !handDetected ? 'Show your hand to the camera first' :
+                !handFacingCamera ? 'Turn your palm toward the camera' :
+                !handStable ? 'Hold your hand still' : ''
+              }
               className={`flex-1 py-3 px-6 hover:cursor-pointer rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
                 isRecording
                   ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600'
                   : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
-              } focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50`}
+              } focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {isRecording ? (
                 <>
