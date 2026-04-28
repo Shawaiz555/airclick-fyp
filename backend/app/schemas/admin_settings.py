@@ -57,6 +57,12 @@ class DefaultUserSettings(BaseModel):
         le=2.0,
         description="Default cursor smoothing for new users"
     )
+    default_gesture_hold_time: float = Field(
+        default=2.0,
+        ge=0.5,
+        le=4.0,
+        description="Default gesture trigger delay for new users"
+    )
 
 
 class GestureSystemSettings(BaseModel):
@@ -64,7 +70,7 @@ class GestureSystemSettings(BaseModel):
     Settings for the gesture recognition system.
     These affect how gestures are collected and matched.
     """
-    global_similarity_threshold: float = Field(
+    system_gesture_sensitivity: float = Field(
         default=0.75,
         ge=0.5,
         le=0.95,
@@ -76,7 +82,7 @@ class GestureSystemSettings(BaseModel):
         le=150,
         description="Maximum frames to collect for a gesture"
     )
-    stationary_duration_threshold: float = Field(
+    gesture_hold_time: float = Field(
         default=1.5,
         ge=0.5,
         le=3.0,
@@ -146,12 +152,13 @@ DEFAULT_ADMIN_SETTINGS = AdminSettings(
         default_cursor_speed=1.5,
         default_gesture_sensitivity=0.75,
         default_click_sensitivity=0.08,
-        default_smoothing_level=0.5
+        default_smoothing_level=0.5,
+        default_gesture_hold_time=2.0
     ),
     gesture_system=GestureSystemSettings(
-        global_similarity_threshold=0.75,
+        system_gesture_sensitivity=0.75,
         gesture_collection_frames=90,
-        stationary_duration_threshold=1.5,
+        gesture_hold_time=1.5,
         gesture_cooldown_duration=1.0
     )
 )

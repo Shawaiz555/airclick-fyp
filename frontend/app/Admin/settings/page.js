@@ -31,12 +31,13 @@ const DEFAULT_SETTINGS = {
     default_cursor_speed: 1.5,
     default_gesture_sensitivity: 0.75,
     default_click_sensitivity: 0.08,
-    default_smoothing_level: 0.5
+    default_smoothing_level: 0.5,
+    default_gesture_hold_time: 2.0
   },
   gesture_system: {
-    global_similarity_threshold: 0.75,
+    system_gesture_sensitivity: 0.75,
     gesture_collection_frames: 90,
-    stationary_duration_threshold: 1.5,
+    gesture_hold_time: 1.5,
     gesture_cooldown_duration: 1.0
   }
 };
@@ -236,20 +237,6 @@ export default function SystemSettings() {
                   />
 
                   <FuturisticSlider
-                    label="Default Gesture Sensitivity"
-                    value={settings.defaults.default_gesture_sensitivity}
-                    onChange={(v) => updateSetting('defaults', 'default_gesture_sensitivity', v)}
-                    min={0.5}
-                    max={0.95}
-                    step={0.05}
-                    displayValue={`${(settings.defaults.default_gesture_sensitivity * 100).toFixed(0)}%`}
-                    leftLabel="Lenient"
-                    rightLabel="Strict"
-                    description="Default gesture matching threshold for new users"
-                    color="green"
-                  />
-
-                  <FuturisticSlider
                     label="Default Click Sensitivity"
                     value={settings.defaults.default_click_sensitivity}
                     onChange={(v) => updateSetting('defaults', 'default_click_sensitivity', v)}
@@ -286,16 +273,16 @@ export default function SystemSettings() {
                   color="purple"
                 >
                   <FuturisticSlider
-                    label="Global Similarity Threshold"
-                    value={settings.gesture_system.global_similarity_threshold}
-                    onChange={(v) => updateSetting('gesture_system', 'global_similarity_threshold', v)}
+                    label="System Gesture Sensitivity"
+                    value={settings.gesture_system.system_gesture_sensitivity}
+                    onChange={(v) => updateSetting('gesture_system', 'system_gesture_sensitivity', v)}
                     min={0.5}
                     max={0.95}
                     step={0.05}
-                    displayValue={`${(settings.gesture_system.global_similarity_threshold * 100).toFixed(0)}%`}
+                    displayValue={`${(settings.gesture_system.system_gesture_sensitivity * 100).toFixed(0)}%`}
                     leftLabel="Lenient (more matches)"
                     rightLabel="Strict (precise only)"
-                    description="Minimum similarity score required to match a gesture system-wide"
+                    description="System-wide minimum similarity score required to match a gesture"
                     color="purple"
                   />
 
@@ -314,16 +301,16 @@ export default function SystemSettings() {
                   />
 
                   <FuturisticSlider
-                    label="Hand Still Duration"
-                    value={settings.gesture_system.stationary_duration_threshold}
-                    onChange={(v) => updateSetting('gesture_system', 'stationary_duration_threshold', v)}
+                    label="System Gesture Trigger Delay"
+                    value={settings.gesture_system.gesture_hold_time}
+                    onChange={(v) => updateSetting('gesture_system', 'gesture_hold_time', v)}
                     min={0.5}
                     max={3.0}
                     step={0.1}
-                    displayValue={`${settings.gesture_system.stationary_duration_threshold.toFixed(1)}s`}
+                    displayValue={`${settings.gesture_system.gesture_hold_time.toFixed(1)}s`}
                     leftLabel="Quick (0.5s)"
                     rightLabel="Slow (3.0s)"
-                    description="Time hand must be still before gesture collection starts"
+                    description="System-wide time hand must be still before gesture collection starts"
                     color="purple"
                   />
 

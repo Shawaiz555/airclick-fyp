@@ -29,20 +29,55 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def get_effective_defaults() -> UserSettings:
+    """
+    Combine hardcoded DEFAULT_USER_SETTINGS with admin-defined defaults.
+    """
+    try:
+        from app.services.admin_settings_service import load_admin_settings
+        admin_settings = load_admin_settings()
+
+        defaults = DEFAULT_USER_SETTINGS.model_copy()
+
+        # Map admin defaults to user settings
+        defaults.cursor.cursor_speed = admin_settings.defaults.default_cursor_speed
+        defaults.cursor.smoothing_level = admin_settings.defaults.default_smoothing_level
+        defaults.click.click_sensitivity = admin_settings.defaults.default_click_sensitivity
+        
+        # Use gesture_system settings as the effective defaults for users
+        defaults.gesture.gesture_sensitivity = admin_settings.gesture_system.system_gesture_sensitivity
+        defaults.gesture.gesture_hold_time = admin_settings.gesture_system.gesture_hold_time
+
+        return defaults
+    except Exception as e:
+        logger.error(f"Error getting effective defaults: {e}")
+        return DEFAULT_USER_SETTINGS.model_copy()
+
+
 def get_user_settings(user: User) -> UserSettings:
     """
     Extract UserSettings from user's accessibility_settings field.
 
-    If settings are empty or malformed, returns default settings.
+    If settings are empty or malformed, returns effective admin defaults.
     """
+    effective_defaults = get_effective_defaults()
     try:
         if user.accessibility_settings and isinstance(user.accessibility_settings, dict):
-            # Parse stored settings, using defaults for missing fields
-            return UserSettings(**user.accessibility_settings)
+            # Create a base dict from defaults
+            settings_dict = effective_defaults.model_dump()
+
+            # Merge user settings into defaults (one level deep for categories)
+            for category, values in user.accessibility_settings.items():
+                if category in settings_dict and isinstance(values, dict):
+                    settings_dict[category].update(values)
+                elif category in settings_dict:
+                    settings_dict[category] = values
+
+            return UserSettings(**settings_dict)
     except Exception as e:
         logger.warning(f"Error parsing settings for user {user.id}: {e}")
 
-    return DEFAULT_USER_SETTINGS.model_copy()
+    return effective_defaults
 
 
 def apply_settings_to_runtime(settings: UserSettings, user_id: int) -> bool:
@@ -229,23 +264,12 @@ def reset_settings(
     db: Session = Depends(get_db)
 ):
     """
-    Reset user settings to defaults.
+    Reset user settings to admin-defined defaults.
 
-    All settings are reset to their default values and applied to runtime.
-
-    Example:
-        POST /api/settings/reset
-        Headers: Authorization: Bearer <jwt_token>
-
-        Response:
-        {
-            "settings": { ... default settings ... },
-            "message": "Settings reset to defaults",
-            "applied_to_runtime": true
-        }
+    All settings are reset to their effective default values and applied to runtime.
     """
-    # Get default settings
-    default_settings = DEFAULT_USER_SETTINGS.model_copy()
+    # Get effective admin default settings
+    default_settings = get_effective_defaults()
 
     # Persist to database
     try:

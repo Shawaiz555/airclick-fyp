@@ -2873,8 +2873,12 @@
       // Cleanup all timers and connections when overlay is destroyed
       window.addEventListener("beforeunload", () => {
         destroyWebSocket();
-        Object.values(_intervals).forEach((id) => { if (id) clearInterval(id); });
-        Object.values(_timeouts).forEach((id) => { if (id) clearTimeout(id); });
+        Object.values(_intervals).forEach((id) => {
+          if (id) clearInterval(id);
+        });
+        Object.values(_timeouts).forEach((id) => {
+          if (id) clearTimeout(id);
+        });
         if (matchBannerTimeout) clearTimeout(matchBannerTimeout);
         if (gestureEndTimer) clearTimeout(gestureEndTimer);
         if (dragPollInterval) clearInterval(dragPollInterval);

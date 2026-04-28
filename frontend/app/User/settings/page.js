@@ -31,7 +31,7 @@ const DEFAULT_SETTINGS = {
   },
   gesture: {
     gesture_sensitivity: 0.75,
-    gesture_hold_time: 1.5
+    gesture_hold_time: 2.0
   }
 };
 
