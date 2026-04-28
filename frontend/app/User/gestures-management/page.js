@@ -24,6 +24,9 @@ export default function CustomGestureManagement() {
   // Hybrid mode state management (for cursor control disable during recording)
   const [savedHybridMode, setSavedHybridMode] = useState(null);
 
+  // Tutorial display state
+  const [showTutorial, setShowTutorial] = useState(false);
+
   // Load gestures from database
   useEffect(() => {
     loadGesturesFromDatabase();
@@ -324,13 +327,89 @@ export default function CustomGestureManagement() {
             <div className="max-w-8xl mx-auto">
               {/* Header Section */}
               <div className="mb-8">
-                <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-                  Gesture Management
-                </h1>
-                <p className="text-[15px] text-purple-200/90">
-                  Record, organize, and manage your custom hand gestures for seamless control.
-                </p>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-3xl md:text-[44px] font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
+                      Gesture Management
+                    </h1>
+                    <p className="text-[15px] text-purple-200/90">
+                      Record, organize, and manage your custom hand gestures for seamless control.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowTutorial(!showTutorial)}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-300 border hover:cursor-pointer ${
+                      showTutorial 
+                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
+                        : 'bg-gray-800/40 border-white/10 text-gray-300 hover:border-cyan-500/30 hover:text-white'
+                    }`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${showTutorial ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    {showTutorial ? 'Hide Tutorial' : 'Show Tutorial Guide'}
+                  </button>
+                </div>
               </div>
+
+              {/* Tutorial Video Section */}
+              {showTutorial && (
+                <div className="bg-gray-800/30 backdrop-blur-lg rounded-3xl border border-cyan-500/20 overflow-hidden mb-8 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="grid grid-cols-1 lg:grid-cols-5 h-full">
+                    {/* Text Instruction - 2 columns */}
+                    <div className="lg:col-span-2 p-8 md:p-10 flex flex-col justify-center bg-gradient-to-br from-indigo-900/40 to-transparent">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 text-xs font-bold uppercase tracking-wider mb-4 w-fit">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                        </span>
+                        Quick Start Guide
+                      </div>
+                      <h2 className="text-2xl md:text-3xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-white to-purple-200">
+                        Mastering AirClick
+                      </h2>
+                      <p className="text-purple-200/70 text-lg mb-6 leading-relaxed">
+                        Learn how to control your system using intuitive hand movements and get the most out of our Electron overlay.
+                      </p>
+                      <ul className="space-y-4">
+                        <li className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold text-xs mt-1 border border-cyan-500/30">1</div>
+                          <p className="text-sm text-purple-100/90">Show your palm clearly to the camera to activate cursor control.</p>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-purple-400 font-bold text-xs mt-1 border border-purple-500/30">2</div>
+                          <p className="text-sm text-purple-100/90">Perform dynamic gestures (swipes, etc.) from described angle for speed and accuracy.</p>
+                        </li>
+                        <li className="flex items-start gap-3">
+                          <div className="w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-xs mt-1 border border-amber-500/30">3</div>
+                          <p className="text-sm text-purple-100/90">Use the Electron overlay to see real-time detection feedback.</p>
+                        </li>
+                      </ul>
+                    </div>
+
+                    {/* Video Frame - 3 columns */}
+                    <div className="lg:col-span-3 bg-black/40 p-4 lg:p-8 flex items-center justify-center border-l border-white/5">
+                      <div className="relative w-full aspect-video rounded-2xl overflow-hidden group shadow-2xl border border-white/10 ring-1 ring-white/5">
+                        <video
+                          className="w-full h-full object-cover"
+                          controls
+                          poster="/placeholder-tutorial.png" // User can replace this
+                        >
+                          <source src="/tutorial-video.mp4" type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+
+                        {/* Interactive Overlay when not playing (Optional styling) */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none group-hover:opacity-60 transition-opacity duration-500 opacity-0"></div>
+                        <div className="absolute bottom-6 left-6 pointer-events-none transform translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500">
+                          <p className="text-white font-bold text-lg">Watch: Core Mechanics</p>
+                          <p className="text-cyan-400 text-sm">3:45 Tutorial • Subtitles Available</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Stats Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -394,6 +473,8 @@ export default function CustomGestureManagement() {
                   </div>
                 </div>
               </div>
+
+
 
               {/* Actions Bar */}
               <div className="bg-gray-800/30 backdrop-blur-lg rounded-2xl p-4 md:p-6 border border-cyan-500/20 mb-8">

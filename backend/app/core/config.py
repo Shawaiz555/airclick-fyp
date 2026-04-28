@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     # ============================================
     SECRET_KEY: str  # Required - Secret key for JWT token signing
     ALGORITHM: str = "HS256"  # JWT algorithm
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # Token expiration time
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # Token expiration time (24 hours)
 
     # ============================================
     # CORS & FRONTEND
