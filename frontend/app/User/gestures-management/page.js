@@ -338,11 +338,10 @@ export default function CustomGestureManagement() {
                   </div>
                   <button
                     onClick={() => setShowTutorial(!showTutorial)}
-                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-300 border hover:cursor-pointer ${
-                      showTutorial 
-                        ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' 
-                        : 'bg-gray-800/40 border-white/10 text-gray-300 hover:border-cyan-500/30 hover:text-white'
-                    }`}
+                    className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold transition-all duration-300 border hover:cursor-pointer ${showTutorial
+                      ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400'
+                      : 'bg-gray-800/40 border-white/10 text-gray-300 hover:border-cyan-500/30 hover:text-white'
+                      }`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${showTutorial ? 'animate-pulse' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -393,9 +392,9 @@ export default function CustomGestureManagement() {
                         <video
                           className="w-full h-full object-cover"
                           controls
-                          poster="/placeholder-tutorial.png" // User can replace this
+                          poster="/placeholder-tutorial.png"
                         >
-                          <source src="/tutorial-video.mp4" type="video/mp4" />
+                          <source src="/assets/videos/Air-click-tutorial.mp4" type="video/mp4" />
                           Your browser does not support the video tag.
                         </video>
 
