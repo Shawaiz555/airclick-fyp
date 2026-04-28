@@ -175,12 +175,8 @@ class HybridStateMachine:
 
         Uses the cross-product of (index_MCP - wrist) and (pinky_MCP - wrist)
         to compute the palm normal.  A negative Z component means the palm faces
-        the camera.  Threshold -0.4 requires the hand to be at least 40% toward
-        the camera — weaker than the click detector so it doesn't block legitimate
-        gestures performed at slight angles, but strong enough to reject a hand
-        that is sideways or facing away (hair-fixing, mouth-touching, etc.).
-
-        Returns True if hand is facing camera, False otherwise.
+        the camera.  Threshold 0.4 allows palm and side-view. 
+        # Only hand flipped (back showing, z > 0.4) is rejected.
         """
         if not landmarks or len(landmarks) < 18:
             return False
@@ -204,7 +200,8 @@ class HybridStateMachine:
         palm_normal = palm_normal / magnitude
         z_component = palm_normal[2]
 
-        facing = z_component < -0.4
+        facing = z_component < 0.4
+
         if not facing:
             logger.debug(f"⚠️ Gesture blocked: palm not facing camera (z={z_component:.3f})")
         return facing

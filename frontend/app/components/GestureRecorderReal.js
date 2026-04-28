@@ -220,16 +220,16 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
    */
   const getPalmNormalZ = (landmarks) => {
     if (!landmarks || landmarks.length < 18) return null;
-    const wrist     = landmarks[0];
-    const indexMcp  = landmarks[5];
-    const pinkyMcp  = landmarks[17];
+    const wrist = landmarks[0];
+    const indexMcp = landmarks[5];
+    const pinkyMcp = landmarks[17];
     const v1 = [indexMcp.x - wrist.x, indexMcp.y - wrist.y, (indexMcp.z ?? 0) - (wrist.z ?? 0)];
     const v2 = [pinkyMcp.x - wrist.x, pinkyMcp.y - wrist.y, (pinkyMcp.z ?? 0) - (wrist.z ?? 0)];
     // Cross product
-    const nx = v1[1]*v2[2] - v1[2]*v2[1];
-    const ny = v1[2]*v2[0] - v1[0]*v2[2];
-    const nz = v1[0]*v2[1] - v1[1]*v2[0];
-    const mag = Math.sqrt(nx*nx + ny*ny + nz*nz);
+    const nx = v1[1] * v2[2] - v1[2] * v2[1];
+    const ny = v1[2] * v2[0] - v1[0] * v2[2];
+    const nz = v1[0] * v2[1] - v1[1] * v2[0];
+    const mag = Math.sqrt(nx * nx + ny * ny + nz * nz);
     if (mag < 1e-6) return null;
     return nz / mag;
   };
@@ -249,7 +249,8 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
       if (buf.length > BUFFER_SIZE) buf.shift();
 
       const avgNz = buf.reduce((a, b) => a + b, 0) / buf.length;
-      const facing = buf.length >= 5 && avgNz < -0.3;
+      // Relaxed threshold: negative = palm, near 0 = side, positive (> 0.4) = back
+      const facing = buf.length >= 5 && avgNz < 0.4;
       handFacingCameraRef.current = facing;
       setHandFacingCamera(facing);
     }
@@ -263,8 +264,8 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
     if (posBuf.length >= 5) {
       const meanX = posBuf.reduce((a, p) => a + p[0], 0) / posBuf.length;
       const meanY = posBuf.reduce((a, p) => a + p[1], 0) / posBuf.length;
-      const varX  = posBuf.reduce((a, p) => a + (p[0]-meanX)**2, 0) / posBuf.length;
-      const varY  = posBuf.reduce((a, p) => a + (p[1]-meanY)**2, 0) / posBuf.length;
+      const varX = posBuf.reduce((a, p) => a + (p[0] - meanX) ** 2, 0) / posBuf.length;
+      const varY = posBuf.reduce((a, p) => a + (p[1] - meanY) ** 2, 0) / posBuf.length;
       const stable = Math.max(varX, varY) < 0.0002;
       handStableRef.current = stable;
       setHandStable(stable);
@@ -279,7 +280,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
     if (!hasHand) return;
 
     const issues = [];
-    if (!facing) issues.push('Turn your palm toward the camera');
+    if (!facing) issues.push('Hand flipped - please show your palm');
     if (!stable) issues.push('Hold your hand still');
 
     if (issues.length === 0) {
@@ -316,9 +317,9 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
       return;
     }
     if (!handFacingCamera && !handStable) {
-      setPostureHint('Turn palm toward camera & hold still');
+      setPostureHint('Show palm to camera & hold still');
     } else if (!handFacingCamera) {
-      setPostureHint('Turn your palm toward the camera');
+      setPostureHint('Hand flipped - show your palm');
     } else if (!handStable) {
       setPostureHint('Hold your hand still');
     } else {
@@ -756,318 +757,211 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   // ==================== RENDER ====================
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-cyan-500/20">
+    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-6">
+      <div className="bg-[#0f111a] rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col border border-slate-800 overflow-hidden">
 
-        {/* Modal Header */}
-        <div className="flex justify-between items-center p-6 border-b border-cyan-500/20">
-          <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">
-            {isEditMode ? 'Edit Gesture' : 'Record New Gesture'}
-          </h2>
+        {/* Header - Clean & Professional */}
+        <div className="flex justify-between items-center px-8 py-5 border-b border-slate-800">
+          <div className="flex items-center gap-4">
+            <div className="w-2 h-8 bg-cyan-500 rounded-full"></div>
+            <div>
+              <h2 className="text-xl font-semibold text-white tracking-tight">
+                {isEditMode ? 'Edit Gesture' : 'Record New Gesture'}
+              </h2>
+              <p className="text-slate-500 text-xs font-medium">Gesture Studio • Analysis Mode</p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-lg hover:cursor-pointer hover:bg-gray-700/50 transition-colors"
+            className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Modal Content */}
-        <div className="p-6 space-y-6">
+        {/* Content Area - Balanced Spacing */}
+        <div className="flex-1 p-8 grid grid-cols-1 lg:grid-cols-2 gap-8 overflow-hidden">
 
-          {/* Connection Status Bar */}
-          <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${
-                isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
-              }`}></div>
-              <span className="text-sm">
-                {isConnected ? (
-                  !handDetected ? (
-                    <span className="text-amber-400">⚠ No Hand Detected</span>
-                  ) : postureHint ? (
-                    <span className="text-amber-400">⚠ {postureHint}</span>
-                  ) : (
-                    <span className="text-green-400">✓ Hand Ready</span>
-                  )
-                ) : (
-                  <span className="text-red-400">✗ Backend Disconnected</span>
-                )}
-              </span>
-            </div>
-            {!isConnected && (
-              <button
-                onClick={connectWebSocket}
-                className="px-3 py-1 bg-cyan-500 hover:bg-cyan-600 rounded text-xs transition-colors"
-              >
-                Reconnect
-              </button>
-            )}
-          </div>
-
-          {/* Canvas Preview */}
-          <div className="relative rounded-xl overflow-hidden border-2 border-dashed border-cyan-500/30 bg-gray-800/50">
-            <canvas
-              ref={canvasRef}
-              width={640}
-              height={480}
-              className="w-full h-auto"
-            />
-
-            {/* Recording Indicator */}
-            {isRecording && (
-              <div className="absolute top-4 left-4 bg-red-500/80 px-3 py-1 rounded-full text-xs flex items-center animate-pulse">
-                <div className="w-2 h-2 rounded-full bg-white mr-2"></div>
-                <span>Recording: {recordingTime}s</span>
-              </div>
-            )}
-
-            {/* Info Overlay */}
-            <div className="absolute bottom-4 left-4 bg-black/50 px-3 py-2 rounded-lg text-xs">
-              <div>Backend: Python MediaPipe</div>
-              <div>Frames Recorded: {recordedFrames.length}</div>
-            </div>
-          </div>
-
-          {/* Form Fields */}
-          <div className="space-y-4">
-            {/* Gesture Name */}
-            <div>
-              <label htmlFor="gestureName" className="block text-sm font-medium mb-2 text-cyan-200">
-                Gesture Name <span className="text-red-400">*</span>
-              </label>
-              <input
-                type="text"
-                id="gestureName"
-                value={gestureName}
-                onChange={(e) => setGestureName(e.target.value)}
-                placeholder="e.g., Pinch to Zoom"
-                className={`w-full bg-gray-800/50 border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-400 ${
-                  recordedFrames.length > 0 && !gestureName.trim()
-                    ? 'border-red-500/50 ring-1 ring-red-500/30'
-                    : 'border-cyan-500/30'
-                }`}
-                disabled={isProcessing || isRecording}
+          {/* Left Column: Visualizer */}
+          <div className="flex flex-col h-full space-y-4">
+            <div className="flex-1 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/50 flex items-center justify-center shadow-inner group">
+              <canvas
+                ref={canvasRef}
+                width={640}
+                height={480}
+                className="max-w-full max-h-full object-contain"
               />
-              {recordedFrames.length > 0 && !gestureName.trim() && (
-                <p className="mt-1 text-sm text-red-400">Please enter a name to save your gesture</p>
-              )}
-            </div>
 
-            {/* App Context Selector */}
-            <div>
-              <label htmlFor="context" className="block text-sm font-medium mb-2 text-cyan-200">
-                Application Context
-              </label>
-              <div className="relative">
-                <select
-                  id="context"
-                  value={selectedContext}
-                  onChange={(e) => {
-                    const newContext = e.target.value;
-                    setSelectedContext(newContext);
-                    // Actions will be fetched automatically by useEffect
-                  }}
-                  className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
-                  disabled={isProcessing || isRecording}
-                >
-                  {APP_CONTEXTS.map(context => (
-                    <option key={context.id} value={context.id} className="bg-gray-800 text-white">
-                      {context.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-cyan-400">
-                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
+              {/* Status Overlays - Compact */}
+              <div className="absolute top-4 left-4 flex flex-col gap-2">
+                {isRecording && (
+                  <div className="bg-red-500/10 border border-red-500/50 px-3 py-1.5 rounded-lg text-[10px] font-bold text-red-500 flex items-center animate-pulse">
+                    <div className="w-1.5 h-1.5 rounded-full bg-red-500 mr-2"></div>
+                    RECORDING: {recordingTime}s
+                  </div>
+                )}
+                {!isConnected && (
+                  <div className="bg-amber-500/10 border border-amber-500/50 px-3 py-1.5 rounded-lg text-[10px] font-bold text-amber-500 flex items-center">
+                    OFFLINE
+                  </div>
+                )}
+              </div>
+
+              {/* Frame Counter - Bottom Right */}
+              <div className="absolute bottom-4 right-4 bg-slate-900/80 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-800 text-[10px] text-slate-400 font-mono">
+                {recordedFrames.length} FRAMES
               </div>
             </div>
 
-            {/* Assign Action */}
-            <div>
-              <label htmlFor="action" className="block text-sm font-medium mb-2 text-cyan-200">
-                Assign Action
-              </label>
-              <div className="relative">
-                <select
-                  id="action"
-                  value={selectedAction}
-                  onChange={(e) => setSelectedAction(e.target.value)}
-                  className="w-full bg-gray-800/50 border border-cyan-500/30 rounded-lg px-4 py-3 pr-10 appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white"
-                  disabled={isProcessing || isRecording || isLoadingActions}
-                >
-                  {isLoadingActions ? (
-                    <option>Loading actions...</option>
-                  ) : availableActions.length === 0 ? (
-                    <option>No actions available for this context</option>
-                  ) : (
-                    availableActions.map(action => (
-                      <option key={action.id} value={action.id} className="bg-gray-800 text-white" title={action.description}>
-                        {action.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-cyan-400">
-                  {isLoadingActions ? (
-                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </div>
+            {/* Tracking Status Indicator */}
+            {isConnected && handDetected && (
+              <div className={`px-5 py-3 rounded-lg border flex items-center gap-3 transition-colors ${!postureHint ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-amber-500/5 border-amber-500/20 text-amber-400'
+                }`}>
+                <div className={`w-2 h-2 rounded-full ${!postureHint ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`}></div>
+                <span className="text-xs font-semibold tracking-wide uppercase">
+                  {!postureHint ? 'Hand Position Optimal' : postureHint}
+                </span>
               </div>
-              {availableActions.length === 0 && !isLoadingActions && (
-                <p className="mt-1 text-xs text-amber-400">
-                  ℹ️ All actions for <strong>{selectedContext}</strong> context have been assigned to your gestures.
-                  {!isEditMode && ' Delete an existing gesture or choose a different context.'}
-                </p>
-              )}
-              {availableActions.length > 0 && !isEditMode && (
-                <p className="mt-1 text-xs text-cyan-400/70">
-                  💡 Showing only unassigned actions to prevent duplicates
-                </p>
-              )}
-            </div>
+            )}
           </div>
 
-          {/* Validation Message - ENHANCED for better visibility */}
-          {validationMessage && (
-            <div className={`p-4 rounded-lg border-2 ${
-              validationMessage.includes('success')
-                ? 'bg-green-500/20 border-green-500/40 text-green-300'
-                : validationMessage.includes('Duplicate Gesture')
-                  ? 'bg-red-500/20 border-red-500/60 text-red-300'  // Strong red for duplicate gestures
-                  : 'bg-amber-500/20 border-amber-500/40 text-amber-300'
-            }`}>
-              <div className="flex items-start gap-3">
-                {/* Icon */}
-                {validationMessage.includes('Duplicate Gesture') ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                ) : validationMessage.includes('success') ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          {/* Right Column: Controls */}
+          <div className="flex flex-col h-full space-y-6 overflow-y-auto pr-2 custom-scrollbar">
+
+            {/* Status Panel */}
+            <div className="bg-slate-900/50 border border-slate-800 p-5 rounded-xl flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-red-500'}`}></div>
+                <span className="text-sm font-medium text-slate-300">
+                  {isConnected ? 'Connection Stable' : 'Connection Lost'}
+                </span>
+              </div>
+              {!isConnected && (
+                <button
+                  onClick={connectWebSocket}
+                  className="text-[10px] font-bold text-cyan-500 uppercase hover:text-cyan-400 transition-colors"
+                >
+                  Reconnect Handlers
+                </button>
+              )}
+            </div>
+
+            {/* Configuration Form */}
+            <div className="space-y-6 bg-slate-900/30 border border-slate-800 p-6 rounded-xl">
+              {/* Gesture Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  Gesture Identifier
+                </label>
+                <input
+                  type="text"
+                  value={gestureName}
+                  onChange={(e) => setGestureName(e.target.value)}
+                  placeholder="e.g. SWIPE_LEFT"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors text-sm font-medium"
+                  disabled={isProcessing || isRecording}
+                />
+              </div>
+
+              {/* Context Selector */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Scope / Context
+                  </label>
+                  <select
+                    value={selectedContext}
+                    onChange={(e) => setSelectedContext(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors text-sm font-medium appearance-none"
+                    disabled={isProcessing || isRecording}
+                  >
+                    {APP_CONTEXTS.map(context => (
+                      <option key={context.id} value={context.id}>{context.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Assigned Action
+                  </label>
+                  <select
+                    value={selectedAction}
+                    onChange={(e) => setSelectedAction(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors text-sm font-medium appearance-none"
+                    disabled={isProcessing || isRecording || isLoadingActions}
+                  >
+                    {isLoadingActions ? (
+                      <option>Loading...</option>
+                    ) : (
+                      availableActions.map(action => (
+                        <option key={action.id} value={action.id}>{action.name}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Validation Feedback */}
+            {validationMessage && (
+              <div className={`p-4 rounded-lg border text-sm flex items-start gap-3 ${validationMessage.includes('success')
+                ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
+                : 'bg-red-500/5 border-red-500/20 text-red-400'
+                }`}>
+                <svg className="h-5 w-5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="font-medium leading-relaxed">{validationMessage}</p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-4 pt-4 mt-auto">
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing || !isConnected || (!isRecording && (!handDetected || !handFacingCamera || !handStable))}
+                className={`py-4 rounded-xl flex items-center justify-center gap-3 font-semibold text-sm transition-all shadow-lg active:scale-95 ${isRecording
+                  ? 'bg-red-600 text-white hover:bg-red-700 hover:shadow-red-600/20'
+                  : 'bg-white text-slate-950 hover:bg-slate-100 disabled:opacity-20'
+                  }`}
+              >
+                {isRecording ? (
+                  <>
+                    <div className="w-3 h-3 bg-white rounded-sm animate-pulse"></div>
+                    Stop Capturing
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    </svg>
+                    Begin recording
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={handleSave}
+                disabled={isProcessing || isRecording || recordedFrames.length === 0 || !gestureName.trim()}
+                className="bg-cyan-500 text-slate-950 py-4 rounded-xl flex items-center justify-center gap-3 font-semibold text-sm hover:bg-cyan-400 transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-20 active:scale-95"
+              >
+                {isProcessing ? (
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                   </svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
                 )}
-
-                {/* Message */}
-                <div className="flex-1">
-                  <div className="font-semibold mb-1">
-                    {validationMessage.includes('Duplicate Gesture')
-                      ? 'Duplicate Gesture Detected'
-                      : validationMessage.includes('success')
-                        ? 'Success'
-                        : 'Validation Error'}
-                  </div>
-                  <div className="text-sm whitespace-pre-line leading-relaxed">
-                    {validationMessage}
-                  </div>
-                </div>
-
-                {/* Close button */}
-                <button
-                  onClick={() => setValidationMessage('')}
-                  className="p-1 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0"
-                  title="Dismiss"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+                {isProcessing ? 'Saving...' : 'Save Gesture'}
+              </button>
             </div>
-          )}
-
-          {/* Control Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 pt-2">
-            {/* Record/Stop Button */}
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing || !isConnected || (!isRecording && (!handDetected || !handFacingCamera || !handStable))}
-              title={
-                !isConnected ? 'Backend disconnected' :
-                !handDetected ? 'Show your hand to the camera first' :
-                !handFacingCamera ? 'Turn your palm toward the camera' :
-                !handStable ? 'Hold your hand still' : ''
-              }
-              className={`flex-1 py-3 px-6 hover:cursor-pointer rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 ${
-                isRecording
-                  ? 'bg-gradient-to-r from-red-500 to-amber-500 hover:from-red-600 hover:to-amber-600'
-                  : 'bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700'
-              } focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {isRecording ? (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-                  </svg>
-                  Stop Recording
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Start Recording
-                </>
-              )}
-            </button>
-
-            {/* Save Button */}
-            <button
-              onClick={handleSave}
-              disabled={isProcessing || isRecording || recordedFrames.length === 0 || !gestureName.trim()}
-              className="flex-1 py-3 px-6 hover:cursor-pointer bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl font-medium hover:from-purple-600 hover:to-pink-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              title={!gestureName.trim() && recordedFrames.length > 0 ? "Please enter a gesture name" : ""}
-            >
-              {isProcessing ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Gesture ({recordedFrames.length} frames)
-                </>
-              )}
-            </button>
           </div>
-
-          {/* Backend Start Instructions (shown when disconnected) */}
-          {!isConnected && (
-            <div className="mt-4 p-4 bg-cyan-500/10 border border-cyan-500/20 rounded-lg">
-              <h3 className="text-cyan-400 font-semibold mb-2">
-                🚀 Start Python MediaPipe Backend
-              </h3>
-              <ol className="text-sm text-cyan-300 space-y-1 list-decimal list-inside">
-                <li>Open terminal in project folder</li>
-                <li>Run: <code className="bg-black/30 px-2 py-1 rounded">cd backend_mediapipe</code></li>
-                <li>Run: <code className="bg-black/30 px-2 py-1 rounded">pip install -r requirements.txt</code></li>
-                <li>Run: <code className="bg-black/30 px-2 py-1 rounded">python hand_tracking_service.py</code></li>
-              </ol>
-            </div>
-          )}
         </div>
       </div>
     </div>

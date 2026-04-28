@@ -410,7 +410,7 @@ def check_hand_orientation(frames: List[Dict], min_facing_ratio: float = 0.6) ->
 
         z_component = palm_normal[2] / mag
         checked += 1
-        if z_component < -0.3:
+        if z_component < 0.4:
             passing += 1
 
     if checked == 0:
@@ -423,8 +423,8 @@ def check_hand_orientation(frames: List[Dict], min_facing_ratio: float = 0.6) ->
         return {
             'valid': False,
             'reason': (
-                f'Hand is not facing the camera ({ratio:.0%} of frames passed, '
-                f'need {min_facing_ratio:.0%}). Please face your palm toward the camera.'
+                f'Hand is not oriented correctly ({ratio:.0%} of frames passed, '
+                f'need {min_facing_ratio:.0%}). Please avoid showing the back of your hand.'
             ),
             'ratio': ratio
         }

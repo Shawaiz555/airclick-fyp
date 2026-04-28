@@ -366,10 +366,9 @@ class HandPoseDetector:
         avg_z = np.mean(orientations)
         orientation_variance = np.var(orientations)
 
-        # Good orientation: palm clearly facing camera (avg_z < -0.5 = at least 50% toward camera)
-        # and consistent across recent frames (variance < 0.05).
-        # Tighter than before to reject side-on hands (face-rubbing, mouth-touching, etc.)
-        is_facing_camera = avg_z < -0.5 and orientation_variance < 0.05
+        # Strict orientation for clicks: palm MUST clearly face camera (avg_z < -0.3)
+        # Prevents accidental clicks from side-view hands (e.g. face-rubbing)
+        is_facing_camera = avg_z < -0.3 and orientation_variance < 0.05
 
         if not is_facing_camera:
             logger.debug(f"⚠️ Hand not facing camera: avg_z={avg_z:.3f}, variance={orientation_variance:.3f}")
