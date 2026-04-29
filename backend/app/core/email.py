@@ -11,7 +11,6 @@ Uses fastapi-mail for async SMTP operations with Gmail or other providers.
 
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 from pydantic import EmailStr
-from typing import List
 import os
 import asyncio
 from dotenv import load_dotenv
@@ -24,24 +23,36 @@ load_dotenv()
 # EMAIL CONFIGURATION
 # ============================================
 
-# Configure email connection settings from environment variables
-# Supports Gmail, SendGrid, AWS SES, or any SMTP server
-conf = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("MAIL_USERNAME"),  # Your email address
-    MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),  # App password (not regular password!)
-    MAIL_FROM=os.getenv("MAIL_FROM"),  # Sender email address
-    MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),  # SMTP port (587 for TLS, 465 for SSL)
-    MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),  # SMTP server
-    MAIL_STARTTLS=True,  # Use TLS encryption
-    MAIL_SSL_TLS=False,  # Don't use SSL (we use STARTTLS instead)
-    USE_CREDENTIALS=True,  # Authenticate with username/password
-    VALIDATE_CERTS=True,  # Verify SSL certificates for security
-    TIMEOUT=30,  # Connection timeout in seconds (prevents hanging)
-    TEMPLATE_FOLDER=None  # Not using template files
-)
+def _get_fastmail() -> FastMail:
+    """Build a FastMail instance from current environment variables.
 
-# Initialize FastMail instance
-fm = FastMail(conf)
+    Called lazily so missing credentials at import time don't crash the server.
+    Raises RuntimeError with a helpful message if credentials are absent.
+    """
+    username = os.getenv("MAIL_USERNAME")
+    password = os.getenv("MAIL_PASSWORD")
+    mail_from = os.getenv("MAIL_FROM")
+
+    if not username or not password or not mail_from:
+        raise RuntimeError(
+            "Email service not configured. "
+            "Set MAIL_USERNAME, MAIL_PASSWORD, and MAIL_FROM in your .env file."
+        )
+
+    conf = ConnectionConfig(
+        MAIL_USERNAME=username,
+        MAIL_PASSWORD=password,
+        MAIL_FROM=mail_from,
+        MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),
+        MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+        MAIL_STARTTLS=True,
+        MAIL_SSL_TLS=False,
+        USE_CREDENTIALS=True,
+        VALIDATE_CERTS=True,
+        TIMEOUT=30,
+        TEMPLATE_FOLDER=None,
+    )
+    return FastMail(conf)
 
 
 # ============================================
@@ -217,7 +228,7 @@ async def send_password_reset_email(
         try:
             print(f"[ATTEMPT {attempt + 1}/{max_retries}] Sending email to {email}...")
             # Send email asynchronously
-            await fm.send_message(message)
+            await _get_fastmail().send_message(message)
             print(f"[SUCCESS] Password reset email sent successfully to {email}")
             return True
         except Exception as e:
@@ -355,7 +366,7 @@ async def send_welcome_email(
     )
 
     try:
-        await fm.send_message(message)
+        await _get_fastmail().send_message(message)
         print(f"[SUCCESS] Welcome email sent to {email}")
         return True
     except Exception as e:
@@ -448,7 +459,7 @@ async def send_oauth_account_linked_email(
     )
 
     try:
-        await fm.send_message(message)
+        await _get_fastmail().send_message(message)
         print(f"[SUCCESS] OAuth linked notification sent to {email}")
         return True
     except Exception as e:
