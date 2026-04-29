@@ -33,6 +33,8 @@ class ClickType(Enum):
     NONE = "none"
     LEFT_CLICK = "left_click"
     RIGHT_CLICK = "right_click"
+    LEFT_DRAG_START = "left_drag_start"  # Start of a drag (mouse down)
+    LEFT_DRAG_END = "left_drag_end"      # End of a drag (mouse up)
 
 
 class ClickState(Enum):
@@ -105,7 +107,13 @@ class HandPoseDetector:
 
         # Hand stability tracking (NEW - prevents clicks during motion)
         self.hand_positions_buffer = deque(maxlen=stability_frames)
+        # Hand-to-screen coordinate mapping (NEW - for dragging stability)
         self.hand_orientations_buffer = deque(maxlen=stability_frames)
+
+        # Hold-to-Drag tracking
+        self.left_pinch_duration = 0
+        self.is_left_dragging = False
+        self.drag_trigger_threshold = 15  # ~500ms at 30fps
 
         # Statistics
         self.stats = {
@@ -636,6 +644,23 @@ class HandPoseDetector:
         elif trigger_right:
             click_type = ClickType.RIGHT_CLICK
 
+        # NEW: Handle Hold-to-Drag for Left Click
+        # If the pinch is maintained in the CLICK_TRIGGERED state, increment duration
+        if self.left_click_state == ClickState.CLICK_TRIGGERED:
+            self.left_pinch_duration += 1
+            # If duration exceeds threshold, trigger drag start
+            if self.left_pinch_duration >= self.drag_trigger_threshold and not self.is_left_dragging:
+                self.is_left_dragging = True
+                click_type = ClickType.LEFT_DRAG_START
+                logger.info(f"🖱️ DRAG TRIGGERED: Left pinch held for {self.left_pinch_duration} frames")
+        else:
+            # If we were dragging and the pinch is released (state changes from CLICK_TRIGGERED)
+            if self.is_left_dragging:
+                self.is_left_dragging = False
+                click_type = ClickType.LEFT_DRAG_END
+                logger.info("🖱️ DRAG RELEASED")
+            self.left_pinch_duration = 0
+
         return {
             'click_type': click_type.value,
             'trigger_left': bool(trigger_left),  # Convert to native Python bool
@@ -677,6 +702,16 @@ class HandPoseDetector:
                 logger.info("✓ LEFT CLICK executed")
                 return True
 
+            elif click_type == ClickType.LEFT_DRAG_START.value:
+                pyautogui.mouseDown()
+                logger.info("✓ DRAG START (Left Mouse Down)")
+                return True
+
+            elif click_type == ClickType.LEFT_DRAG_END.value:
+                pyautogui.mouseUp()
+                logger.info("✓ DRAG END (Left Mouse Up)")
+                return True
+
             elif click_type == ClickType.RIGHT_CLICK.value:
                 pyautogui.rightClick()
                 logger.info("✓ RIGHT CLICK executed")
@@ -702,6 +737,10 @@ class HandPoseDetector:
         self.right_click_buffer.clear()
         self.hand_positions_buffer.clear()
         self.hand_orientations_buffer.clear()
+
+        # Reset dragging state
+        self.left_pinch_duration = 0
+        self.is_left_dragging = False
 
         self.stats = {
             'total_updates': 0,
