@@ -6,6 +6,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import toast from 'react-hot-toast';
 import ConfirmModal from '../../components/ConfirmModal';
 import { Search, Filter, Users as UsersIcon, UserCheck, UserX, Download, ChevronUp, ChevronDown } from 'lucide-react';
+import { validateEmail, validateFullName } from '../../utils/validation';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -237,6 +238,17 @@ export default function UserManagement() {
 
   const handleSaveUser = async () => {
     if (!currentUser) return;
+
+    if (!validateEmail(currentUser.email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    const nameValidation = validateFullName(currentUser.full_name);
+    if (!nameValidation.isValid) {
+      toast.error(nameValidation.message);
+      return;
+    }
 
     try {
       const token = localStorage.getItem('token');
@@ -705,8 +717,17 @@ export default function UserManagement() {
                             type="text"
                             value={currentUser.full_name}
                             onChange={(e) => setCurrentUser({ ...currentUser, full_name: e.target.value })}
-                            className="w-full border border-purple-500/30 bg-gray-700/50 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                            className={`w-full border ${
+                              !validateFullName(currentUser.full_name).isValid 
+                                ? 'border-rose-500/50 focus:ring-rose-500' 
+                                : 'border-purple-500/30 focus:ring-cyan-500'
+                            } bg-gray-700/50 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all`}
                           />
+                          {!validateFullName(currentUser.full_name).isValid && (
+                            <p className="mt-1 text-xs text-rose-400">
+                              {validateFullName(currentUser.full_name).message}
+                            </p>
+                          )}
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-2 text-cyan-200">Email</label>
@@ -714,8 +735,17 @@ export default function UserManagement() {
                             type="email"
                             value={currentUser.email}
                             onChange={(e) => setCurrentUser({ ...currentUser, email: e.target.value })}
-                            className="w-full border border-purple-500/30 bg-gray-700/50 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent transition-all"
+                            className={`w-full border ${
+                              !validateEmail(currentUser.email) 
+                                ? 'border-rose-500/50 focus:ring-rose-500' 
+                                : 'border-purple-500/30 focus:ring-cyan-500'
+                            } bg-gray-700/50 text-white rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent transition-all`}
                           />
+                          {!validateEmail(currentUser.email) && (
+                            <p className="mt-1 text-xs text-rose-400">
+                              Please enter a valid email address
+                            </p>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

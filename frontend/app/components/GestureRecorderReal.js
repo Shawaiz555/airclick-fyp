@@ -20,6 +20,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { validateGestureName } from '../utils/validation';
 
 /**
  * MediaPipe Hand Connections - defines hand skeleton structure
@@ -55,6 +56,7 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
 
   // Form state
   const [gestureName, setGestureName] = useState(editingGesture?.name || '');
+  const [isGestureNameTouched, setIsGestureNameTouched] = useState(false);
   const [selectedContext, setSelectedContext] = useState(editingGesture?.app_context || 'GLOBAL');
   const [selectedAction, setSelectedAction] = useState(editingGesture?.action || '');
   const [availableActions, setAvailableActions] = useState([]);
@@ -577,8 +579,10 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
    */
   const handleSave = async () => {
     // Validation: Check gesture name
-    if (!gestureName.trim()) {
-      setValidationMessage('Please enter a gesture name');
+    const nameValidation = validateGestureName(gestureName);
+    if (!nameValidation.isValid) {
+      setIsGestureNameTouched(true);
+      setValidationMessage(nameValidation.message);
       return;
     }
 
@@ -798,19 +802,25 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
 
             {/* Configuration Form */}
             <div className="space-y-6 bg-slate-900/30 border border-slate-800 p-6 rounded-xl">
-              {/* Gesture Name */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Gesture Identifier
-                </label>
+               <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Gesture Name</label>
                 <input
                   type="text"
                   value={gestureName}
                   onChange={(e) => setGestureName(e.target.value)}
-                  placeholder="e.g. SWIPE_LEFT"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-cyan-500/50 transition-colors text-sm font-medium"
-                  disabled={isProcessing || isRecording}
+                  onBlur={() => setIsGestureNameTouched(true)}
+                  placeholder="e.g., PowerPoint Next Slide"
+                  className={`w-full bg-slate-950/50 border ${
+                    isGestureNameTouched && !validateGestureName(gestureName).isValid
+                      ? 'border-rose-500/50 focus:ring-rose-500'
+                      : 'border-slate-800 focus:ring-cyan-500'
+                  } rounded-lg px-4 py-3 text-white placeholder-slate-600 focus:outline-none focus:ring-1 transition-all`}
                 />
+                {isGestureNameTouched && !validateGestureName(gestureName).isValid && (
+                  <p className="mt-1 text-[10px] text-rose-400">
+                    {validateGestureName(gestureName).message}
+                  </p>
+                )}
               </div>
 
               {/* Context Selector */}

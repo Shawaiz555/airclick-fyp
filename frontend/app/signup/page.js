@@ -6,11 +6,15 @@ import Link from 'next/link';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
+import { validateEmail, validateFullName, validatePassword } from '../utils/validation';
 
 export default function SignupPage() {
   const [full_name, setfull_name] = useState('');
+  const [isNameTouched, setIsNameTouched] = useState(false);
   const [email, setEmail] = useState('');
+  const [isEmailTouched, setIsEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
+  const [isPasswordTouched, setIsPasswordTouched] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -36,16 +40,25 @@ export default function SignupPage() {
 
     try {
       // Validation
-      if (!full_name ||!email || !password || !confirmPassword) {
-        throw new Error('Please fill in all fields');
+      const nameValidation = validateFullName(full_name);
+      if (!nameValidation.isValid) {
+        setIsNameTouched(true);
+        throw new Error(nameValidation.message);
+      }
+
+      if (!validateEmail(email)) {
+        setIsEmailTouched(true);
+        throw new Error('Please enter a valid email address');
+      }
+
+      const passwordValidation = validatePassword(password, true);
+      if (!passwordValidation.isValid) {
+        setIsPasswordTouched(true);
+        throw new Error(passwordValidation.message);
       }
 
       if (password !== confirmPassword) {
         throw new Error('Passwords do not match');
-      }
-
-      if (password.length < 6) {
-        throw new Error('Password must be at least 6 characters');
       }
 
       // Call real API - always register as USER
@@ -121,10 +134,20 @@ export default function SignupPage() {
                 id="full_name"
                 value={full_name}
                 onChange={(e) => setfull_name(e.target.value)}
-                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-400"
+                onBlur={() => setIsNameTouched(true)}
+                className={`w-full bg-gray-700/50 border ${
+                  isNameTouched && !validateFullName(full_name).isValid 
+                    ? 'border-rose-500/50 focus:ring-rose-500' 
+                    : 'border-purple-500/30 focus:ring-purple-500'
+                } rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent text-white placeholder-gray-400 transition-all`}
                 placeholder="John Doe"
                 required
               />
+              {isNameTouched && !validateFullName(full_name).isValid && (
+                <p className="mt-1 text-xs text-rose-400">
+                  {validateFullName(full_name).message}
+                </p>
+              )}
             </div>
 
             <div>
@@ -136,10 +159,20 @@ export default function SignupPage() {
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-400"
+                onBlur={() => setIsEmailTouched(true)}
+                className={`w-full bg-gray-700/50 border ${
+                  isEmailTouched && !validateEmail(email) 
+                    ? 'border-rose-500/50 focus:ring-rose-500' 
+                    : 'border-purple-500/30 focus:ring-purple-500'
+                } rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent text-white placeholder-gray-400 transition-all`}
                 placeholder="you@example.com"
                 required
               />
+              {isEmailTouched && !validateEmail(email) && (
+                <p className="mt-1 text-xs text-rose-400 animate-pulse">
+                  Please enter a valid email address
+                </p>
+              )}
             </div>
 
             <div>
@@ -152,7 +185,12 @@ export default function SignupPage() {
                   id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-gray-700/50 border border-purple-500/30 rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-gray-400"
+                  onBlur={() => setIsPasswordTouched(true)}
+                  className={`w-full bg-gray-700/50 border ${
+                    isPasswordTouched && !validatePassword(password, true).isValid 
+                      ? 'border-rose-500/50 focus:ring-rose-500' 
+                      : 'border-purple-500/30 focus:ring-purple-500'
+                  } rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:border-transparent text-white placeholder-gray-400 transition-all`}
                   placeholder="••••••••"
                   required
                 />
@@ -174,6 +212,11 @@ export default function SignupPage() {
                   )}
                 </button>
               </div>
+              {isPasswordTouched && !validatePassword(password, true).isValid && (
+                <p className="mt-1 text-[10px] text-rose-400">
+                  {validatePassword(password, true).message}
+                </p>
+              )}
             </div>
 
             <div>

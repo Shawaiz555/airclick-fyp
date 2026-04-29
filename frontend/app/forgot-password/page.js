@@ -11,12 +11,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { validateEmail } from '../utils/validation';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
 
   // Form state
   const [email, setEmail] = useState('');
+  const [isEmailTouched, setIsEmailTouched] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -33,7 +35,8 @@ export default function ForgotPasswordPage() {
 
     try {
       // Validate email format (client-side)
-      if (!email || !email.includes('@')) {
+      if (!validateEmail(email)) {
+        setIsEmailTouched(true);
         throw new Error('Please enter a valid email address');
       }
 
@@ -106,12 +109,22 @@ export default function ForgotPasswordPage() {
                     id="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    onBlur={() => setIsEmailTouched(true)}
                     placeholder="you@example.com"
                     required
                     disabled={loading}
                     autoFocus
-                    className="w-full bg-gray-700/50 border border-cyan-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                    className={`w-full bg-gray-700/50 border ${
+                      isEmailTouched && !validateEmail(email) 
+                        ? 'border-rose-500/50 focus:ring-rose-500' 
+                        : 'border-cyan-500/30 focus:ring-cyan-500'
+                    } rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent text-white placeholder-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
                   />
+                  {isEmailTouched && !validateEmail(email) && (
+                    <p className="mt-1 text-xs text-rose-400 animate-pulse">
+                      Please enter a valid email address
+                    </p>
+                  )}
                 </div>
 
                 {/* Submit Button */}

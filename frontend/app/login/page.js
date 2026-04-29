@@ -7,9 +7,11 @@ import Link from 'next/link';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import toast from 'react-hot-toast';
+import { validateEmail } from '../utils/validation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
+  const [isEmailTouched, setIsEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -30,6 +32,14 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsEmailTouched(true);
+    
+    // Final validation check before submitting
+    if (!validateEmail(email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
     setIsLoading(true);
     setError('');
 
@@ -104,10 +114,20 @@ export default function LoginPage() {
                 id="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-700/50 border border-cyan-500/30 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent text-white placeholder-gray-400"
+                onBlur={() => setIsEmailTouched(true)}
+                className={`w-full bg-gray-700/50 border ${
+                  isEmailTouched && !validateEmail(email) 
+                    ? 'border-rose-500/50 focus:ring-rose-500' 
+                    : 'border-cyan-500/30 focus:ring-cyan-500'
+                } rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:border-transparent text-white placeholder-gray-400 transition-all`}
                 placeholder="you@example.com"
                 required
               />
+              {isEmailTouched && !validateEmail(email) && (
+                <p className="mt-1 text-xs text-rose-400 animate-pulse">
+                  Please enter a valid email address
+                </p>
+              )}
             </div>
 
             <div>

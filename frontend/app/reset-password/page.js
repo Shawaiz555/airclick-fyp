@@ -11,6 +11,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { validatePassword } from '../utils/validation';
 
 /**
  * Reset Password Form Component
@@ -77,12 +78,7 @@ function ResetPasswordForm() {
   /**
    * Validate password requirements
    */
-  const validatePassword = (password) => {
-    if (password.length < 6) {
-      return { valid: false, message: 'Password must be at least 6 characters' };
-    }
-    return { valid: true, message: '' };
-  };
+  // Local validation helper removed in favor of global utility
 
   /**
    * Handle form submission
@@ -98,9 +94,9 @@ function ResetPasswordForm() {
         throw new Error('Passwords do not match');
       }
 
-      // Validate password strength
-      const validation = validatePassword(newPassword);
-      if (!validation.valid) {
+      // Validate password strength (strict)
+      const validation = validatePassword(newPassword, true);
+      if (!validation.isValid) {
         throw new Error(validation.message);
       }
 
@@ -320,8 +316,8 @@ function ResetPasswordForm() {
             <div className="bg-gray-700/30 rounded-xl p-4 border border-purple-500/20">
               <p className="font-semibold text-purple-300 mb-3 text-md">Password Requirements:</p>
               <ul className="space-y-2 text-sm">
-                <li className={`flex items-center gap-2 ${newPassword.length >= 6 ? 'text-green-400' : 'text-gray-400'}`}>
-                  {newPassword.length >= 6 ? (
+                <li className={`flex items-center gap-2 ${newPassword.length >= 8 ? 'text-green-400' : 'text-gray-400'}`}>
+                  {newPassword.length >= 8 ? (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
@@ -330,7 +326,19 @@ function ResetPasswordForm() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   )}
-                  At least 6 characters
+                  At least 8 characters
+                </li>
+                <li className={`flex items-center gap-2 ${/[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword) && /\d/.test(newPassword) && /[@$!%*?&]/.test(newPassword) ? 'text-green-400' : 'text-gray-400'}`}>
+                  {/[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword) && /\d/.test(newPassword) && /[@$!%*?&]/.test(newPassword) ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                  Upper, lower, number & special char
                 </li>
                 <li className={`flex items-center gap-2 ${newPassword && confirmPassword && newPassword === confirmPassword ? 'text-green-400' : 'text-gray-400'}`}>
                   {newPassword && confirmPassword && newPassword === confirmPassword ? (
@@ -350,7 +358,7 @@ function ResetPasswordForm() {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || newPassword !== confirmPassword || newPassword.length < 6}
+              disabled={loading || newPassword !== confirmPassword || !validatePassword(newPassword, true).isValid}
               className="w-full py-3 px-6 cursor-pointer bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl font-bold text-md hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
               {loading ? (
