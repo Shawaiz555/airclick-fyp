@@ -8,13 +8,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Create engine for PostgreSQL (Supabase) with improved connection handling
-# Optimized for scalability: pool_size + max_overflow allows up to 30 concurrent connections
+# Optimized for scalability: pool_size + max_overflow allows up to 12 concurrent connections
 engine = create_engine(
     settings.DATABASE_URL,
     poolclass=QueuePool,
     pool_pre_ping=True,
-    pool_size=20,                 # Increased from 1 for production-grade concurrency
-    max_overflow=10,             # Increased from 0 to allow bursts
+    pool_size=10,                 # Reduced from 20 to stay within Supabase limit (15)
+    max_overflow=2,              # Reduced from 10 to leave headroom
     pool_recycle=300,
     pool_timeout=60,
     connect_args={

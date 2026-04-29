@@ -487,54 +487,15 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
    * This disables cursor control in Electron overlay during recording
    */
   useEffect(() => {
-    const setRecordingState = async (isRecording) => {
-      // CRITICAL FIX: Check if state is already set to avoid duplicate API calls
-      const currentState = localStorage.getItem('airclick_recording');
-      if (currentState === isRecording.toString()) {
-        console.log(`ℹ️ Recording state already ${isRecording} - skipping API call`);
-        return;
-      }
+    // Modal opened
+    console.log('🎬 Gesture recording modal OPENED');
+    
+    // NOTE: Recording state notification to backend is handled by parent (page.js)
+    // using disableHybridMode() and restoreHybridMode() functions.
+    // This avoids redundant API calls and database connection spikes.
 
-      // CRITICAL FIX: Use localStorage for immediate communication
-      // Electron overlay can read localStorage and respond instantly
-      try {
-        localStorage.setItem('airclick_recording', isRecording.toString());
-        console.log(`✅ Recording state set in localStorage: ${isRecording}`);
-      } catch (error) {
-        console.warn('⚠️ Could not set localStorage:', error.message);
-      }
-
-      // CRITICAL FIX: Send authentication token with API request
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:8000/api/gestures/recording-state', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` // CRITICAL: Include auth token
-          },
-          body: JSON.stringify({ is_recording: isRecording }),
-        });
-
-        if (response.ok) {
-          console.log(`✅ Recording state set via API: ${isRecording}`);
-        } else {
-          const error = await response.text();
-          console.warn('⚠️ Failed to set recording state via API:', error);
-        }
-      } catch (error) {
-        console.warn('⚠️ Could not notify recording state via API:', error.message);
-      }
-    };
-
-    // Modal opened - disable cursor control
-    console.log('🎬 Gesture recording modal OPENED - Disabling cursor control');
-    setRecordingState(true);
-
-    // Modal closed - re-enable cursor control
     return () => {
-      console.log('✅ Gesture recording modal CLOSED - Re-enabling cursor control');
-      setRecordingState(false);
+      console.log('✅ Gesture recording modal CLOSED');
     };
   }, []); // Run once on mount and cleanup on unmount
 
@@ -720,23 +681,10 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
 
       const data = await response.json();
 
-      // CRITICAL FIX: Ensure recording state is cleared before closing
-      // This guarantees cursor re-enables even if cleanup doesn't run immediately
-      try {
-        localStorage.setItem('airclick_recording', 'false');
-        const token = localStorage.getItem('token');
-        await fetch('http://localhost:8000/api/gestures/recording-state', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ is_recording: false }),
-        });
-        console.log('✅ Recording state explicitly cleared before closing modal');
-      } catch (error) {
-        console.warn('⚠️ Could not clear recording state:', error.message);
-      }
+      // Ensure recording state is cleared locally
+      localStorage.setItem('airclick_recording', 'false');
+      console.log('✅ Recording state cleared locally');
+
 
       // Call parent callback first
       if (onSave) {
