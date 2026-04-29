@@ -488,43 +488,52 @@ async def forgot_password(
     # Find user by email
     user = db.query(User).filter(User.email == request.email).first()
 
-    # Only proceed if user exists and has password auth enabled
-    # OAuth-only users cannot reset password
-    if user and (user.password_hash or not user.oauth_provider):
-        # Generate cryptographically secure random token
-        reset_token = secrets.token_urlsafe(32)  # 32 bytes = 256 bits
-
-        # Hash token before storing (same principle as password hashing)
-        token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
-
-        # Invalidate all previous unused tokens for this user
-        db.query(PasswordResetToken).filter(
-            PasswordResetToken.user_id == user.id,
-            PasswordResetToken.used == False
-        ).update({"used": True})
-
-        # Create new reset token with 15-minute expiration
-        new_token = PasswordResetToken(
-            user_id=user.id,
-            token_hash=token_hash,
-            expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
-            used=False
+    # Return clear error if email is not registered
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This email address is not registered. Please check your email or sign up for an account."
         )
 
-        db.add(new_token)
-        db.commit()
-
-        # Send reset email in background (non-blocking)
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        background_tasks.add_task(
-            send_password_reset_email,
-            email=user.email,
-            reset_token=reset_token,  # Send plain token (only time it's exposed)
-            frontend_url=frontend_url
+    # OAuth-only users cannot reset password via email
+    if not user.password_hash and user.oauth_provider:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account uses Google sign-in. Please log in with Google instead."
         )
 
-    # SECURITY: Always return same message regardless of whether email exists
-    # This prevents attackers from discovering valid email addresses
+    # Generate cryptographically secure random token
+    reset_token = secrets.token_urlsafe(32)  # 32 bytes = 256 bits
+
+    # Hash token before storing (same principle as password hashing)
+    token_hash = hashlib.sha256(reset_token.encode()).hexdigest()
+
+    # Invalidate all previous unused tokens for this user
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used == False
+    ).update({"used": True})
+
+    # Create new reset token with 15-minute expiration
+    new_token = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=15),
+        used=False
+    )
+
+    db.add(new_token)
+    db.commit()
+
+    # Send reset email in background (non-blocking)
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    background_tasks.add_task(
+        send_password_reset_email,
+        email=user.email,
+        reset_token=reset_token,  # Send plain token (only time it's exposed)
+        frontend_url=frontend_url
+    )
+
     return ForgotPasswordResponse()
 
 
