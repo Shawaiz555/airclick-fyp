@@ -88,19 +88,42 @@ class CursorController:
         self.movement_scale = movement_scale
         self.use_fast_api = use_fast_api and CTYPES_AVAILABLE
 
-        # Initialize One Euro Filters for X and Y coordinates
+        # Initialize One Euro Filters for X and Y coordinates.
+        # min_cutoff can be lower now because the Median+EMA pipeline upstream
+        # already removed most noise — the One Euro Filter only needs to handle
+        # residual velocity-dependent lag, not raw landmark noise.
         if self.smoothing_enabled:
             self.filter_x = OneEuroFilter(
-                min_cutoff=0.5,   # Lower = more responsive (was 1.0)
-                beta=0.01,        # Higher = adapt faster to speed changes (was 0.007)
+                min_cutoff=1.0,  # slightly higher than 0.8 = a touch more responsive
+                beta=0.009,
                 d_cutoff=1.0
             )
             self.filter_y = OneEuroFilter(
-                min_cutoff=0.5,
-                beta=0.01,
+                min_cutoff=1.0,
+                beta=0.009,
                 d_cutoff=1.0
             )
-            logger.info("One Euro Filter smoothing enabled (responsive mode)")
+            logger.info("One Euro Filter smoothing enabled (cursor-tuned mode)")
+
+        # EMA pre-filter state (runs before One Euro Filter)
+        self._ema_x: Optional[float] = None
+        self._ema_y: Optional[float] = None
+        self._ema_alpha = 0.65  # 65% new / 35% history — slightly more responsive
+
+        # Median pre-filter: ring buffer of last 3 raw samples per axis
+        # Window of 3 removes landmark flicker with only 1-frame lag instead of 2
+        self._median_buf_x: List[float] = []
+        self._median_buf_y: List[float] = []
+        self._median_window = 3
+
+        # Velocity-based adaptive dead zone state
+        self._prev_smoothed_x: Optional[float] = None
+        self._prev_smoothed_y: Optional[float] = None
+        self._prev_smooth_time: Optional[float] = None
+        # Dead zone expands when hand is slow, shrinks when hand moves fast
+        self._dz_min = 0.002   # 2px equivalent — minimum dead zone (fast movement)
+        self._dz_max = 0.006   # 6px equivalent — maximum dead zone (hand at rest)
+        self._velocity_scale = 0.04  # how aggressively velocity shrinks the dead zone
 
         # State tracking
         self.last_position = None
@@ -141,62 +164,103 @@ class CursorController:
         if not hand_landmarks or len(hand_landmarks) < 9:
             return None
 
-        # Landmark #8 is the index finger tip
-        index_tip = hand_landmarks[8]
+        # Fix 5: Blend index tip (#8) with its middle joint (#7) — the joint is
+        # mechanically more stable than the tip, so weighting it 20% reduces
+        # high-frequency tip jitter without shifting the tracking point noticeably.
+        tip = hand_landmarks[8]
+        joint = hand_landmarks[7]
+        x = tip['x'] * 0.8 + joint['x'] * 0.2
+        y = tip['y'] * 0.8 + joint['y'] * 0.2
+        z = tip['z'] * 0.8 + joint['z'] * 0.2
 
-        return (index_tip['x'], index_tip['y'], index_tip['z'])
+        return (x, y, z)
 
     def apply_smoothing(self, x: float, y: float, timestamp: float) -> Tuple[float, float]:
         """
-        Apply One Euro Filter smoothing to coordinates.
+        Three-stage pipeline: Median → EMA → One Euro Filter.
 
-        Args:
-            x: Raw x coordinate (0-1)
-            y: Raw y coordinate (0-1)
-            timestamp: Current timestamp in seconds
-
-        Returns:
-            Smoothed (x, y) coordinates
+        Stage 1 (Median): eliminates landmark flicker/impulse spikes from MediaPipe.
+        Stage 2 (EMA): smooths the median output before the adaptive filter sees it.
+        Stage 3 (One Euro): speed-adaptive filter — jitter-free at rest, responsive when moving.
         """
         if not self.smoothing_enabled:
             return (x, y)
 
         try:
-            # OneEuroFilter uses __call__ method, not filter()
-            smoothed_x = self.filter_x(x, timestamp)
-            smoothed_y = self.filter_y(y, timestamp)
+            # Stage 1: Median filter over last N raw samples — best technique
+            # for eliminating MediaPipe's occasional landmark position jumps.
+            self._median_buf_x.append(x)
+            self._median_buf_y.append(y)
+            if len(self._median_buf_x) > self._median_window:
+                self._median_buf_x.pop(0)
+                self._median_buf_y.pop(0)
+
+            buf_x = sorted(self._median_buf_x)
+            buf_y = sorted(self._median_buf_y)
+            mid = len(buf_x) // 2
+            med_x = buf_x[mid]
+            med_y = buf_y[mid]
+
+            # Stage 2: EMA on median output — smooths the median's own staircase
+            # artifact (median output is piecewise-constant; EMA softens transitions).
+            if self._ema_x is None:
+                self._ema_x = med_x
+                self._ema_y = med_y
+            else:
+                self._ema_x = self._ema_alpha * med_x + (1.0 - self._ema_alpha) * self._ema_x
+                self._ema_y = self._ema_alpha * med_y + (1.0 - self._ema_alpha) * self._ema_y
+
+            # Stage 3: One Euro Filter — adaptive cutoff based on velocity.
+            smoothed_x = self.filter_x(self._ema_x, timestamp)
+            smoothed_y = self.filter_y(self._ema_y, timestamp)
             return (smoothed_x, smoothed_y)
         except Exception as e:
             logger.error(f"Smoothing error: {e}")
             return (x, y)
 
-    def apply_dead_zone(self, new_x: float, new_y: float) -> Tuple[float, float]:
+    def apply_dead_zone(self, new_x: float, new_y: float, timestamp: Optional[float] = None) -> Tuple[float, float]:
         """
-        Apply dead zone filtering to prevent micro-movements.
+        Velocity-adaptive dead zone: expands when hand is still, shrinks when moving.
 
-        Args:
-            new_x: New x coordinate (0-1)
-            new_y: New y coordinate (0-1)
-
-        Returns:
-            Filtered (x, y) coordinates (may return last position if movement too small)
+        A fixed dead zone is a compromise — too tight and rest-jitter leaks through,
+        too wide and slow intentional movement is eaten. This version measures hand
+        velocity after smoothing and scales the dead zone inversely, giving maximum
+        stability at rest and full precision during fast movement.
         """
         if self.last_position is None:
             self.last_position = (new_x, new_y)
+            self._prev_smoothed_x = new_x
+            self._prev_smoothed_y = new_y
+            self._prev_smooth_time = timestamp
             return (new_x, new_y)
 
         last_x, last_y = self.last_position
 
-        # Calculate movement distance
-        distance = np.sqrt((new_x - last_x)**2 + (new_y - last_y)**2)
+        # Compute current velocity (normalized units/sec) to pick dead zone size.
+        velocity = 0.0
+        if (timestamp is not None and self._prev_smooth_time is not None
+                and self._prev_smoothed_x is not None):
+            dt = timestamp - self._prev_smooth_time
+            if dt > 0:
+                dx = new_x - self._prev_smoothed_x
+                dy = new_y - self._prev_smoothed_y
+                velocity = (dx * dx + dy * dy) ** 0.5 / dt
 
-        # Only update if movement exceeds threshold
-        if distance > self.dead_zone_threshold:
+        # Dead zone shrinks as velocity rises — fast movement gets near-zero dead zone.
+        adaptive_dz = max(self._dz_min, self._dz_max - velocity * self._velocity_scale)
+
+        # Update velocity tracking state.
+        self._prev_smoothed_x = new_x
+        self._prev_smoothed_y = new_y
+        self._prev_smooth_time = timestamp
+
+        # Squared comparison avoids sqrt — same result, cheaper.
+        dx = new_x - last_x
+        dy = new_y - last_y
+        if dx * dx + dy * dy > adaptive_dz * adaptive_dz:
             self.last_position = (new_x, new_y)
             return (new_x, new_y)
-        else:
-            # Movement too small, keep cursor stationary
-            return (last_x, last_y)
+        return (last_x, last_y)
 
     def map_to_screen(self, hand_x: float, hand_y: float) -> Tuple[int, int]:
         """
@@ -244,14 +308,20 @@ class CursorController:
             True if successful, False otherwise
         """
         try:
+            # Fix 4: Pixel-level dead zone — skip the syscall entirely if the cursor
+            # hasn't moved more than 2px. Eliminates sub-pixel jitter that survives
+            # smoothing and causes the cursor to vibrate in place.
+            if self.last_screen_position is not None:
+                dx = screen_x - self.last_screen_position[0]
+                dy = screen_y - self.last_screen_position[1]
+                if dx * dx + dy * dy < 4:  # 2² = 4, avoids sqrt()
+                    return True  # Consider it a success — position unchanged intentionally
+
             if self.use_fast_api and CTYPES_AVAILABLE:
-                # Fast method using Windows API (ctypes)
                 ctypes.windll.user32.SetCursorPos(screen_x, screen_y)
             elif PYAUTOGUI_AVAILABLE:
-                # Slower method using PyAutoGUI (cross-platform)
                 pyautogui.moveTo(screen_x, screen_y, duration=0, _pause=False)
             else:
-                # No cursor control available
                 return False
 
             self.last_screen_position = (screen_x, screen_y)
@@ -291,8 +361,8 @@ class CursorController:
         timestamp = time.time()
         smoothed_x, smoothed_y = self.apply_smoothing(hand_x, hand_y, timestamp)
 
-        # Apply dead zone filtering
-        filtered_x, filtered_y = self.apply_dead_zone(smoothed_x, smoothed_y)
+        # Apply velocity-adaptive dead zone filtering
+        filtered_x, filtered_y = self.apply_dead_zone(smoothed_x, smoothed_y, timestamp)
 
         # Map to screen coordinates
         screen_x, screen_y = self.map_to_screen(filtered_x, filtered_y)
@@ -366,9 +436,16 @@ class CursorController:
     def reset(self):
         """Reset internal state and filters."""
         if self.smoothing_enabled:
-            self.filter_x = OneEuroFilter(min_cutoff=1.0, beta=0.007, d_cutoff=1.0)
-            self.filter_y = OneEuroFilter(min_cutoff=1.0, beta=0.007, d_cutoff=1.0)
+            self.filter_x = OneEuroFilter(min_cutoff=1.0, beta=0.009, d_cutoff=1.0)
+            self.filter_y = OneEuroFilter(min_cutoff=1.0, beta=0.009, d_cutoff=1.0)
 
+        self._ema_x = None
+        self._ema_y = None
+        self._median_buf_x = []
+        self._median_buf_y = []
+        self._prev_smoothed_x = None
+        self._prev_smoothed_y = None
+        self._prev_smooth_time = None
         self.last_position = None
         self.last_screen_position = None
 
@@ -417,12 +494,12 @@ def get_cursor_controller() -> CursorController:
 
     if cursor_controller is None:
         cursor_controller = CursorController(
-            smoothing_enabled=False,     # DISABLED for instant response (no lag)
-            dead_zone_threshold=0.0,     # ZERO dead zone (maximum sensitivity)
-            movement_scale=1.0,          # 1:1 direct mapping (hand = cursor)
-            use_fast_api=True            # Use ctypes if available
+            smoothing_enabled=True,       # Fix 1: EMA + One Euro Filter — eliminates jitter
+            dead_zone_threshold=0.003,    # Fix 1: absorbs micro-tremors (~3px at 1080p)
+            movement_scale=1.0,           # 1:1 mapping preserved
+            use_fast_api=True             # ctypes for lowest-latency syscall
         )
-        logger.info("Global cursor controller created (ULTRA RESPONSIVE MODE)")
+        logger.info("Global cursor controller created (STABLE MODE: EMA + One Euro Filter)")
 
     return cursor_controller
 

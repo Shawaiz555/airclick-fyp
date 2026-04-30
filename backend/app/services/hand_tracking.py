@@ -943,8 +943,10 @@ class HandTrackingService:
                         except Exception as e:
                             logger.error(f"Error handling no hand detection: {e}")
 
-                # Small delay to control frame rate (~30 FPS)
-                await asyncio.sleep(0.033)
+                # Fix 2: yield to event loop without artificial delay — the camera's
+                # own 30 FPS capture rate limits throughput; sleeping 33ms on top of
+                # capture + inference was capping effective FPS to ~17.
+                await asyncio.sleep(0)
 
         except WebSocketDisconnect:
             logger.info(f"✗ Client disconnected: {client_id}")

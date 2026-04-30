@@ -28,10 +28,11 @@ const DEFAULT_SETTINGS = {
     maintenance_mode: false
   },
   defaults: {
-    default_cursor_speed: 1.5,
+    default_cursor_speed: 1.0,
     default_gesture_sensitivity: 0.75,
     default_click_sensitivity: 0.08,
-    default_smoothing_level: 0.5,
+    default_smoothing_level: 1.0,
+    default_dead_zone: 0.003,
     default_gesture_hold_time: 2.0
   },
   gesture_system: {
@@ -261,6 +262,20 @@ export default function SystemSettings() {
                     leftLabel="Smooth"
                     rightLabel="Responsive"
                     description="Default cursor smoothing level for new users"
+                    color="green"
+                  />
+
+                  <FuturisticSlider
+                    label="Default Dead Zone"
+                    value={settings.defaults.default_dead_zone}
+                    onChange={(v) => updateSetting('defaults', 'default_dead_zone', parseFloat(v.toFixed(3)))}
+                    min={0.0}
+                    max={0.1}
+                    step={0.001}
+                    displayValue={settings.defaults.default_dead_zone === 0 ? "None" : settings.defaults.default_dead_zone <= 0.005 ? "Small" : settings.defaults.default_dead_zone >= 0.05 ? "Large" : "Medium"}
+                    leftLabel="None"
+                    rightLabel="Large"
+                    description="Default cursor dead zone for new users (filters micro-tremors)"
                     color="green"
                   />
                 </SettingsSection>

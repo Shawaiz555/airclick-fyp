@@ -144,9 +144,9 @@ class UserSettingsUpdateResponse(BaseModel):
 # Default settings for new users or reset
 DEFAULT_USER_SETTINGS = UserSettings(
     cursor=CursorSettings(
-        cursor_speed=1.0,  # 1:1 mapping = full camera view controls full screen
-        smoothing_level=0.5,
-        dead_zone=0.0,
+        cursor_speed=1.0,
+        smoothing_level=1.0,   # One Euro min_cutoff tuned for cursor stability
+        dead_zone=0.003,       # absorbs micro-tremors (~3px at 1080p)
         cursor_enabled=True
     ),
     click=ClickSettings(

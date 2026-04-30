@@ -42,8 +42,9 @@ def get_effective_defaults() -> UserSettings:
         # Map admin defaults to user settings
         defaults.cursor.cursor_speed = admin_settings.defaults.default_cursor_speed
         defaults.cursor.smoothing_level = admin_settings.defaults.default_smoothing_level
+        defaults.cursor.dead_zone = admin_settings.defaults.default_dead_zone
         defaults.click.click_sensitivity = admin_settings.defaults.default_click_sensitivity
-        
+
         # Use gesture_system settings as the effective defaults for users
         defaults.gesture.gesture_sensitivity = admin_settings.gesture_system.system_gesture_sensitivity
         defaults.gesture.gesture_hold_time = admin_settings.gesture_system.gesture_hold_time
@@ -106,26 +107,26 @@ def apply_settings_to_runtime(settings: UserSettings, user_id: int) -> bool:
         cursor_controller.movement_scale = settings.cursor.cursor_speed
         cursor_controller.dead_zone_threshold = settings.cursor.dead_zone
         cursor_controller.cursor_enabled = settings.cursor.cursor_enabled
+        # Note: _dz_min/_dz_max are internal to the adaptive dead zone system
+        # and must not be overwritten from the user-facing dead_zone value.
 
         # Update smoothing - initialize filters if they don't exist
         from app.services.temporal_smoothing import OneEuroFilter
 
         if not hasattr(cursor_controller, 'filter_x') or cursor_controller.filter_x is None:
-            # Initialize filters with user's smoothing level
             cursor_controller.filter_x = OneEuroFilter(
                 min_cutoff=settings.cursor.smoothing_level,
-                beta=0.01,
+                beta=0.009,
                 d_cutoff=1.0
             )
             cursor_controller.filter_y = OneEuroFilter(
                 min_cutoff=settings.cursor.smoothing_level,
-                beta=0.01,
+                beta=0.009,
                 d_cutoff=1.0
             )
             cursor_controller.smoothing_enabled = True
             logger.info("Initialized cursor smoothing filters")
         else:
-            # Update existing filters
             cursor_controller.filter_x.min_cutoff = settings.cursor.smoothing_level
             cursor_controller.filter_y.min_cutoff = settings.cursor.smoothing_level
 

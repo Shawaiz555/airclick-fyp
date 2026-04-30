@@ -20,9 +20,9 @@ import {
 // Default settings (matches backend defaults)
 const DEFAULT_SETTINGS = {
   cursor: {
-    cursor_speed: 1.5,
-    smoothing_level: 0.5,
-    dead_zone: 0.0,
+    cursor_speed: 1.0,
+    smoothing_level: 1.0,
+    dead_zone: 0.003,
     cursor_enabled: true
   },
   click: {

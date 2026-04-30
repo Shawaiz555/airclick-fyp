@@ -34,7 +34,7 @@ class DefaultUserSettings(BaseModel):
     Admins can configure system-wide defaults here.
     """
     default_cursor_speed: float = Field(
-        default=1.5,
+        default=1.0,
         ge=0.5,
         le=4.0,
         description="Default cursor speed for new users"
@@ -52,10 +52,16 @@ class DefaultUserSettings(BaseModel):
         description="Default click sensitivity for new users"
     )
     default_smoothing_level: float = Field(
-        default=0.5,
+        default=1.0,
         ge=0.1,
         le=2.0,
         description="Default cursor smoothing for new users"
+    )
+    default_dead_zone: float = Field(
+        default=0.003,
+        ge=0.0,
+        le=0.1,
+        description="Default cursor dead zone for new users"
     )
     default_gesture_hold_time: float = Field(
         default=2.0,
@@ -149,10 +155,11 @@ DEFAULT_ADMIN_SETTINGS = AdminSettings(
         default_app_context="GLOBAL"
     ),
     defaults=DefaultUserSettings(
-        default_cursor_speed=1.5,
+        default_cursor_speed=1.0,
         default_gesture_sensitivity=0.75,
         default_click_sensitivity=0.08,
-        default_smoothing_level=0.5,
+        default_smoothing_level=1.0,
+        default_dead_zone=0.003,
         default_gesture_hold_time=2.0
     ),
     gesture_system=GestureSystemSettings(
