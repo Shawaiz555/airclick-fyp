@@ -128,11 +128,11 @@ class EarlyRejectionFilter:
         if frame_ratio > frame_tol:
             return True, f"frame_count_diff={frame_ratio:.2%} (threshold={frame_tol:.2%})"
 
-        # Filter 2: Handedness mismatch
-        # NOTE: Only reject if both are specified and different
-        if (input_sig.handedness and stored_sig.handedness and
-            input_sig.handedness != stored_sig.handedness):
-            return True, f"handedness_mismatch ({input_sig.handedness} vs {stored_sig.handedness})"
+        # Filter 2: Handedness mismatch — REMOVED
+        # Preprocessing replaces frame data with normalized frames that default to "Right",
+        # so stored gestures always have handedness="Right" regardless of recording hand.
+        # Comparing against the live input handedness causes all left-hand gestures to be
+        # rejected at the indexing stage. This check is unreliable and must not be used.
 
         # Filter 3: Centroid distance (spatial position)
         centroid_dist = np.linalg.norm(

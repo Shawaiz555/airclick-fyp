@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.gesture import Gesture
-from app.services.hand_pose_fingerprint import check_hand_orientation, calculate_pose_signature
+from app.services.hand_pose_fingerprint import calculate_pose_signature
 from app.services.gesture_preprocessing import preprocess_for_recording, convert_features_to_frames
 from app.services.frame_resampler import get_frame_statistics
 from app.services.gesture_matcher import get_gesture_matcher
@@ -65,21 +65,7 @@ def process_and_validate_gesture(
         else:
             frames_dict.append(frame)
 
-    # 2. Hand Orientation Check
-    orientation_result = check_hand_orientation(frames_dict)
-    if not orientation_result['valid']:
-        logger.warning(f"⚠️ Gesture rejected - bad hand orientation: {orientation_result['reason']}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "type": "invalid_hand_orientation",
-                "message": orientation_result['reason'],
-                "ratio": round(orientation_result['ratio'] * 100, 1)
-            }
-        )
-    logger.info(f"✅ Hand orientation valid ({orientation_result['ratio']:.0%} frames facing camera)")
-
-    # 3. Apply FULL preprocessing
+    # 2. Apply FULL preprocessing
     logger.info(f"📐 Applying FULL preprocessing (v6 standard):")
     
     # Get original stats before preprocessing

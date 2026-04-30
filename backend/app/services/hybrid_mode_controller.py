@@ -173,6 +173,17 @@ class HybridModeController:
                         # This prevents gesture collection during multi-click workflows
                         self.state_machine.update_click_activity()
                         logger.debug("👆 Click detected - updated state machine click guard")
+
+                    # Detect and execute scroll (ring+thumb pinch + hand Y movement)
+                    scroll_result = self.hand_pose_detector.detect_scroll(landmarks)
+                    result['scroll'] = scroll_result
+
+                    if scroll_result['scroll_type'] != 'none' and scroll_result['scroll_amount'] > 0:
+                        self.hand_pose_detector.execute_scroll(
+                            scroll_result['scroll_type'],
+                            scroll_result['scroll_amount']
+                        )
+                        logger.debug(f"Scroll executed: {scroll_result['scroll_type']} x{scroll_result['scroll_amount']}")
                 else:
                     # Cursor disabled - user is recording a gesture
                     result['cursor_enabled'] = False

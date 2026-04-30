@@ -313,7 +313,9 @@ export default function ActionMappingsManagement() {
         await loadData();
       } else {
         const error = await response.json();
-        toast.error(error.detail || 'Failed to save action');
+        const detail = error.detail;
+        const message = typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(e => e.msg).join(', ') : 'Failed to save action';
+        toast.error(message);
       }
     } catch (error) {
       console.error('Error saving action:', error);

@@ -152,6 +152,11 @@ class HandTrackingService:
             logger.warning("Failed to read frame from camera")
             return None
 
+        # Flip horizontally so the image is a mirror of what the user sees.
+        # Without this, MediaPipe labels the user's left hand as "Right" and
+        # vice-versa, and x-coordinates are inverted (left side of screen → x≈0.8).
+        frame = cv2.flip(frame, 1)
+
         # Convert BGR (OpenCV format) to RGB (MediaPipe format)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 

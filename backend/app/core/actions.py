@@ -238,6 +238,22 @@ GLOBAL_ACTIONS = {
         "keyboard_shortcut": ["alt", "f4"],
         "icon": "✖"
     },
+
+    # Scroll Controls (triggered via ring+thumb pinch pose, not keyboard)
+    "scroll_up": {
+        "name": "Scroll Up",
+        "description": "Scroll up in the active window (ring+thumb pinch, move hand up)",
+        "category": ActionCategory.NAVIGATION,
+        "keyboard_shortcut": [],
+        "icon": "↑"
+    },
+    "scroll_down": {
+        "name": "Scroll Down",
+        "description": "Scroll down in the active window (ring+thumb pinch, move hand down)",
+        "category": ActionCategory.NAVIGATION,
+        "keyboard_shortcut": [],
+        "icon": "↓"
+    },
 }
 
 

@@ -78,8 +78,7 @@ function createOverlay() {
   overlayWindow.setAlwaysOnTop(true, 'screen-saver', 1);
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
-  // Optional: Open DevTools for debugging
-  overlayWindow.webContents.openDevTools({ mode: 'detach' });
+  // DevTools disabled in production
 
   console.log('✅ Overlay window created');
 }

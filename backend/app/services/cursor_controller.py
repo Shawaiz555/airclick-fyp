@@ -209,8 +209,9 @@ class CursorController:
         Returns:
             Screen coordinates in pixels (x, y)
         """
-        # Flip X axis (camera is mirrored)
-        hand_x = 1.0 - hand_x
+        # NOTE: No X-axis flip here. The frame is already flipped horizontally
+        # in hand_tracking.py (cv2.flip), so landmark x=0 is the left edge of
+        # the mirror image — which is the correct left edge from the user's view.
 
         # Apply movement scaling for better control
         # User moves hand 50% → cursor moves 100% (scale=2.0)

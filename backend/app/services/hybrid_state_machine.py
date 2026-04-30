@@ -200,10 +200,13 @@ class HybridStateMachine:
         palm_normal = palm_normal / magnitude
         z_component = palm_normal[2]
 
-        facing = z_component < 0.4
+        # After the horizontal frame flip in hand_tracking.py the cross product
+        # sign differs between left and right hands, so check abs(z) instead of
+        # sign.  A large |z| means palm faces camera; small |z| means edge-on.
+        facing = abs(z_component) > 0.3
 
         if not facing:
-            logger.debug(f"⚠️ Gesture blocked: palm not facing camera (z={z_component:.3f})")
+            logger.debug(f"⚠️ Gesture blocked: palm not facing camera (abs(z)={abs(z_component):.3f})")
         return facing
 
 
