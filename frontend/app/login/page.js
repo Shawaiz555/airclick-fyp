@@ -18,17 +18,29 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const router = useRouter();
 
-  // Simulate page load (remove loading spinner after component mounts)
+  // Redirect already-authenticated users without showing the login form
   useEffect(() => {
-    // Simulate initial page load
-    const timer = setTimeout(() => {
-      setIsPageLoading(false);
-    }, 500); // Adjust timing as needed
-    return () => clearTimeout(timer);
-  }, []);
+    if (!loading && user) {
+      if (user.role === 'ADMIN') {
+        router.replace('/Admin/overview');
+      } else {
+        router.replace('/User/home');
+      }
+    }
+  }, [user, loading, router]);
+
+  // Show page loading until auth state is resolved
+  useEffect(() => {
+    if (!loading) {
+      const timer = setTimeout(() => {
+        setIsPageLoading(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loading]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,8 +84,8 @@ export default function LoginPage() {
     }
   };
 
-  // Show full-page loading on initial page load
-  if (isPageLoading) {
+  // Show full-page loading while auth state is resolving or redirect is pending
+  if (loading || isPageLoading || user) {
     return <LoadingSpinner message="Loading..." size="lg" fullScreen={true} />;
   }
 
