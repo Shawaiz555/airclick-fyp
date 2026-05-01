@@ -430,6 +430,207 @@ def check_hand_orientation(frames: List[Dict], min_facing_ratio: float = 0.6) ->
         }
 
 
+def compute_palm_facing(landmarks: List[Dict]) -> str:
+    """
+    Determine if the palm is facing the camera (front), away from camera (back), or sideways.
+
+    Uses the cross product of wrist→index_MCP × wrist→pinky_MCP to get the palm normal.
+    The sign of the Z component reveals orientation:
+      - Negative Z  →  palm normal points toward camera  →  "front"
+      - Positive Z  →  palm normal points away           →  "back"
+      - Near-zero Z →  hand is sideways                  →  "side"
+
+    Args:
+        landmarks: List of 21 hand landmarks with x, y, z keys.
+
+    Returns:
+        "front", "back", "side", or "unknown".
+    """
+    if not landmarks or len(landmarks) < 18:
+        return "unknown"
+
+    wrist     = landmarks[0]
+    index_mcp = landmarks[5]
+    pinky_mcp = landmarks[17]
+
+    v1 = np.array([
+        index_mcp['x'] - wrist['x'],
+        index_mcp['y'] - wrist['y'],
+        index_mcp.get('z', 0.0) - wrist.get('z', 0.0)
+    ])
+    v2 = np.array([
+        pinky_mcp['x'] - wrist['x'],
+        pinky_mcp['y'] - wrist['y'],
+        pinky_mcp.get('z', 0.0) - wrist.get('z', 0.0)
+    ])
+
+    palm_normal = np.cross(v1, v2)
+    mag = np.linalg.norm(palm_normal)
+    if mag < 1e-6:
+        return "unknown"
+
+    z_component = palm_normal[2] / mag
+
+    if z_component < -0.3:
+        return "front"
+    elif z_component > 0.3:
+        return "back"
+    else:
+        return "side"
+
+
+def compute_thumb_side(landmarks: List[Dict]) -> str:
+    """
+    Determine whether the thumb base (CMC) is on the left or right side of the palm axis.
+
+    Projects thumb_CMC onto the axis perpendicular to wrist→middle_MCP in the
+    image plane.  This reliably distinguishes:
+      - Palm-front vs palm-back orientation
+      - Left hand vs right hand
+    without depending on absolute x/y coordinates.
+
+    Args:
+        landmarks: List of 21 hand landmarks.
+
+    Returns:
+        "left", "right", "center", or "unknown".
+    """
+    if not landmarks or len(landmarks) < 10:
+        return "unknown"
+
+    wrist      = landmarks[0]
+    middle_mcp = landmarks[9]
+    thumb_cmc  = landmarks[1]
+
+    # Palm vertical axis in 2-D image plane (wrist → middle_MCP)
+    ax = middle_mcp['x'] - wrist['x']
+    ay = middle_mcp['y'] - wrist['y']
+    palm_len = (ax * ax + ay * ay) ** 0.5
+    if palm_len < 1e-6:
+        return "unknown"
+
+    ax /= palm_len
+    ay /= palm_len
+
+    # Perpendicular axis (90° CCW rotation)
+    perp_x = -ay
+    perp_y =  ax
+
+    # Thumb CMC relative to wrist, projected onto perpendicular
+    tx = thumb_cmc['x'] - wrist['x']
+    ty = thumb_cmc['y'] - wrist['y']
+    projection = tx * perp_x + ty * perp_y
+
+    # Threshold: 15% of palm length avoids "center" noise
+    threshold = palm_len * 0.15
+
+    if projection > threshold:
+        return "right"
+    elif projection < -threshold:
+        return "left"
+    else:
+        return "center"
+
+
+def compute_representative_pose(frames: List[Dict]) -> Dict:
+    """
+    Compute a representative hand pose from the MIDDLE portion of a gesture sequence.
+
+    Uses frames from 25 %–60 % of the sequence (the active phase), avoiding the
+    very first frames (user may start with an open/transitional hand position) and
+    the last frames (hand may be relaxing).  For each finger the modal (majority-
+    vote) state across those frames is returned, so transient noise doesn't affect
+    the result.
+
+    This fixes the "starting-position" false-duplicate / false-match problem: two
+    gestures that both begin with an open palm but diverge immediately afterwards
+    will now have different representative poses.
+
+    Args:
+        frames: List of raw (un-normalised) frame dicts, each with a 'landmarks' key.
+
+    Returns:
+        Pose signature dict (same schema as calculate_pose_signature) plus
+        'palm_facing' and 'thumb_side' keys.
+    """
+    from collections import Counter
+
+    if not frames:
+        return _fingerprint_detector._get_default_signature()
+
+    n = len(frames)
+
+    # Middle window: 25 % – 60 % of the gesture
+    start_idx = max(0, int(n * 0.25))
+    end_idx   = min(n, int(n * 0.60))
+    if end_idx - start_idx < 3:
+        start_idx = max(0, n // 4)
+        end_idx   = min(n, start_idx + max(3, n // 3))
+
+    window = frames[start_idx:end_idx] or frames
+
+    thumb_votes        = []
+    index_votes        = []
+    middle_votes       = []
+    ring_votes         = []
+    pinky_votes        = []
+    palm_facing_votes  = []
+    thumb_side_votes   = []
+
+    for frame in window:
+        lms = frame.get('landmarks', [])
+        if not lms or len(lms) != 21:
+            continue
+
+        pose = _fingerprint_detector.calculate_pose_signature(lms)
+        thumb_votes.append(pose['thumb'])
+        index_votes.append(pose['index'])
+        middle_votes.append(pose['middle'])
+        ring_votes.append(pose['ring'])
+        pinky_votes.append(pose['pinky'])
+        palm_facing_votes.append(compute_palm_facing(lms))
+        thumb_side_votes.append(compute_thumb_side(lms))
+
+    if not thumb_votes:
+        # Fallback: first frame
+        lms = frames[0].get('landmarks', [])
+        result = _fingerprint_detector.calculate_pose_signature(lms)
+        result['palm_facing'] = compute_palm_facing(lms)
+        result['thumb_side']  = compute_thumb_side(lms)
+        return result
+
+    def modal(votes, default=0):
+        if not votes:
+            return default
+        return Counter(votes).most_common(1)[0][0]
+
+    thumb  = modal(thumb_votes)
+    index  = modal(index_votes)
+    middle = modal(middle_votes)
+    ring   = modal(ring_votes)
+    pinky  = modal(pinky_votes)
+    palm_facing = modal(palm_facing_votes, 'unknown')
+    thumb_side  = modal(thumb_side_votes,  'unknown')
+
+    signature     = f"{thumb},{index},{middle},{ring},{pinky}"
+    extended_count = thumb + index + middle + ring + pinky
+    gesture_hint  = HandPoseFingerprint._get_gesture_hint(thumb, index, middle, ring, pinky)
+
+    return {
+        'thumb': thumb,
+        'index': index,
+        'middle': middle,
+        'ring': ring,
+        'pinky': pinky,
+        'signature': signature,
+        'extended_count': extended_count,
+        'hand_size': HandPoseFingerprint._estimate_hand_size(window[0].get('landmarks', [])),
+        'gesture_hint': gesture_hint,
+        'palm_facing': palm_facing,
+        'thumb_side':  thumb_side,
+    }
+
+
 def estimate_hand_size(landmarks: List[Dict]) -> float:
     """
     Convenience function to estimate hand size.

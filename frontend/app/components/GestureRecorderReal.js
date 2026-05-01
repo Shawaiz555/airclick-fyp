@@ -60,8 +60,12 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   const [selectedContext, setSelectedContext] = useState(editingGesture?.app_context || 'GLOBAL');
   const [selectedAction, setSelectedAction] = useState(editingGesture?.action || '');
   const [availableActions, setAvailableActions] = useState([]);
-  const [isEditMode] = useState(!!editingGesture); // Track if we're editing
-  const [isLoadingActions, setIsLoadingActions] = useState(false);
+  const [isEditMode] = useState(!!editingGesture);
+  const [isLoadingActions, setIsLoadingActions] = useState(true);
+
+  // Preloaded actions map: context -> formatted action list
+  // Loaded ONCE on mount so context switching is instant (no network delay).
+  const allActionsMapRef = useRef({});  // { GLOBAL: [...], POWERPOINT: [...], WORD: [...] }
 
   // UI state
   const [isProcessing, setIsProcessing] = useState(false);
@@ -89,61 +93,107 @@ export default function GestureRecorderReal({ onSave, onClose, editingGesture = 
   // ==================== API FUNCTIONS ====================
 
   /**
-   * Fetch available actions for the selected context from API
-   * OPTIMIZATION: Use /available endpoint to exclude already assigned actions
+   * Preload ALL actions for every context in a single request on mount.
+   * Groups by context so switching is instant (pure JS filter, zero latency).
+   * Never re-fetches, so no re-render can overwrite the selected action
+   * mid-recording.
    */
-  const fetchActionsForContext = async (context) => {
-    setIsLoadingActions(true);
-    try {
-      const token = localStorage.getItem('token');
-
-      // Build URL with exclude_gesture_id for edit mode
-      let url = `http://localhost:8000/api/action-mappings/context/${context}/available?active_only=true`;
-      if (isEditMode && editingGesture?.id) {
-        url += `&exclude_gesture_id=${editingGesture.id}`;
-      }
-
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        const actions = await response.json();
-        // Format actions for dropdown: { id: action_id, name: "icon name" }
-        const formattedActions = actions.map(action => ({
-          id: action.action_id,
-          name: action.icon ? `${action.icon} ${action.name}` : action.name,
-          description: action.description
-        }));
-
-        setAvailableActions(formattedActions);
-
-        // If no action is selected yet and actions are available, select the first one
-        // In edit mode, keep the current action selected if available
-        if (isEditMode && editingGesture?.action) {
-          setSelectedAction(editingGesture.action);
-        } else if (!selectedAction && formattedActions.length > 0) {
-          setSelectedAction(formattedActions[0].id);
-        }
-      } else {
-        console.error('Failed to fetch actions');
-        setValidationMessage('Failed to load actions. Using offline mode.');
-        // Keep empty array to show error state
-        setAvailableActions([]);
-      }
-    } catch (error) {
-      console.error('Error fetching actions:', error);
-      setValidationMessage('Failed to connect to server. Please check backend.');
-      setAvailableActions([]);
-    } finally {
-      setIsLoadingActions(false);
-    }
-  };
-
-  // Load actions when component mounts or context changes
   useEffect(() => {
-    fetchActionsForContext(selectedContext);
-  }, [selectedContext]);
+    let cancelled = false;
+
+    const preloadAllActions = async () => {
+      setIsLoadingActions(true);
+      try {
+        const token = localStorage.getItem('token');
+
+        // Fetch available actions for all contexts concurrently
+        const contexts = ['GLOBAL', 'POWERPOINT', 'WORD'];
+        const fetchPromises = contexts.map(async (ctx) => {
+          let url = `http://localhost:8000/api/action-mappings/context/${ctx}/available?active_only=true`;
+          if (isEditMode && editingGesture?.id) {
+            url += `&exclude_gesture_id=${editingGesture.id}`;
+          }
+          const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (!response.ok) return { ctx, actions: [] };
+          const actions = await response.json();
+          return { ctx, actions };
+        });
+
+        const results = await Promise.all(fetchPromises);
+        if (cancelled) return;
+
+        // Group formatted actions by app_context
+        const grouped = {};
+        results.forEach(({ ctx, actions }) => {
+          grouped[ctx] = actions.map((a) => ({
+            id: a.action_id,
+            name: a.icon ? `${a.icon} ${a.name}` : a.name,
+            description: a.description,
+          }));
+        });
+
+        allActionsMapRef.current = grouped;
+
+        // Show actions for the initially selected context
+        const initialList = grouped[selectedContext] || [];
+        setAvailableActions(initialList);
+
+        // Auto-select first action only when nothing is selected yet
+        if (!selectedAction && initialList.length > 0) {
+          setSelectedAction(initialList[0].id);
+        }
+        // In edit mode keep the already-chosen action; only fall back if
+        // the stored action is genuinely absent from the list.
+        if (isEditMode && editingGesture?.action) {
+          const stillAvailable = initialList.some(
+            (a) => a.id === editingGesture.action
+          );
+          if (!stillAvailable && initialList.length > 0) {
+            setSelectedAction(initialList[0].id);
+          } else {
+            setSelectedAction(editingGesture.action);
+          }
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Error preloading actions:', err);
+          setValidationMessage('Failed to load actions. Check the backend.');
+        }
+      } finally {
+        if (!cancelled) setIsLoadingActions(false);
+      }
+    };
+
+    preloadAllActions();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run ONCE on mount — no per-context re-fetches
+
+  /**
+   * When the user switches context, switch the displayed action list
+   * INSTANTLY from the preloaded cache (no network call).
+   * NEVER auto-changes the action while recording is active.
+   */
+  useEffect(() => {
+    const list = allActionsMapRef.current[selectedContext] || [];
+    setAvailableActions(list);
+
+    // Only auto-select when NOT recording to avoid mid-recording disruption.
+    if (!isRecording) {
+      if (list.length > 0) {
+        // Keep existing selection if it's valid for the new context;
+        // otherwise fall back to the first available action.
+        const stillValid = list.some((a) => a.id === selectedAction);
+        if (!stillValid) setSelectedAction(list[0].id);
+      } else {
+        setSelectedAction('');
+      }
+    }
+  // selectedAction intentionally omitted to avoid a feedback loop
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedContext, isRecording]);
 
   // Sync isRecording state with ref (ensures ref always has current value)
   useEffect(() => {

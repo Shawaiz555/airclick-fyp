@@ -6,7 +6,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.gesture import Gesture
-from app.services.hand_pose_fingerprint import calculate_pose_signature
+from app.services.hand_pose_fingerprint import (
+    calculate_pose_signature,
+    compute_representative_pose,
+    compute_palm_facing,
+    compute_thumb_side,
+)
 from app.services.gesture_preprocessing import preprocess_for_recording, convert_features_to_frames
 from app.services.frame_resampler import get_frame_statistics
 from app.services.gesture_matcher import get_gesture_matcher
@@ -179,12 +184,16 @@ def process_and_validate_gesture(
             'classification': classification, 'quality': quality
         }
 
-    # 6. Pose Signature (Fingerprint)
+    # 6. Pose Signature (Fingerprint) — computed from RAW frames, middle window
+    # CRITICAL FIX: Use raw (un-normalised) frames so palm direction and thumb
+    # side are preserved.  Also use the middle portion (25-60 %) to avoid
+    # capturing the transitional "starting position" pose.
     pose_signature_data = None
     try:
-        first_frame_landmarks = preprocessed_frames[0]['landmarks']
-        pose_signature_data = calculate_pose_signature(first_frame_landmarks)
-        logger.info(f"✋ Pose: {pose_signature_data['gesture_hint']} ({pose_signature_data['signature']})")
+        pose_signature_data = compute_representative_pose(frames_dict)
+        logger.info(f"✋ Pose: {pose_signature_data['gesture_hint']} ({pose_signature_data['signature']}) "
+                    f"facing={pose_signature_data.get('palm_facing','?')} "
+                    f"thumb_side={pose_signature_data.get('thumb_side','?')}")
     except Exception as e:
         logger.warning(f"⚠️ Could not calculate pose signature: {e}")
 
@@ -195,6 +204,8 @@ def process_and_validate_gesture(
         "raw_wrist_positions": raw_wrist_positions,
         "pose_signature": pose_signature_data['signature'] if pose_signature_data else None,
         "extended_fingers": pose_signature_data['extended_count'] if pose_signature_data else None,
+        "palm_facing": pose_signature_data.get('palm_facing') if pose_signature_data else None,
+        "thumb_side": pose_signature_data.get('thumb_side') if pose_signature_data else None,
         "hand_size": pose_signature_data['hand_size'] if pose_signature_data else None,
         "gesture_hint": pose_signature_data['gesture_hint'] if pose_signature_data else None,
         "metadata": {
@@ -205,7 +216,7 @@ def process_and_validate_gesture(
             "avg_confidence": original_stats['avg_confidence'],
             "handedness": original_stats['handedness'],
             "preprocessed": True,
-            "preprocessing_version": "v6_with_pose_fingerprint"
+            "preprocessing_version": "v7_representative_pose"
         }
     }
 

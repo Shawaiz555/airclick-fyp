@@ -512,77 +512,116 @@ class GestureMatcher:
                 logger.info("Large database detected (>500), enabling strict filtering")
                 self.indexer.strict_filtering = True
 
-        # PHASE 2: Hand Pose Filtering - NEW! (IMPROVED v2)
+        # PHASE 2: Hand Pose Filtering - IMPROVED v3
         # Pre-filter candidates by hand pose signature (which fingers are extended)
-        # This prevents peace sign (2 fingers) from matching swipe (5 fingers)
-        # BUT only applies as a SOFT filter - doesn't completely reject
-        from app.services.hand_pose_fingerprint import calculate_pose_signature, calculate_pose_distance
+        # CRITICAL FIXES:
+        #   1. Use compute_representative_pose (middle 25-60% of frames) instead of first frame,
+        #      so transitional starting positions don't drive matching.
+        #   2. Hamming == 0  → strict  (exact finger match)
+        #      Hamming == 1  → moderate (was wrongly 'strict' before – this caused 2-finger
+        #                     gestures to match 3-finger ones)
+        #      Hamming >= 2  → weak
+        #   3. palm_facing (front/back) and thumb_side (left/right) are checked as hard
+        #      filters before Hamming distance, rejecting geometrically impossible matches.
+        from app.services.hand_pose_fingerprint import (
+            calculate_pose_signature, calculate_pose_distance,
+            compute_representative_pose, compute_palm_facing, compute_thumb_side,
+        )
 
         pose_filtered_candidates = []
         input_pose_signature = None
         pose_filter_applied = False
 
         try:
-            # Calculate input pose signature from first frame
             if input_frames and len(input_frames) > 0:
-                first_frame_landmarks = input_frames[0].get('landmarks', [])
-                if first_frame_landmarks:
-                    input_pose_data = calculate_pose_signature(first_frame_landmarks)
-                    input_pose_signature = input_pose_data['signature']
+                # CRITICAL FIX #1: Use representative pose from MIDDLE frames (not first frame)
+                # This avoids matching on transitional "starting position" hand shapes.
+                input_pose_data = compute_representative_pose(input_frames)
+                input_pose_signature = input_pose_data['signature']
+                input_palm_facing   = input_pose_data.get('palm_facing', 'unknown')
+                input_thumb_side    = input_pose_data.get('thumb_side',  'unknown')
 
-                    # PERFORMANCE FIX: Reduce logging verbosity - only log summary, not every candidate
-                    logger.debug(f"POSE FILTERING: Input pose {input_pose_signature} ({input_pose_data['extended_count']} fingers) - {input_pose_data['gesture_hint']}")
+                logger.debug(
+                    f"POSE FILTERING: Input pose {input_pose_signature} "
+                    f"({input_pose_data['extended_count']} fingers) "
+                    f"facing={input_palm_facing} thumb_side={input_thumb_side} "
+                    f"- {input_pose_data['gesture_hint']}"
+                )
 
-                    # Filter candidates by pose compatibility
-                    strict_matches = []  # Pose matches perfectly (hamming <= 1)
-                    moderate_matches = []  # Pose similar (hamming = 2)
-                    weak_matches = []  # Pose different but could be detection error (hamming >= 3)
+                strict_matches   = []  # Exact pose match (hamming == 0)
+                moderate_matches = []  # One finger off  (hamming == 1)
+                weak_matches     = []  # More different  (hamming >= 2)
 
-                    for candidate in candidates:
-                        stored_pose = candidate.get('landmark_data', {}).get('pose_signature')
+                for candidate in candidates:
+                    ld = candidate.get('landmark_data', {})
+                    stored_pose        = ld.get('pose_signature')
+                    stored_palm_facing = ld.get('palm_facing', 'unknown')
+                    stored_thumb_side  = ld.get('thumb_side',  'unknown')
 
-                        if not stored_pose:
-                            # Legacy gesture without pose signature - include it (backward compatible)
-                            strict_matches.append(candidate)
-                            continue
+                    if not stored_pose:
+                        # Legacy gesture without pose signature – include (backward compat)
+                        strict_matches.append(candidate)
+                        continue
 
-                        # Calculate Hamming distance (number of different fingers)
-                        hamming_dist = calculate_pose_distance(input_pose_signature, stored_pose)
+                    # --- HARD REJECT: front vs back of hand ---
+                    # Only reject when both sides are known and clearly opposite.
+                    if (input_palm_facing in ('front', 'back')
+                            and stored_palm_facing in ('front', 'back')
+                            and input_palm_facing != stored_palm_facing):
+                        logger.debug(
+                            f"  HARD REJECT (palm facing): input={input_palm_facing} "
+                            f"stored={stored_palm_facing} for '{candidate.get('name')}'"
+                        )
+                        continue  # Skip this candidate entirely
 
-                        # Categorize by pose similarity (NO LOGGING per candidate - too slow!)
-                        if hamming_dist <= 1:
-                            strict_matches.append(candidate)
-                        elif hamming_dist == 2:
-                            moderate_matches.append(candidate)
-                        else:
-                            weak_matches.append(candidate)
+                    # --- HARD REJECT: thumb side mismatch ---
+                    # Only reject when both sides are known and clearly opposite.
+                    if (input_thumb_side in ('left', 'right')
+                            and stored_thumb_side in ('left', 'right')
+                            and input_thumb_side != stored_thumb_side):
+                        logger.debug(
+                            f"  HARD REJECT (thumb side): input={input_thumb_side} "
+                            f"stored={stored_thumb_side} for '{candidate.get('name')}'"
+                        )
+                        continue  # Skip this candidate entirely
 
-                    # Smart filtering strategy:
-                    # 1. If we have strict matches, use only those (best case)
-                    # 2. If no strict matches, include moderate matches (detection errors)
-                    # 3. If still nothing, include weak matches (fallback, but trajectory penalty will filter)
-                    if strict_matches:
-                        pose_filtered_candidates = strict_matches
-                        logger.debug(f"Using {len(strict_matches)} STRONG pose matches")
-                        pose_filter_applied = True
-                    elif moderate_matches:
-                        pose_filtered_candidates = moderate_matches
-                        logger.debug(f"Using {len(moderate_matches)} MODERATE pose matches")
-                        pose_filter_applied = True
-                    elif weak_matches:
-                        pose_filtered_candidates = weak_matches
-                        logger.debug(f"Using {len(weak_matches)} WEAK pose matches")
-                        pose_filter_applied = True
+                    # --- Hamming distance on finger extension ---
+                    # CRITICAL FIX #2: hamming==0 → strict, hamming==1 → moderate (NOT strict)
+                    hamming_dist = calculate_pose_distance(input_pose_signature, stored_pose)
+
+                    if hamming_dist == 0:
+                        strict_matches.append(candidate)
+                    elif hamming_dist == 1:
+                        moderate_matches.append(candidate)
                     else:
-                        # This should never happen, but fallback to all candidates
-                        pose_filtered_candidates = candidates
-                        logger.warning(f"Pose filtering produced no matches, using all {len(candidates)} candidates")
+                        weak_matches.append(candidate)
 
-                    logger.debug(f"Pose filtering: {len(candidates)} → {len(pose_filtered_candidates)} candidates")
-                    candidates = pose_filtered_candidates
-
+                # Smart filtering strategy: prefer the most similar pose tier
+                if strict_matches:
+                    pose_filtered_candidates = strict_matches
+                    logger.debug(f"Using {len(strict_matches)} STRICT pose matches (hamming=0)")
+                    pose_filter_applied = True
+                elif moderate_matches:
+                    pose_filtered_candidates = moderate_matches
+                    logger.debug(f"Using {len(moderate_matches)} MODERATE pose matches (hamming=1)")
+                    pose_filter_applied = True
+                elif weak_matches:
+                    pose_filtered_candidates = weak_matches
+                    logger.debug(f"Using {len(weak_matches)} WEAK pose matches (hamming>=2)")
+                    pose_filter_applied = True
                 else:
-                    logger.warning("  ⚠️ No landmarks in first frame, skipping pose filtering")
+                    pose_filtered_candidates = candidates
+                    logger.warning(
+                        f"Pose filtering produced no matches, using all {len(candidates)} candidates"
+                    )
+
+                logger.debug(
+                    f"Pose filtering: {len(candidates)} → {len(pose_filtered_candidates)} candidates"
+                )
+                candidates = pose_filtered_candidates
+
+            else:
+                logger.warning("  ⚠️ No frames in input, skipping pose filtering")
 
         except Exception as e:
             logger.warning(f"⚠️ Pose filtering failed: {e}, continuing without pose filter")
