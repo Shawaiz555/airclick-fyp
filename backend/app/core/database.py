@@ -13,12 +13,13 @@ engine = create_engine(
     settings.DATABASE_URL,
     poolclass=QueuePool,
     pool_pre_ping=True,
-    pool_size=10,                 # Reduced from 20 to stay within Supabase limit (15)
-    max_overflow=2,              # Reduced from 10 to leave headroom
+    pool_size=5,                  # Further reduced to be extremely conservative
+    max_overflow=2,               # Minimal overflow
     pool_recycle=300,
-    pool_timeout=60,
+    pool_timeout=30,
     connect_args={
         "connect_timeout": 30,
+        "prepare_threshold": None,  # CRITICAL: Disables prepared statements for transaction pooler compatibility
     }
 )
 

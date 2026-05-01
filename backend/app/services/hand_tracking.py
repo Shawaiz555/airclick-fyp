@@ -61,8 +61,8 @@ class HandTrackingService:
         self.hands = self.mp_hands.Hands(
             static_image_mode=False,
             max_num_hands=1,  # FIXED: Only detect ONE hand to avoid confusion
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+            min_detection_confidence=0.8,
+            min_tracking_confidence=0.8
         )
         logger.info("✅ MediaPipe Hands loaded successfully (single-hand mode)")
 
@@ -206,6 +206,12 @@ class HandTrackingService:
                     'z': landmark.z
                 })
 
+            # CRITICAL FIX: Ignore hands with low detection confidence to prevent "ghost" hands
+            # handedness.score is the detection confidence for this hand
+            if handedness.score < 0.8:
+                logger.debug(f"⚠️ Ignoring low-confidence hand: {handedness.score:.2f}")
+                continue
+
             # Create hand data object
             hand_data = {
                 'handedness': handedness.label,
@@ -215,6 +221,9 @@ class HandTrackingService:
             }
 
             hands_data.append(hand_data)
+
+        # Re-update hand_count after filtering
+        hand_count = len(hands_data)
 
         # Return complete data package
         return {
