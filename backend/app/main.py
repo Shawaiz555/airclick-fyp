@@ -13,6 +13,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Silence per-frame chatty loggers — they log at INFO on every webcam frame
+# (30 fps × many log lines = thousands of messages/second that flood the
+# console and slow down the Electron overlay via stdout pressure).
+# Set these to WARNING so only actual problems surface.
+_QUIET_LOGGERS = [
+    'app.services.hand_pose_fingerprint',
+    'app.services.gesture_matcher',
+    'app.services.gesture_validation',
+    'app.services.gesture_preprocessing',
+    'app.services.enhanced_dtw',
+    'app.services.gesture_indexing',
+    'app.services.gesture_cache',
+    'app.services.temporal_smoothing',
+    'app.services.hybrid_state_machine',
+    'app.services.hybrid_mode_controller',
+    'app.services.cursor_controller',
+]
+for _name in _QUIET_LOGGERS:
+    logging.getLogger(_name).setLevel(logging.WARNING)
+
 # Create database tables (with error handling)
 try:
     Base.metadata.create_all(bind=engine)

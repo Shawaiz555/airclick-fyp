@@ -25,13 +25,11 @@ Version: v2_direction_aware
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 import logging
-from sqlalchemy.orm import Session
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
 # Import Phase 1 enhancements
 from app.services.gesture_preprocessing import get_gesture_preprocessor
-from app.services.temporal_smoothing import smooth_gesture_frames
 
 # Import Phase 2 enhancements
 from app.services.enhanced_dtw import get_dtw_ensemble, get_enhanced_dtw
@@ -497,7 +495,6 @@ class GestureMatcher:
 
         # Phase 3: Use indexing to filter candidates
         candidates = stored_gestures
-        indexing_stats = {}
 
         if self.enable_indexing and len(stored_gestures) > 10:
             candidates, _ = self.indexer.get_candidate_gestures(
@@ -531,6 +528,9 @@ class GestureMatcher:
         pose_filtered_candidates = []
         input_pose_signature = None
         pose_filter_applied = False
+        strict_matches   = []  # initialised here so weak-tier check below can see them
+        moderate_matches = []
+        weak_matches     = []
 
         try:
             if input_frames and len(input_frames) > 0:
@@ -606,8 +606,14 @@ class GestureMatcher:
                     logger.debug(f"Using {len(moderate_matches)} MODERATE pose matches (hamming=1)")
                     pose_filter_applied = True
                 elif weak_matches:
+                    # Weak matches (hamming>=2) are very different hand shapes.
+                    # Cap their effective similarity so they can never trigger a
+                    # match — this prevents completely different gestures from
+                    # being chosen when no good pose match exists.
+                    # We still include them so _match_sequential can score them,
+                    # but mark the tier so we apply a hard cap later.
                     pose_filtered_candidates = weak_matches
-                    logger.debug(f"Using {len(weak_matches)} WEAK pose matches (hamming>=2)")
+                    logger.debug(f"Using {len(weak_matches)} WEAK pose matches (hamming>=2) — similarity will be capped at 0.70")
                     pose_filter_applied = True
                 else:
                     pose_filtered_candidates = candidates
@@ -635,10 +641,21 @@ class GestureMatcher:
             logger.warning("⚠️ No candidates remaining after pose filtering, restoring original candidates")
             candidates = stored_gestures  # Restore all gestures as fallback
 
+        # Build a set of gesture IDs that are in the weak-match tier so the
+        # scoring methods can cap their similarity (prevents wildly different
+        # hand shapes from ever winning when better options exist).
+        weak_match_ids: set = set()
+        if pose_filter_applied and weak_matches:
+            # Only populated when weak_matches is the chosen tier
+            is_weak_tier = (
+                not strict_matches and not moderate_matches and weak_matches
+            )
+            if is_weak_tier:
+                weak_match_ids = {g.get('id') for g in weak_matches}
+
         # Find best match
         best_match = None
         best_similarity = 0.0
-        best_distance = float('inf')
 
         logger.debug(f"Input gesture: {len(input_frames)} frames → {len(input_normalized)} normalized features")
 
@@ -648,7 +665,8 @@ class GestureMatcher:
                 input_normalized,
                 candidates,
                 input_frames,
-                input_pose_signature  # Pass pose signature for penalty calculation
+                input_pose_signature,  # Pass pose signature for penalty calculation
+                weak_match_ids=weak_match_ids
             )
         else:
             # Sequential matching (original method)
@@ -656,7 +674,8 @@ class GestureMatcher:
                 input_normalized,
                 candidates,
                 input_frames,
-                input_pose_signature  # Pass pose signature for penalty calculation
+                input_pose_signature,  # Pass pose signature for penalty calculation
+                weak_match_ids=weak_match_ids
             )
 
         # Calculate total time
@@ -890,7 +909,6 @@ class GestureMatcher:
             # Classify input gesture
             input_is_stationary = norm1 < stationary_threshold
             input_is_moving = norm1 > movement_threshold
-            input_is_ambiguous = not input_is_stationary and not input_is_moving
 
             # Classify stored gesture
             stored_is_stationary = norm2 < stationary_threshold
@@ -950,17 +968,18 @@ class GestureMatcher:
             # Calculate magnitude ratio (how similar are the movement sizes)
             magnitude_ratio = min(norm1, norm2) / max(norm1, norm2)
 
-            logger.info(f"    Input direction: ({trajectory1_norm[0]:.3f}, {trajectory1_norm[1]:.3f})")
-            logger.info(f"    Stored direction: ({trajectory2_norm[0]:.3f}, {trajectory2_norm[1]:.3f})")
-            logger.info(f"    Cosine similarity: {cosine_sim:.4f}")
-            logger.info(f"    Magnitude ratio: {magnitude_ratio:.4f}")
+            logger.debug(f"    Input direction: ({trajectory1_norm[0]:.3f}, {trajectory1_norm[1]:.3f})")
+            logger.debug(f"    Stored direction: ({trajectory2_norm[0]:.3f}, {trajectory2_norm[1]:.3f})")
+            logger.debug(f"    Cosine similarity: {cosine_sim:.4f}")
+            logger.debug(f"    Magnitude ratio: {magnitude_ratio:.4f}")
 
-            # CRITICAL FIX v11: Softened direction threshold
-            # Only reject if directions are VERY different (>85° apart)
-            # This prevents false rejections while still catching obvious mismatches
-            DIRECTION_HARD_THRESHOLD = 0.0  # ~90° angle difference (perpendicular)
+            # Only reject if directions are clearly different (>75° apart).
+            # cosine(75°) ≈ 0.26 — at this angle and beyond, movements are too
+            # different to be the same gesture.  0.0 (90°) was too permissive
+            # and allowed perpendicular gestures to match each other.
+            DIRECTION_HARD_THRESHOLD = 0.25  # ~75° angle difference
 
-            # Only apply hard reject for truly opposite/perpendicular directions
+            # Only apply hard reject for truly different directions
             # AND only if both gestures are clearly moving (not stationary or ambiguous)
             if cosine_sim < DIRECTION_HARD_THRESHOLD and norm1 > movement_threshold and norm2 > movement_threshold:
                 logger.info(f"    ⛔ HARD REJECT: Opposite directions (cosine={cosine_sim:.3f} < {DIRECTION_HARD_THRESHOLD})")
@@ -996,7 +1015,8 @@ class GestureMatcher:
         input_normalized: np.ndarray,
         candidates: List[Dict],
         input_frames: List[Dict],
-        input_pose_signature: Optional[str] = None
+        input_pose_signature: Optional[str] = None,
+        weak_match_ids: Optional[set] = None
     ) -> Tuple[Optional[Dict], float]:
         """
         Sequential matching (original method).
@@ -1008,10 +1028,14 @@ class GestureMatcher:
             candidates: Candidate gestures
             input_frames: Original input frames (for caching)
             input_pose_signature: Input pose signature for penalty calculation
+            weak_match_ids: Set of gesture IDs in the weak-match tier; their
+                            similarity is capped at 0.70 to prevent false matches.
 
         Returns:
             Tuple of (best_match, best_similarity)
         """
+        if weak_match_ids is None:
+            weak_match_ids = set()
         best_match = None
         best_similarity = 0.0
 
@@ -1091,6 +1115,14 @@ class GestureMatcher:
                             pose_penalty = 0.25 * hamming_dist
                             adjusted_similarity *= (1.0 - min(pose_penalty, 0.7))
 
+                # Cap similarity for weak-tier matches (hamming>=2 hand shape).
+                # Even if DTW says they look similar, a very different hand shape
+                # should never win over the matching threshold.
+                if gesture.get('id') in weak_match_ids:
+                    if adjusted_similarity > 0.70:
+                        logger.debug(f"  Weak-tier cap: {adjusted_similarity:.1%} → 70%")
+                        adjusted_similarity = 0.70
+
                 # PERFORMANCE FIX: Only log the final result for each gesture (1 line instead of 5)
                 logger.debug(f"{idx}. '{gesture.get('name')}': {adjusted_similarity:.1%}")
 
@@ -1110,7 +1142,8 @@ class GestureMatcher:
         input_normalized: np.ndarray,
         candidates: List[Dict],
         input_frames: List[Dict],
-        input_pose_signature: Optional[str] = None
+        _input_pose_signature: Optional[str] = None,  # unused in parallel path; kept for API symmetry
+        weak_match_ids: Optional[set] = None
     ) -> Tuple[Optional[Dict], float]:
         """
         Parallel matching using ThreadPoolExecutor.
@@ -1122,10 +1155,15 @@ class GestureMatcher:
             candidates: Candidate gestures
             input_frames: Original input frames (for caching)
             input_pose_signature: Input pose signature for penalty calculation
+            weak_match_ids: Set of gesture IDs in the weak-match tier; their
+                            similarity is capped at 0.70 to prevent false matches.
 
         Returns:
             Tuple of (best_match, best_similarity)
         """
+        if weak_match_ids is None:
+            weak_match_ids = set()
+
         best_match = None
         best_similarity = 0.0
 
@@ -1170,6 +1208,11 @@ class GestureMatcher:
 
                 # Apply penalty to similarity (up to 50% reduction for movement mismatch)
                 adjusted_similarity = similarity * (1.0 - trajectory_penalty * 0.5)
+
+                # Cap similarity for weak-tier matches (hamming>=2 hand shape).
+                if gesture.get('id') in weak_match_ids:
+                    if adjusted_similarity > 0.70:
+                        adjusted_similarity = 0.70
 
                 return gesture, adjusted_similarity
 

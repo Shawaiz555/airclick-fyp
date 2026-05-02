@@ -107,13 +107,17 @@ def process_and_validate_gesture(
                 'name': g.name,
                 'action': g.action,
                 'app_context': g.app_context,
-                'landmark_data': g.landmark_data
+                'landmark_data': g.landmark_data,
+                'adaptive_threshold': g.adaptive_threshold,
+                'precomputed_features': g.precomputed_features,
             }
             existing_gestures_list.append(gesture_dict)
 
-        # Match against existing gestures
+        # Match against existing gestures using RAW frames so trajectory
+        # penalty logic has real wrist positions (preprocessed frames have
+        # wrist centred at origin which zeros the trajectory).
         match_result = matcher.match_gesture(
-            preprocessed_frames,
+            frames_dict,
             existing_gestures_list,
             user_id=user_id,
             return_best_candidate=True

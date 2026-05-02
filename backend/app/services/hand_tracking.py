@@ -252,21 +252,13 @@ class HandTrackingService:
             websocket: FastAPI WebSocket connection object
             hybrid_mode: Enable hybrid mode (cursor + clicks + gestures)
         """
-        logger.info("="*80)
-        logger.info("🎬 handle_client() CALLED")
-        logger.info(f"   hybrid_mode={hybrid_mode}")
-        logger.info("="*80)
+        logger.debug("handle_client() called, hybrid_mode=%s", hybrid_mode)
 
-        # Accept the WebSocket connection
-        logger.info("📞 About to call websocket.accept()...")
         await websocket.accept()
-        logger.info("✅ websocket.accept() completed")
 
-        # Register new client
         self.clients.add(websocket)
         client_id = id(websocket)
-        logger.info(f"✓ New client connected: {client_id} (hybrid_mode={hybrid_mode})")
-        logger.info(f"✓ Total clients: {len(self.clients)}")
+        logger.info(f"✓ Client connected: {client_id} (hybrid_mode={hybrid_mode}, total={len(self.clients)})")
 
         # Ensure camera is open (should already be pre-warmed at startup)
         if not self.cap or not self.cap.isOpened():
@@ -279,13 +271,10 @@ class HandTrackingService:
                 await websocket.close(code=1011, reason="Camera initialization failed")
                 return
 
-        # OPTIMIZATION: Send initial frame IMMEDIATELY before heavy auth check
-        # This makes the UI feel instant while auth happens in background
         try:
             initial_frame = self.process_frame()
             if initial_frame:
                 await websocket.send_text(json.dumps(initial_frame))
-                logger.info(f"⚡ Sent initial frame immediately to client {client_id}")
         except Exception as e:
             logger.warning(f"Could not send initial frame: {e}")
 
@@ -569,7 +558,7 @@ class HandTrackingService:
                                 gestures_list = get_user_gestures(user_id)
 
                             load_time = (perf_time.time() - load_start) * 1000
-                            logger.info(f"📊 Gestures loaded in {load_time:.1f}ms ({len(gestures_list)} gestures, from {'cache' if load_time < 2 else 'DB'})")
+                            logger.debug(f"Gestures loaded in {load_time:.1f}ms ({len(gestures_list)} gestures)")
 
                             if not gestures_list:
                                 logger.warning("No gestures found for matching")
@@ -582,12 +571,12 @@ class HandTrackingService:
                                 try:
                                     with open(context_path, 'r') as f:
                                         active_context = f.read().strip().upper()
-                                    logger.info(f"🎯 Active context: {active_context}")
+                                    logger.debug(f"Active context: {active_context}")
                                 except Exception as e:
                                     logger.warning(f"Failed to read context file: {e}, using ALL")
                                     active_context = "ALL"
                             else:
-                                logger.info(f"🎯 Active context: ALL (file not found)")
+                                logger.debug(f"Active context: ALL (file not found)")
 
                             # Match gesture - CRITICAL: Use return_best_candidate=True for false trigger tracking
                             matcher = get_gesture_matcher()
@@ -601,7 +590,7 @@ class HandTrackingService:
                                 return_best_candidate=True  # Get best match even if below threshold
                             )
                             match_time = (perf_time.time() - match_start) * 1000
-                            logger.info(f"📊 Gesture matching completed in {match_time:.1f}ms")
+                            logger.debug(f"Gesture matching completed in {match_time:.1f}ms")
 
                             # Result is Optional[Tuple[Dict, float]]
                             if result:
@@ -612,13 +601,7 @@ class HandTrackingService:
                                 is_true_match = similarity >= gesture_threshold
 
                                 if is_true_match:
-                                    # CRITICAL FIX: Log match result FIRST, before action execution
-                                    logger.info(f"")
-                                    logger.info(f"{'='*60}")
-                                    logger.info(f"✅ GESTURE MATCHED: {matched_gesture['name']}")
-                                    logger.info(f"   Similarity: {similarity:.1%}")
-                                    logger.info(f"   Gesture ID: {matched_gesture.get('id')}")
-                                    logger.info(f"{'='*60}")
+                                    logger.info(f"✅ GESTURE MATCHED: '{matched_gesture['name']}' ({similarity:.1%})")
 
                                     # Get action details
                                     gesture_action = matched_gesture.get('action')
@@ -628,12 +611,7 @@ class HandTrackingService:
                                     context_mismatch = False
                                     if active_context != "ALL" and gesture_app_context != active_context:
                                         context_mismatch = True
-                                        logger.warning(f"")
-                                        logger.warning(f"⚠️ CONTEXT MISMATCH DETECTED!")
-                                        logger.warning(f"   Gesture context: {gesture_app_context}")
-                                        logger.warning(f"   Active context: {active_context}")
-                                        logger.warning(f"   Action will NOT be executed")
-                                        logger.warning(f"")
+                                        logger.warning(f"⚠️ Context mismatch: gesture={gesture_app_context}, active={active_context} — action skipped")
 
                                     # PHASE 1 OPTIMIZATION: Fast database update using raw SQL
                                     # Only update stats if context matches (don't count context mismatches as successful matches)
@@ -661,10 +639,7 @@ class HandTrackingService:
 
                                     # Execute action ONLY if context matches
                                     if gesture_action and not context_mismatch:
-                                        logger.info(f"")
-                                        logger.info(f"🎬 Executing action: {gesture_action}")
-                                        logger.info(f"   App context: {gesture_app_context}")
-                                        logger.info(f"   Gesture: '{matched_gesture['name']}'")
+                                        logger.info(f"🎬 Executing action: {gesture_action} (context={gesture_app_context})")
 
                                         # Import action executor
                                         from app.services.action_executor import get_action_executor
@@ -677,15 +652,9 @@ class HandTrackingService:
                                         )
 
                                         if action_result.get("success"):
-                                            logger.info(f"✅ Action executed successfully: {gesture_action}")
-                                            logger.info(f"   Action name: {action_result.get('action_name')}")
-                                            logger.info(f"   Keyboard shortcut: {action_result.get('keyboard_shortcut')}")
-                                            if action_result.get('window_switched'):
-                                                logger.info(f"   Window switched to: {action_result.get('window_title')}")
+                                            logger.info(f"✅ Action '{action_result.get('action_name')}' executed ({action_result.get('keyboard_shortcut')})")
                                         else:
-                                            logger.error(f"❌ Action execution failed: {action_result.get('error')}")
-                                            if action_result.get('app_not_found'):
-                                                logger.error(f"   ⚠️ {gesture_app_context} application is not running!")
+                                            logger.error(f"❌ Action failed: {action_result.get('error')}")
 
                                         return {
                                             "matched": True,
@@ -728,16 +697,7 @@ class HandTrackingService:
                                             "active_context": active_context
                                         }
                                 else:
-                                    # FALSE TRIGGER: Similarity below threshold
-                                    # CRITICAL FIX: Track false triggers for analytics
-                                    logger.info(f"")
-                                    logger.info(f"{'='*60}")
-                                    logger.info(f"⚠️ FALSE TRIGGER DETECTED")
-                                    logger.info(f"   Closest gesture: {matched_gesture['name']}")
-                                    logger.info(f"   Similarity: {similarity:.1%}")
-                                    logger.info(f"   Threshold: {gesture_threshold:.1%}")
-                                    logger.info(f"   Delta: {(gesture_threshold - similarity):.1%}")
-                                    logger.info(f"{'='*60}")
+                                    logger.debug(f"False trigger: '{matched_gesture['name']}' {similarity:.1%} < {gesture_threshold:.1%}")
 
                                     # PHASE 1 OPTIMIZATION: Fast database update using raw SQL
                                     try:
@@ -818,7 +778,6 @@ class HandTrackingService:
             # FPS and latency tracking
             import time
             frame_times = []
-            last_frame_time = time.time()
 
             # Hybrid mode preference tracking
             last_hybrid_check_time = time.time()
@@ -906,7 +865,7 @@ class HandTrackingService:
                             current_state = hybrid_controller.state_machine.state
 
                             if current_state == HybridState.COLLECTING:
-                                logger.info(f"🚫 NO HAND detected while COLLECTING ({len(hybrid_controller.state_machine.collected_frames)} frames collected)")
+                                logger.debug(f"No hand while COLLECTING ({len(hybrid_controller.state_machine.collected_frames)} frames)")
                                 # Non-blocking: transition to MATCHING and kick off match in background thread
                                 frames_to_match = hybrid_controller.state_machine.start_matching_non_blocking()
                                 if frames_to_match and hybrid_controller.gesture_match_callback:
